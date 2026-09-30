@@ -395,3 +395,6 @@ details summary { cursor: pointer; font-weight: 600; color: var(--navy); margin-
   .output-grid, .settings-grid, .fact-extras { grid-template-columns: minmax(0, 1fr); }
   .indicator-row { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
+
+/* Drag-and-drop highlight on the Source card */
+.is-dragging { outline: 2px dashed var(--saffron); outline-offset: -8px; background: var(--saffron-light); }

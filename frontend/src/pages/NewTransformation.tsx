@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react'
 import { createJob, getOptions, type Health, type JobSettings, type Options } from '../api'
 import { Icon } from '../components/Icon'
 import { links, navigate } from '../router'
@@ -47,10 +47,34 @@ export function NewTransformation({ health }: { health: Health | null | undefine
     setSelected((current) => (current.includes(key) ? current.filter((k) => k !== key) : [...current, key]))
   }
 
+  // Only these file types can be read by the backend
+  const ALLOWED = ['.txt', '.pdf', '.docx']
+
   function addFiles(list: FileList | null) {
-    if (!list) return
-    setFiles((current) => [...current, ...Array.from(list)])
+    if (!list || list.length === 0) return
+    // Copy the files NOW. Safari empties the FileList as soon as the input is cleared,
+    // so reading it later (inside the state update) would add nothing.
+    const picked = Array.from(list)
     if (fileInput.current) fileInput.current.value = '' // so the same file can be picked again
+
+    const good = picked.filter((file) => ALLOWED.some((ext) => file.name.toLowerCase().endsWith(ext)))
+    const skipped = picked.length - good.length
+    if (good.length > 0) {
+      setFiles((current) => {
+        // ignore a file that is already in the list (same name and size)
+        const fresh = good.filter((f) => !current.some((c) => c.name === f.name && c.size === f.size))
+        return [...current, ...fresh]
+      })
+    }
+    setError(skipped > 0 ? `Skipped ${skipped} file(s). Only .txt, .pdf and .docx are supported.` : '')
+  }
+
+  // Drag and drop files onto the Source card
+  const [dragging, setDragging] = useState(false)
+  function onDrop(event: DragEvent) {
+    event.preventDefault()
+    setDragging(false)
+    addFiles(event.dataTransfer.files)
   }
 
   async function submit(event: FormEvent) {
@@ -106,7 +130,15 @@ export function NewTransformation({ health }: { health: Health | null | undefine
       <form className="new-grid" onSubmit={submit}>
         <div className="stack gap-20">
           {/* ---- 1. Source ---- */}
-          <section className="card card-pad stack gap-14">
+          <section
+            className={dragging ? 'card card-pad stack gap-14 is-dragging' : 'card card-pad stack gap-14'}
+            onDragOver={(e) => {
+              e.preventDefault()
+              setDragging(true)
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={onDrop}
+          >
             <h2>1. Source</h2>
             <label className="field">
               <span className="field-label">Title (optional)</span>
@@ -122,7 +154,10 @@ export function NewTransformation({ health }: { health: Health | null | undefine
               <textarea
                 className="input textarea"
                 value={text}
-                onChange={(e) => setText(e.target.value)}
+                onChange={(e) => {
+                  setText(e.target.value)
+                  if (error) setError('')
+                }}
                 placeholder="Paste a report, advisory or notice here…"
                 rows={9}
               />
@@ -134,7 +169,7 @@ export function NewTransformation({ health }: { health: Health | null | undefine
                   <Icon name="upload" size={18} strokeWidth={2} />
                   Choose files
                 </button>
-                <span className="muted small">Tip: try samples/sample-ransomware-report.txt</span>
+                <span className="muted small">or drag files here · Tip: try samples/sample-ransomware-report.txt</span>
               </div>
               <input
                 ref={fileInput}
@@ -150,6 +185,7 @@ export function NewTransformation({ health }: { health: Health | null | undefine
                     <li key={`${file.name}-${index}`}>
                       <Icon name="file" size={18} color="var(--muted)" />
                       <span className="grow">{file.name}</span>
+                      <span className="chip chip-green chip-xs">Added</span>
                       <span className="muted small">{Math.ceil(file.size / 1024)} KB</span>
                       <button
                         type="button"
