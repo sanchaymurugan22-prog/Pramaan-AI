@@ -12,6 +12,10 @@ it; see trace.py). Recommended actions (A1, A2 ...) and dates (D1, D2 ...) are f
 source the same way, by their own words. Indicators (CVEs, IP addresses, file hashes)
 are found with exact patterns, not by the model, so they can never be made up. Entity types are
 corrected with simple rules after the model answers (see fix_entity_type).
+
+Safety (Stage 6A): the model reads the source with every hidden value replaced by a placeholder
+([PHONE-1], see app/safety/masking.py), inside <<<SOURCE ... SOURCE>>> delimiters. The saved fact
+sheet shows "Hide in public outputs" values again and "Hide everywhere" values as labels.
 """
 
 import re
@@ -23,6 +27,7 @@ from app.ai.prompt_files import render_prompt
 from app.config import max_tokens_for, settings
 from app.pipeline.output_types import ENTITY_TYPES, FACTSHEET_SCHEMA
 from app.pipeline.trace import locate
+from app.safety.shield import fence
 
 MAX_FACTS_TOTAL = 15  # the merged fact sheet is sent with every output prompt, so keep it small
 SEVERITY_RANK = {"unknown": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
@@ -44,9 +49,17 @@ class Chunk:
     text: str           # with [Page N] markers
 
 
-def build_fact_sheet(sources: list[SourcePages], on_progress: Callable[[str], None] = lambda message: None) -> dict:
-    """Ask the model for facts (chunk by chunk), merge them, and check every quote."""
-    chunks = make_chunks(sources, settings.factsheet_chunk_chars)
+def build_fact_sheet(sources: list[SourcePages], on_progress: Callable[[str], None] = lambda message: None,
+                     masker=None) -> dict:
+    """Ask the model for facts (chunk by chunk), merge them, and check every quote.
+
+    masker (app/safety/masking.Masker): hides the values the operator chose to hide before the model
+    reads the source. None = nothing hidden (jobs from before Stage 6A).
+    """
+    readable = sources
+    if masker is not None:
+        readable = [SourcePages(s.source_id, s.filename, [masker.mask(page) for page in s.pages]) for s in sources]
+    chunks = make_chunks(readable, settings.factsheet_chunk_chars)
     # With several chunks, ask for fewer facts from each so the merged sheet stays small.
     max_facts = settings.factsheet_max_facts if len(chunks) == 1 else max(3, settings.factsheet_max_facts * 2 // 3)
     system = render_prompt("factsheet", max_facts=f"up to {max_facts}")
@@ -58,7 +71,7 @@ def build_fact_sheet(sources: list[SourcePages], on_progress: Callable[[str], No
         header = f"Source {chunk.source_id}: {chunk.filename}"
         messages = [
             {"role": "system", "content": system},
-            {"role": "user", "content": f"<<<SOURCE\n{header}\n{chunk.text}\nSOURCE>>>"},
+            {"role": "user", "content": fence(f"{header}\n{chunk.text}", "SOURCE")},
         ]
         reply = llm.chat_json(
             messages,
@@ -73,7 +86,12 @@ def build_fact_sheet(sources: list[SourcePages], on_progress: Callable[[str], No
 
     sheet = merge_partials([(chunk, reply.data) for chunk, reply in partials])
     sheet["indicators"] = find_indicators("\n".join(page for s in sources for page in s.pages))
-    verify_quotes(sheet, sources)
+    # Quotes are found in the real source: placeholders in them are swapped back for the search only.
+    verify_quotes(sheet, sources, unmask=masker.unmask if masker is not None else None)
+    if masker is not None:
+        indicators = masker.indicators_for(sheet["indicators"], public=False)  # without "Hide everywhere" ones
+        sheet = masker.view_json(sheet)
+        sheet["indicators"] = indicators
     sheet["parts"] = len(chunks)
     sheet["truncated"] = any(reply.truncated for _, reply in partials)
     sheet["seconds"] = round(sum(reply.seconds for _, reply in partials), 1)
@@ -202,12 +220,21 @@ def merge_partials(partials: list[tuple[Chunk, dict]]) -> dict:
 
 CVE_PATTERN = re.compile(r"\bCVE-\d{4}-(?:\d{4,7}|X{4,7})\b", re.IGNORECASE)
 # Also catches "defanged" addresses written like 203.0.113[.]45
-IP_PATTERN = re.compile(r"(?<![\d.])(?:\d{1,3}(?:\.|\[\.\])){3}\d{1,3}(?![\d.])")
+# (an address at the end of a sentence, "... from 10.1.2.3.", is still found)
+IP_PATTERN = re.compile(r"(?<![\d.])(?:\d{1,3}(?:\.|\[\.\])){3}\d{1,3}(?!\d|\.\d)")
 HASH_PATTERN = re.compile(r"\b(?:[a-fA-F0-9]{64}|[a-fA-F0-9]{40}|[a-fA-F0-9]{32})\b")
 
 
+def is_private_ip(ip: str) -> bool:
+    """True for addresses inside an organisation's own network: 10.x, 172.16-31.x, 192.168.x.
+    These are private data (see app/safety/scanner.py), never attack indicators."""
+    parts = [int(p) for p in ip.split(".")]
+    return parts[0] == 10 or (parts[0] == 172 and 16 <= parts[1] <= 31) or parts[:2] == [192, 168]
+
+
 def find_indicators(text: str) -> dict:
-    """CVE ids, IPv4 addresses and file hashes (MD5 / SHA-1 / SHA-256) found in the source."""
+    """CVE ids, public IPv4 addresses and file hashes (MD5 / SHA-1 / SHA-256) found in the source.
+    Private addresses (10.x, 192.168.x ...) are left out: they are the organisation's own data."""
 
     def unique(values):
         return list(dict.fromkeys(values))  # remove repeats, keep order
@@ -215,7 +242,7 @@ def find_indicators(text: str) -> dict:
     ips = []
     for match in IP_PATTERN.findall(text):
         ip = match.replace("[.]", ".")
-        if all(0 <= int(part) <= 255 for part in ip.split(".")):
+        if all(0 <= int(part) <= 255 for part in ip.split(".")) and not is_private_ip(ip):
             ips.append(ip)
     return {
         "cves": unique(m.upper() for m in CVE_PATTERN.findall(text)),
@@ -252,28 +279,30 @@ def fix_entity_type(name: str, entity_type: str) -> str:
 # ---- quote checking -----------------------------------------------------------------------
 
 
-def verify_quotes(sheet: dict, sources: list[SourcePages]) -> None:
+def verify_quotes(sheet: dict, sources: list[SourcePages], unmask: Callable[[str], str] | None = None) -> None:
     """Find every fact's quote in the source, and every action and date by its own words.
 
     Sets on each item: quote_found (exact / close / no), source_id, page, start, end (the characters
     to highlight on that page). Actions and dates get a "quote" too: the source text that was found.
     Safe to run again (older fact sheets are brought up to date this way).
+    unmask: turns placeholders like [PHONE-1] back into the real value, so the quote can be found.
     """
     pages = [(s.source_id, number, text) for s in sources for number, text in enumerate(s.pages, start=1)]
+    real = unmask or (lambda text: text)
 
     for fact in sheet.get("key_facts", []):
-        found = locate(fact.get("quote", ""), pages, prefer=(fact.get("source_id"), fact.get("page")))
+        found = locate(real(fact.get("quote", "")), pages, prefer=(fact.get("source_id"), fact.get("page")))
         _set_trace(fact, found)
 
     for number, action in enumerate(sheet.get("recommended_actions", []), start=1):
         action.setdefault("id", f"A{number}")
-        _set_trace(action, locate(action.get("text", ""), pages), pages)
+        _set_trace(action, locate(real(action.get("text", "")), pages), pages)
 
     for number, item in enumerate(sheet.get("dates", []), start=1):
         item.setdefault("id", f"D{number}")
-        found = locate(f"{item.get('date', '')} {item.get('event', '')}", pages)
+        found = locate(real(f"{item.get('date', '')} {item.get('event', '')}"), pages)
         if found.found == "no":  # the event was reworded: at least show where the date is
-            found = locate(item.get("date", ""), pages)
+            found = locate(real(item.get("date", "")), pages)
             if found.found == "exact":
                 found.found = "close"
         _set_trace(item, found, pages)

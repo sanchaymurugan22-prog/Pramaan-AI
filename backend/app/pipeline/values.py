@@ -1,4 +1,5 @@
-"""Finds the "hard values" in a piece of text: numbers, dates, CVE ids, IP addresses and file hashes.
+"""Finds the "hard values" in a piece of text: numbers, dates, CVE ids, IP addresses, file hashes,
+and (Stage 6A) links, email addresses and phone numbers.
 
 These are the things an AI most often gets subtly wrong (43 instead of 42, 23 September instead of
 22), so they are checked by exact rules, never by the AI:
@@ -8,6 +9,10 @@ These are the things an AI most often gets subtly wrong (43 instead of 42, 23 Se
 
 Each number also remembers the word after it (its "unit"), so "42 hospitals" and "42 hours" are
 different things, and "1.2 million records" matches "1,200,000 records".
+
+Links, emails and phone numbers must be in the SOURCE itself (not only the fact sheet): a link or
+number that an injected instruction slipped into an output is flagged (prompt-injection shield).
+Placeholders like [PHONE-1] are skipped.
 """
 
 import re
@@ -15,6 +20,12 @@ from dataclasses import dataclass, field
 
 from app.pipeline.factsheet import CVE_PATTERN, HASH_PATTERN, IP_PATTERN
 from app.pipeline.trace import MONTHS, STOPWORDS, stem
+from app.safety.scanner import EMAIL, PHONE
+
+URL = re.compile(r"(?i)\b(?:https?://|www\.)[^\s<>\"'()\[\]]+")
+PHONE_INTERNATIONAL = re.compile(r"(?<![\w+])\+\d{1,3}[ -]?\d(?:[ -]?\d){6,12}(?!\w)")
+PLACEHOLDER = re.compile(r"\[[A-Z]+(?:-[A-Z]+)*-\d+\]")
+CONTACT_KINDS = ("url", "email", "phone")
 
 NUMBER_WORDS = {
     "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
@@ -42,7 +53,7 @@ NUMBER_WORD = re.compile(r"\b(" + "|".join(NUMBER_WORDS) + r")\b", re.IGNORECASE
 
 @dataclass
 class Value:
-    kind: str                # number | date | cve | ip | hash
+    kind: str                # number | date | cve | ip | hash | url | email | phone
     text: str                # as written, e.g. "1.2 million", "22 September 2026"
     start: int
     end: int
@@ -53,14 +64,15 @@ class Value:
 
     @property
     def label(self) -> str:
-        return {"number": "Number", "date": "Date", "cve": "CVE id", "ip": "IP address", "hash": "File hash"}[self.kind]
+        return {"number": "Number", "date": "Date", "cve": "CVE id", "ip": "IP address", "hash": "File hash",
+                "url": "Link", "email": "Email address", "phone": "Phone number"}[self.kind]
 
 
 def find_values(text: str) -> list[Value]:
     """All hard values in `text`, in the order they appear. Codes first, so the digits inside a CVE
     id, IP address, hash or date are not also counted as numbers."""
     found: list[Value] = []
-    taken: list[tuple[int, int]] = []
+    taken: list[tuple[int, int]] = [(m.start(), m.end()) for m in PLACEHOLDER.finditer(text)]
 
     def free(start: int, end: int) -> bool:
         return all(end <= a or start >= b for a, b in taken)
@@ -69,7 +81,20 @@ def find_values(text: str) -> list[Value]:
         found.append(value)
         taken.append((value.start, value.end))
 
+    for m in URL.finditer(text):
+        link = m.group().rstrip(".,;:!?")
+        add(Value("url", link, m.start(), m.start() + len(link), {_link_key(link)}))
+    for m in EMAIL.finditer(text):
+        if free(m.start(), m.end()):
+            add(Value("email", m.group(), m.start(), m.end(), {m.group().lower()}))
+    for pattern in (PHONE, PHONE_INTERNATIONAL):
+        for m in pattern.finditer(text):
+            if free(m.start(), m.end()):
+                add(Value("phone", m.group(), m.start(), m.end(), {re.sub(r"\D", "", m.group())[-10:]}))
+
     for m in CVE_PATTERN.finditer(text):
+        if not free(m.start(), m.end()):
+            continue
         add(Value("cve", m.group(), m.start(), m.end(), {m.group().upper()}))
     for m in IP_PATTERN.finditer(text):
         if free(m.start(), m.end()):
@@ -97,6 +122,11 @@ def find_values(text: str) -> list[Value]:
             add(value)
 
     return sorted(found, key=lambda v: v.start)
+
+
+def _link_key(link: str) -> str:
+    """https://www.Example.org/page/ -> example.org/page"""
+    return re.sub(r"^(?:https?://)?(?:www\.)?", "", link.lower()).rstrip("/")
 
 
 def _date_parts(pattern_number: int, groups: tuple) -> tuple[int, int, str]:
@@ -143,15 +173,25 @@ def _clean(amount: float) -> str:
 
 
 class KnownValues:
-    """Every value found in the fact sheet and the source text, for "is this in the source?"."""
+    """Every value found in the fact sheet and the source text, for "is this in the source?".
 
-    def __init__(self, texts: list[str]):
-        self.keys: dict[str, set[str]] = {"number": set(), "date": set(), "cve": set(), "ip": set(), "hash": set()}
+    source_texts: when given, links, emails and phone numbers count as known only if they are in these
+    texts (the source), not in the fact sheet the model wrote."""
+
+    def __init__(self, texts: list[str], source_texts: list[str] | None = None):
+        self.keys: dict[str, set[str]] = {kind: set() for kind in
+                                          ("number", "date", "cve", "ip", "hash", "url", "email", "phone")}
         for text in texts:
             for value in find_values(text):
+                if source_texts is not None and value.kind in CONTACT_KINDS:
+                    continue
                 self.keys[value.kind] |= value.keys
                 if value.year:
                     self.keys["number"].add(value.year)
+        for text in source_texts or []:
+            for value in find_values(text):
+                if value.kind in CONTACT_KINDS:
+                    self.keys[value.kind] |= value.keys
 
     def missing(self, value: Value) -> bool:
         """True if this value does not appear anywhere in the fact sheet or the source."""

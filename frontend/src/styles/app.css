@@ -577,3 +577,138 @@ details summary { cursor: pointer; font-weight: 600; color: var(--navy); margin-
   }
   .tip-box { width: 240px; }
 }
+
+/* ---------- Stage 6A: safety check ---------- */
+.gap-16 { gap: 16px; }
+.align-start { align-items: flex-start; }
+
+/* Steps of a new transformation */
+.stepper { display: flex; align-items: center; gap: 12px; padding: 18px 24px; }
+.step { display: flex; align-items: center; gap: 10px; }
+.step-dot {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600;
+  background: var(--card); border: 1.5px solid var(--line-2); color: var(--muted);
+}
+.step-done .step-dot { background: var(--green); border-color: var(--green); color: #fff; }
+.step-current .step-dot { background: var(--saffron); border-color: var(--saffron); color: #fff; font-weight: 700; box-shadow: 0 0 0 5px var(--saffron-mid); }
+.step-label { font-size: 15px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.step-done .step-label { color: var(--ink); }
+.step-current .step-label { color: var(--ink); font-weight: 700; }
+.step-line { flex-grow: 1; height: 2px; min-width: 24px; background: var(--line-2); }
+.step-line.is-done { background: var(--green); }
+
+.safety-grid { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+
+/* "We found 3 kinds of sensitive information" */
+.safety-banner {
+  display: flex; align-items: center; gap: 18px; padding: 20px 24px; border-radius: var(--radius-card);
+  background: var(--saffron-light); border: 1px solid var(--saffron-mid);
+}
+.safety-banner.is-clean { background: var(--green-light); border-color: var(--green-mid); }
+.banner-icon {
+  width: 52px; height: 52px; border-radius: 14px; background: #fff; color: var(--saffron-dark); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.is-clean .banner-icon { color: var(--green-dark); }
+.banner-title { font-family: var(--font-heading); font-size: 20px; font-weight: 600; }
+.banner-text { font-size: 15px; color: var(--hero-text); }
+.banner-tlp { align-items: flex-end; color: var(--hero-text); }
+
+/* TLP label: coloured letters on black */
+.tlp {
+  display: inline-flex; padding: 3px 9px; border-radius: 6px; background: #111; white-space: nowrap;
+  font-family: var(--font-mono); font-size: 12.5px; font-weight: 500; line-height: 1.4;
+}
+.tlp-red { color: #FF2B2B; } .tlp-amber { color: #FFC000; } .tlp-green { color: #33FF00; } .tlp-clear { color: #fff; }
+
+/* The findings table */
+.find-table { display: flex; flex-direction: column; }
+.find-row {
+  display: grid; grid-template-columns: minmax(0, 2fr) 56px 110px 220px; gap: 12px; align-items: center;
+  padding: 11px 16px; border-bottom: 1px solid var(--line); font-size: 14px;
+}
+.find-row:last-child { border-bottom: none; }
+.find-row.is-focus { background: var(--navy-light); border-radius: 12px; }
+.find-head {
+  padding: 12px 16px; background: var(--table-head); border-radius: 12px; border-bottom: none;
+  font-size: 12.5px; font-weight: 600; color: var(--muted); letter-spacing: 0.4px; text-transform: uppercase;
+}
+.find-item {
+  display: flex; align-items: center; gap: 10px; min-width: 0; padding: 0; border: 0; background: none;
+  font-family: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.find-row.is-empty .find-item { cursor: default; }
+.find-text { min-width: 0; }
+.find-label { font-size: 15px; font-weight: 600; }
+.find-value { font-size: 12.5px; color: var(--ink-2); overflow-wrap: anywhere; }
+.find-note { font-size: 12.5px; color: var(--muted); }
+.find-icon {
+  width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+}
+.find-icon.big { width: 46px; height: 46px; border-radius: 12px; }
+.risk-high   { background: var(--red-light);     color: var(--red-dark); }
+.risk-medium { background: var(--saffron-light); color: var(--saffron-dark); }
+.risk-low    { background: var(--yellow-light);  color: var(--yellow-dark); }
+.find-icon.tone-green { background: var(--green-light); color: var(--green-dark); }
+.find-icon.tone-navy  { background: var(--navy-light);  color: var(--navy); }
+.select-sm { min-height: 40px; padding: 0 10px; font-size: 14px; border-radius: 10px; }
+
+.preview-box { padding: 14px 16px; border-radius: 12px; background: var(--table-head); font-size: 14.5px; color: var(--muted); line-height: 1.5; }
+.redaction { font-family: var(--font-mono); background: var(--ink); color: #fff; padding: 0 6px; border-radius: 4px; margin: 0 2px; }
+
+/* Suspicious instructions */
+.suspicious-card { border-color: var(--red-border); }
+.suspicious-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.suspicious-item {
+  width: 100%; display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid transparent; background: var(--red-light); color: var(--ink); text-align: left;
+  font-family: inherit; font-size: 14.5px; cursor: pointer;
+}
+.suspicious-item:disabled { cursor: default; }
+.suspicious-item.is-focus { border-color: var(--red-dark); }
+.suspicious-text { font-family: var(--font-mono); font-size: 13px; color: var(--red-dark); overflow-wrap: anywhere; }
+
+/* The source with highlights */
+.scan-page + .scan-page { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--line-2); }
+.scan-page-label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+.scan-mark { border-radius: 3px; padding: 1px 2px; color: var(--ink); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.mark-high { background: #F7C9C2; }
+.mark-medium { background: var(--saffron-mid); }
+.mark-low { background: var(--yellow); }
+.mark-indicator { background: var(--navy-mid); }
+.mark-injection { background: var(--red-light); color: var(--red-dark); text-decoration: underline wavy var(--red); text-underline-offset: 3px; }
+.scan-mark.is-kept { background: transparent; box-shadow: inset 0 -2px 0 var(--line-2); }
+.scan-mark.is-focus { outline: 2px solid var(--navy); outline-offset: 1px; }
+.legend .scan-mark { font-size: 12.5px; }
+
+/* Sharing level (TLP) choices */
+.tlp-option {
+  display: flex; gap: 12px; align-items: flex-start; padding: 14px; border-radius: 14px; width: 100%;
+  border: 2px solid var(--line); background: var(--card); text-align: left; font-family: inherit; cursor: pointer;
+}
+.tlp-option.is-on { border-color: var(--navy); background: var(--navy-light); }
+.radio { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line-2); box-sizing: border-box; flex-shrink: 0; }
+.tlp-option.is-on .radio { border: 6px solid var(--navy); }
+.tlp-title { font-size: 15px; font-weight: 600; color: var(--ink); }
+.tlp-desc { font-size: 13.5px; color: var(--muted); line-height: 1.4; }
+.tlp-option:focus-visible, .find-item:focus-visible, .suspicious-item:focus-visible { outline: 3px solid var(--navy-mid); outline-offset: 2px; }
+
+/* Outputs switched off by the label */
+.output-option.is-off { cursor: not-allowed; opacity: 0.6; background: var(--table-head); }
+
+/* Safety section on the Results page */
+.decision-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; line-height: 1.45; }
+
+@media (max-width: 1200px) {
+  .safety-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
+  .stepper { flex-wrap: wrap; }
+  .step-line { display: none; }
+  .find-row { grid-template-columns: minmax(0, 1fr) 40px; }
+  .find-row > :nth-child(3) { display: none; }
+  .find-row > :nth-child(4) { grid-column: 1 / -1; }
+  .find-head > :nth-child(4) { display: none; }
+  .safety-banner { flex-wrap: wrap; }
+}

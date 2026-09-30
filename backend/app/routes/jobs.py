@@ -1,6 +1,12 @@
 """Job routes: create a transformation job, list jobs, and read one job's progress and results.
 
-POST /api/jobs            create a job (pasted text and/or files + outputs + settings); starts it in the background
+A new transformation has 3 steps (Stage 6A):
+POST /api/jobs            1. add sources: read them and run the safety scan; the job is saved as a "draft"
+PUT  /api/jobs/{id}/safety  2. safety check: choices for each finding + the TLP label (routes/safety.py)
+POST /api/jobs/{id}/start 3. outputs and settings: create the outputs and start the AI in the background
+    (POST /api/jobs with `outputs` does all three at once, with the suggested label and default choices:
+    handy for scripts and tests)
+
 GET  /api/jobs            list jobs, newest first
 GET  /api/jobs/{id}       status, fact sheet, each output as it finishes, checks and scores (the page polls this)
 POST /api/jobs/{id}/retry run a failed job again; finished parts are kept
@@ -13,7 +19,10 @@ Edit, regenerate, versions and file downloads (Word, PDF, slides, ...) are in ou
 from datetime import datetime, timezone
 from typing import Annotated
 
+import copy
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -24,6 +33,9 @@ from app.pipeline.checks import recheck_job
 from app.pipeline.output_types import DEFAULT_SETTINGS, OUTPUT_ORDER, OUTPUT_TYPES, SETTING_OPTIONS
 from app.pipeline.segments import segments
 from app.pipeline.versions import ORIGIN_LABELS, current_version
+from app.safety.decisions import AUTOMATIC, decision_json, record
+from app.safety.scanner import ScanSource, scan_sources
+from app.safety.tlp import switched_off
 
 router = APIRouter(prefix="/api", tags=["jobs"])
 
@@ -42,7 +54,7 @@ def options():
 
 @router.post("/jobs", status_code=201)
 async def create_job(
-    outputs: Annotated[list[str], Form()],
+    outputs: Annotated[list[str] | None, Form()] = None,
     title: Annotated[str, Form()] = "",
     text: Annotated[str, Form()] = "",
     files: Annotated[list[UploadFile] | None, File()] = None,
@@ -53,23 +65,13 @@ async def create_job(
     detail_level: Annotated[str, Form()] = DEFAULT_SETTINGS["detail_level"],
     db: Session = Depends(get_session),
 ):
+    """Step 1: read the sources and scan them (no AI). Without `outputs` the job waits as a "draft" for
+    the Safety check. With `outputs` it starts at once, using the suggested TLP label."""
     # --- check the form ---
-    # A browser may send the outputs as one comma-separated value; accept both forms.
-    selected = [o.strip() for value in outputs for o in value.split(",") if o.strip()]
-    unknown = [o for o in selected if o not in OUTPUT_TYPES]
-    if unknown:
-        raise HTTPException(400, f"Unknown output type(s): {', '.join(unknown)}")
-    if not selected:
-        raise HTTPException(400, "Choose at least one output.")
-    if detail_level not in SETTING_OPTIONS["detail_level"]:
-        raise HTTPException(400, "Level of detail must be short, medium or detailed.")
-    job_settings = {
-        "audience": audience.strip()[:100],
-        "tone": tone.strip()[:100],
-        "objective": objective.strip()[:100],
-        "style": style.strip()[:100],
-        "detail_level": detail_level,
-    }
+    selected = _selected_outputs(outputs or [], required=False)
+    job_settings = _clean_settings(
+        {"audience": audience, "tone": tone, "objective": objective, "style": style, "detail_level": detail_level}
+    )
 
     # --- read the sources (fast: no AI yet) ---
     extracted: list[ingest.ExtractedSource] = []
@@ -84,9 +86,14 @@ async def create_job(
     if not extracted:
         raise HTTPException(400, "Paste some text or upload a file (.txt, .pdf or .docx).")
 
+    # --- safety scan (fast: patterns only) ---
+    report = scan_sources([ScanSource(f"S{n}", s.filename, s.pages, s.notes) for n, s in enumerate(extracted, start=1)])
+    if selected:  # one step: the suggested label must allow the chosen outputs
+        _check_allowed(selected, report["suggested_tlp"])
+
     # --- save the job ---
-    job = Job(title=(title.strip() or _guess_title(extracted[0]))[:200], status="generating",
-              step="Waiting in the queue", settings_json=job_settings)
+    job = Job(title=(title.strip() or _guess_title(extracted[0]))[:200], status="draft", step="",
+              settings_json=job_settings, safety_json=report)
     db.add(job)
     db.flush()  # gives the job its id
 
@@ -95,14 +102,59 @@ async def create_job(
         pages_path = ingest.save_source(job.id, key, source)
         db.add(Source(job=job, source_key=key, filename=source.filename, kind=source.kind, sha256=source.sha256,
                       text_path=str(pages_path), pages=len(source.pages), chars=source.chars))
+    record(db, job, "scan", scan_summary(report), actor=AUTOMATIC)
 
+    if selected:
+        job.tlp = report["suggested_tlp"]
+        record(db, job, "tlp", f"TLP:{job.tlp} used as suggested (started in one step, without the Safety check "
+                               f"screen). {report['tlp_reason']}", value=job.tlp)
+        start_outputs(db, job, selected, job_settings)
+    db.commit()
+
+    if selected:
+        runner.submit(job.id)
+    return job_detail(job)
+
+
+class StartRequest(BaseModel):
+    outputs: list[str]
+    settings: dict[str, str] = {}
+
+
+@router.post("/jobs/{job_id}/start")
+def start_job(job_id: int, body: StartRequest, db: Session = Depends(get_session)):
+    """Step 3: the outputs and settings. Creates the outputs and starts the AI in the background."""
+    job = _get_job(db, job_id)
+    if job.status != "draft":
+        raise HTTPException(409, "This job has already started.")
+    if not job.tlp:
+        raise HTTPException(400, "Choose a sharing label (TLP) in the Safety check first.")
+    selected = _selected_outputs(body.outputs, required=True)
+    job_settings = _clean_settings(DEFAULT_SETTINGS | body.settings)
+    start_outputs(db, job, selected, job_settings)
+    db.commit()
+    runner.submit(job.id)
+    return job_detail(job)
+
+
+def start_outputs(db: Session, job: Job, selected: list[str], job_settings: dict) -> None:
+    """Create the chosen outputs (short ones first) and mark the job as generating. Public outputs a
+    RED / AMBER label does not allow are refused with the reason."""
+    _check_allowed(selected, job.tlp)
+    off = switched_off(job.tlp)
+    job.settings_json = job_settings
+    job.status, job.step, job.error = "generating", "Waiting in the queue", None
     # Short outputs first, so the operator sees results sooner.
     for position, output_type in enumerate(o for o in OUTPUT_ORDER if o in selected):
         db.add(Output(job=job, type=output_type, position=position))
-    db.commit()
 
-    runner.submit(job.id)
-    return job_detail(job)
+    report = copy.deepcopy(job.safety_json or {})
+    report["switched_off"] = off
+    job.safety_json = report  # a new object, so SQLAlchemy saves the change
+    detail = f"Started writing: {_labels(o for o in OUTPUT_ORDER if o in selected)}."
+    if off:
+        detail += f" Switched off by TLP:{job.tlp}: {_labels(off)}."
+    record(db, job, "start", detail)
 
 
 @router.get("/jobs")
@@ -135,6 +187,8 @@ def retry_job(job_id: int, db: Session = Depends(get_session)):
     job = _get_job(db, job_id)
     if job.status == "generating":
         raise HTTPException(409, "This job is already running.")
+    if job.status == "draft":
+        raise HTTPException(409, "This job has not started yet. Finish the safety check and choose the outputs.")
     job.status, job.step, job.error = "generating", "Waiting in the queue", None
     for output in job.outputs:
         if output.status == "failed":
@@ -145,6 +199,46 @@ def retry_job(job_id: int, db: Session = Depends(get_session)):
 
 
 # ---- helpers ------------------------------------------------------------------------------
+
+
+def _selected_outputs(outputs: list[str], required: bool) -> list[str]:
+    # A browser may send the outputs as one comma-separated value; accept both forms.
+    selected = [o.strip() for value in outputs for o in value.split(",") if o.strip()]
+    unknown = [o for o in selected if o not in OUTPUT_TYPES]
+    if unknown:
+        raise HTTPException(400, f"Unknown output type(s): {', '.join(unknown)}")
+    if required and not selected:
+        raise HTTPException(400, "Choose at least one output.")
+    return selected
+
+
+def _clean_settings(values: dict) -> dict:
+    if values.get("detail_level") not in SETTING_OPTIONS["detail_level"]:
+        raise HTTPException(400, "Level of detail must be short, medium or detailed.")
+    return {key: str(values.get(key, DEFAULT_SETTINGS[key])).strip()[:100] for key in DEFAULT_SETTINGS}
+
+
+def _check_allowed(selected: list[str], tlp: str | None) -> None:
+    """400 if the label switches off any of the chosen outputs."""
+    off = switched_off(tlp)
+    blocked = [o for o in selected if o in off]
+    if blocked:
+        raise HTTPException(400, f"{_labels(blocked)} cannot be made: {off[blocked[0]]} Untick "
+                                 f"{'it' if len(blocked) == 1 else 'them'}, or choose TLP:GREEN or TLP:CLEAR.")
+
+
+def _labels(output_types) -> str:
+    return ", ".join(OUTPUT_TYPES[o]["label"] for o in output_types)
+
+
+def scan_summary(report: dict) -> str:
+    """The scan in one line for the decision log, e.g. 'Scanned 2 pages: 4 private items (3 kinds) ...'."""
+    parts = [f"{len(report['findings'])} private item{'s' if len(report['findings']) != 1 else ''}"]
+    parts.append(f"{len(report['indicators'])} attack indicator{'s' if len(report['indicators']) != 1 else ''}")
+    parts.append(f"{len(report['suspicious'])} suspicious instruction{'s' if len(report['suspicious']) != 1 else ''}")
+    pages = report["checked"]["pages"]
+    return (f"Scanned {pages} page{'s' if pages != 1 else ''}: {', '.join(parts)}. "
+            f"Suggested TLP:{report['suggested_tlp']}.")
 
 
 def _get_job(db: Session, job_id: int) -> Job:
@@ -159,7 +253,8 @@ def _bring_up_to_date(db: Session, job: Job) -> None:
     if job.status == "generating" or job.fact_sheet is None:
         return
     written = [o for o in job.outputs if o.content_json]
-    if written and (job.consistency_json is None or any("score" not in (o.quality_json or {}) for o in written)):
+    if written and (job.consistency_json is None
+                    or any("score" not in (o.quality_json or {}) or "leaks" not in o.quality_json for o in written)):
         recheck_job(db, job)
 
 
@@ -201,6 +296,11 @@ def job_detail(job: Job) -> dict:
     return {
         **job_summary(job),
         "tlp": job.tlp,
+        # Stage 6A: the safety report with the operator's choices, every decision, and the public
+        # outputs the TLP label switches off ({} = all allowed)
+        "safety": job.safety_json,
+        "safety_decisions": [decision_json(d) for d in job.safety_decisions],
+        "switched_off": switched_off(job.tlp),
         "version": job.version,
         "settings": job.settings_json,
         "quality_score": job.quality_score,

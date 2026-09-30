@@ -7,12 +7,17 @@ For each output (check_output):
      words with one of them. If not, we look for another fact that fits ("matched by words").
      A sentence with no fact is "Not linked to a fact" (yellow on the page). Never silently dropped.
   2. "Not in source": every number, date, CVE id, IP address and file hash in the output must also
-     be in the fact sheet or the source (red on the page).
+     be in the fact sheet or the source (red on the page). Links, emails and phone numbers must be in
+     the source itself (Stage 6A prompt-injection shield: an injected "call this number" shows up here).
   3. Format rules: X posts at most 280 characters, slides at most 15 words a point, ...
   4. A quality score from 0 to 100 (see score_parts), with a plain-words explanation.
 
 For the whole job (check_consistency): the same fact must carry the same number / date in every
 output ("42 hospitals" everywhere); any output that says otherwise is listed.
+
+The leak check (Stage 6A, app/safety/masking.py): a value the operator chose to hide must not be in
+the output. If it is, quality["leaks"] lists it, the page shows a red "Private data found" warning, and
+the output cannot be downloaded until it is edited out.
 
 recheck_job() runs all of this for a job and saves the results in the database.
 """
@@ -383,7 +388,22 @@ def known_values(sheet: dict, page_texts: list[str]) -> KnownValues:
     texts += [item_text(item) for item in sheet_items(sheet).values()]
     texts += [e.get("name", "") for e in sheet.get("entities", [])]
     texts += [value for values in (sheet.get("indicators") or {}).values() for value in values]
-    return KnownValues(texts)
+    return KnownValues(texts, source_texts=page_texts)
+
+
+def leak_check(output_type: str, content: dict, masker, public: bool) -> list[dict]:
+    """Hidden values found in an output (every text field, and the advisory's indicator lists)."""
+    parts = [(segment.label, segment.text) for segment in segments(output_type, content)]
+    indicators = content.get("indicators")
+    if isinstance(indicators, dict):
+        parts += [("Indicators", str(value)) for values in indicators.values() for value in values]
+    return masker.find_leaks(parts, public)
+
+
+def leak_warning(leaks: list[dict], public: bool) -> str:
+    kinds = ", ".join(dict.fromkeys(leak["label"].lower() for leak in leaks))
+    where = "this public output" if public else "this output"
+    return f"Private data found: {kinds} that you chose to hide appear in {where}. Edit it out before downloading."
 
 
 def needs_trace(sheet: dict) -> bool:
@@ -398,6 +418,7 @@ def recheck_job(db, job) -> None:
     from app.pipeline.factsheet import SourcePages, verify_quotes
     from app.pipeline.ingest import load_pages
     from app.pipeline.output_types import OUTPUT_TYPES
+    from app.safety.masking import Masker
 
     if job.fact_sheet is None:
         return
@@ -409,9 +430,14 @@ def recheck_job(db, job) -> None:
         job.fact_sheet.json = sheet  # a new object, so SQLAlchemy saves the change
     known = known_values(sheet, [page for s in sources for page in s.pages])
 
+    masker = Masker(job.safety_json)
     finished = [o for o in job.outputs if o.content_json and o.status in ("done", "generating", "queued")]
     for output in finished:
         quality = check_output(output.type, output.content_json, sheet, known, output.truncated)
+        public = OUTPUT_TYPES[output.type]["public"]
+        quality["leaks"] = leak_check(output.type, output.content_json, masker, public)
+        if quality["leaks"]:
+            quality["warnings"].insert(0, leak_warning(quality["leaks"], public))
         output.quality_json, output.quality_score = quality, quality["score"]
         current = next((v for v in output.versions if v.version == output.version), None)
         if current is not None:

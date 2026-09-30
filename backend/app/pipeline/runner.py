@@ -8,6 +8,9 @@ A job can be run again safely: finished steps (the fact sheet, done outputs) are
 used to resume unfinished jobs when the server restarts, by the "Try again" button, and by
 "Regenerate" (which marks one finished output as queued again; its old text is kept as a version).
 After each output, every check is run again (checks.recheck_job), so scores appear as outputs arrive.
+
+Only jobs that have passed the Safety check are run ("draft" jobs wait for the operator). Every AI
+call gets the job's Masker, so values the operator chose to hide never reach the model.
 """
 
 import logging
@@ -24,6 +27,7 @@ from app.pipeline.ingest import load_pages
 from app.pipeline.checks import recheck_job
 from app.pipeline.output_types import OUTPUT_TYPES
 from app.pipeline.versions import save_version
+from app.safety.masking import Masker
 
 log = logging.getLogger("pramaan.runner")
 
@@ -62,11 +66,12 @@ def _run(db, job: Job) -> None:
     job.status, job.error = "generating", None
     report = _StepReporter(db, job)
     report("Starting")
+    masker = Masker(job.safety_json)
 
     if job.fact_sheet is None:
         sources = [SourcePages(s.source_key, s.filename, load_pages(s.text_path)) for s in job.sources]
         try:
-            sheet = build_fact_sheet(sources, on_progress=report)
+            sheet = build_fact_sheet(sources, on_progress=report, masker=masker)
         except llm.LLMError as exc:
             job.status, job.step, job.error = "failed", "", f"Could not build the fact sheet: {exc}"
             db.commit()
@@ -84,7 +89,8 @@ def _run(db, job: Job) -> None:
         had_text = bool(output.content_json)  # True when regenerating an output that was already written
         try:
             result = generate_output(
-                output.type, sheet, job.settings_json, on_progress=lambda note, step=step: report(f"{step} · {note}")
+                output.type, sheet, job.settings_json, on_progress=lambda note, step=step: report(f"{step} · {note}"),
+                masker=masker,
             )
         except llm.LLMError as exc:
             if had_text:  # keep the previous version rather than losing it

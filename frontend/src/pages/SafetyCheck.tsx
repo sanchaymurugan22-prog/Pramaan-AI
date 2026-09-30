@@ -1,0 +1,557 @@
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  getJob,
+  getSource,
+  saveSafety,
+  type Finding,
+  type JobDetail,
+  type SafetyChoice,
+  type SourceText,
+  type Suspicious,
+  type Tlp,
+} from '../api'
+import { Icon } from '../components/Icon'
+import { Stepper } from '../components/Stepper'
+import { TlpLabel } from '../components/TlpLabel'
+import { links, navigate } from '../router'
+import { jsIndex } from './format'
+import { ALWAYS_CHECKED, CHOICES, findingIcon, INDICATOR_CHOICES, TLP_LEVELS, whereFound } from './safety'
+
+// New transformation, step 2 of 3: the Safety check. Layout from the design
+// "10 · New transformation · 2 Safety check". Everything here was found by rules (no AI):
+//   - What we found: private data, with a choice for each (hide in public outputs / hide everywhere / keep)
+//   - Attack indicators: public attacker addresses, CVE ids, file hashes (not private data)
+//   - Suspicious instructions: text aimed at the AI, hidden characters, hidden text
+//   - The source, with all of it highlighted
+//   - Sharing level (TLP), with the suggested one marked
+export function SafetyCheck({ jobId }: { jobId: number }) {
+  const [job, setJob] = useState<JobDetail | null>(null)
+  const [error, setError] = useState('')
+  const [choices, setChoices] = useState<Record<string, SafetyChoice>>({})
+  const [tlp, setTlp] = useState<Tlp | null>(null)
+  const [focus, setFocus] = useState<string | null>(null) // finding or suspicious item shown in the source
+  const [saving, setSaving] = useState(false)
+  const sources = useSources(job)
+
+  useEffect(() => {
+    getJob(jobId)
+      .then((loaded) => {
+        setJob(loaded)
+        const all = [...(loaded.safety?.findings ?? []), ...(loaded.safety?.indicators ?? [])]
+        setChoices(Object.fromEntries(all.map((f) => [f.id, f.choice])))
+        setTlp(loaded.tlp ?? loaded.safety?.suggested_tlp ?? null)
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load the job.'))
+  }, [jobId])
+
+  if (!job) {
+    return (
+      <main className="page">
+        {error ? <div className="alert alert-red">{error}</div> : <p className="muted">Loading…</p>}
+      </main>
+    )
+  }
+  const safety = job.safety
+  if (job.status !== 'draft' || !safety) {
+    return (
+      <main className="page">
+        <div className="alert alert-yellow">
+          {safety ? 'This job has already started, so its safety check is locked.' : 'This job was made before the safety check existed.'}{' '}
+          <a href={links.job(job.id)}>Open its results</a>.
+        </div>
+      </main>
+    )
+  }
+
+  const all = [...safety.findings, ...safety.indicators]
+  const hiddenCount = safety.findings.filter((f) => choices[f.id] !== 'keep').length
+
+  async function next() {
+    if (!job || !tlp) return setError('Choose a sharing level (TLP).')
+    const changed = Object.fromEntries(all.filter((f) => choices[f.id] !== f.choice).map((f) => [f.id, choices[f.id]]))
+    setSaving(true)
+    setError('')
+    try {
+      await saveSafety(job.id, { tlp, choices: changed })
+      navigate(links.outputs(job.id))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save the safety check.')
+      setSaving(false)
+    }
+  }
+
+  const choose = (id: string, choice: SafetyChoice) => setChoices((c) => ({ ...c, [id]: choice }))
+  const show = (id: string) => setFocus((current) => (current === id ? null : id))
+
+  return (
+    <main className="page">
+      <div className="page-head">
+        <div className="stack gap-2">
+          <div className="eyebrow">New transformation · {job.title}</div>
+          <h1>Safety check</h1>
+        </div>
+        <div className="grow" />
+        <a className="btn btn-outline" href={links.dashboard}>
+          Cancel
+        </a>
+      </div>
+      <Stepper current={2} />
+
+      <div className="safety-grid">
+        <div className="stack gap-16">
+          <Banner kinds={safety.kinds_found} suggested={safety.suggested_tlp} />
+
+          <section className="card card-pad stack gap-14">
+            <div className="row gap-12 wrap">
+              <h2>What we found</h2>
+              <div className="grow" />
+              <span className="muted small">
+                {safety.checked.pages} page{safety.checked.pages === 1 ? '' : 's'} in {safety.checked.sources} source
+                {safety.checked.sources === 1 ? '' : 's'} checked
+              </span>
+            </div>
+            <FindingTable
+              findings={safety.findings}
+              choices={choices}
+              options={CHOICES}
+              focus={focus}
+              onChoose={choose}
+              onShow={show}
+              noneRows
+            />
+            <Preview findings={safety.findings} choices={choices} sources={sources} />
+          </section>
+
+          {safety.indicators.length > 0 && (
+            <section className="card card-pad stack gap-14">
+              <div className="stack gap-4">
+                <h2>Attack indicators</h2>
+                <p className="muted small">
+                  Attacker addresses, CVE ids and file hashes are not private data. They stay in the advisory and are
+                  left out of public posts, unless you choose otherwise.
+                </p>
+              </div>
+              <FindingTable
+                findings={safety.indicators}
+                choices={choices}
+                options={INDICATOR_CHOICES}
+                focus={focus}
+                onChoose={choose}
+                onShow={show}
+              />
+            </section>
+          )}
+
+          <SuspiciousCard items={safety.suspicious} focus={focus} onShow={show} />
+
+          <SourceView sources={sources} findings={all} suspicious={safety.suspicious} choices={choices} focus={focus} />
+        </div>
+
+        <div className="stack gap-16">
+          <section className="card card-pad stack gap-14">
+            <h2>Sharing level (TLP)</h2>
+            <div className="stack gap-10" role="radiogroup" aria-label="Sharing level">
+              {TLP_LEVELS.map((level) => {
+                const on = tlp === level.tlp
+                return (
+                  <button
+                    key={level.tlp}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    className={on ? 'tlp-option is-on' : 'tlp-option'}
+                    onClick={() => setTlp(level.tlp)}
+                  >
+                    <span className="radio" aria-hidden="true" />
+                    <span className="stack gap-4 grow">
+                      <span className="row gap-8 wrap">
+                        <TlpLabel tlp={level.tlp} />
+                        <span className="tlp-title">{level.title}</span>
+                        {safety.suggested_tlp === level.tlp && <span className="chip chip-saffron">Suggested</span>}
+                      </span>
+                      <span className="tlp-desc">{level.description}</span>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+            <p className="hint">
+              <strong>Why TLP:{safety.suggested_tlp}?</strong> {safety.tlp_reason}
+            </p>
+            {(tlp === 'RED' || tlp === 'AMBER') && (
+              <p className="muted small">
+                With TLP:{tlp}, the LinkedIn post, X thread, infographic and video package are switched off. The
+                advisory, executive summary and presentation are allowed.
+              </p>
+            )}
+          </section>
+
+          <section className="card card-pad-sm row gap-12">
+            <span className="find-icon tone-green">
+              <Icon name="wifiOff" size={20} />
+            </span>
+            <span className="stack">
+              <span className="muted small">Processing mode</span>
+              <strong>Rule-based check · nothing leaves this computer</strong>
+            </span>
+          </section>
+
+          {hiddenCount > 0 && (
+            <section className="card card-pad-sm stack gap-6">
+              <span className="section-label">What the AI will see</span>
+              <p className="muted small">
+                The AI never sees the {hiddenCount} hidden item{hiddenCount === 1 ? '' : 's'}: each is swapped for a
+                placeholder like <code className="mono">[PHONE-1]</code> before it reads the source.
+              </p>
+            </section>
+          )}
+        </div>
+      </div>
+
+      {error && <div className="alert alert-red">{error}</div>}
+      <div className="row gap-12">
+        <a
+          className="btn btn-lg btn-outline"
+          href={links.newJob}
+          title="Start again with other sources. This draft stays in My jobs."
+        >
+          <Icon name="arrowLeft" size={18} strokeWidth={2} />
+          Back
+        </a>
+        <div className="grow" />
+        <button type="button" className="btn btn-lg btn-saffron" onClick={next} disabled={saving || !tlp}>
+          {saving ? 'Saving…' : 'Next: outputs and settings'}
+          {!saving && <Icon name="arrowRight" size={18} strokeWidth={2} />}
+        </button>
+      </div>
+    </main>
+  )
+}
+
+// ---- the source texts (all sources of the job, loaded once) ------------------------------------------
+
+function useSources(job: JobDetail | null): SourceText[] {
+  const [loaded, setLoaded] = useState<SourceText[]>([])
+  const ids = job?.sources.map((s) => s.id).join(',') ?? ''
+  const jobId = job?.id
+  useEffect(() => {
+    if (!jobId || !ids) return
+    let current = true
+    Promise.all(ids.split(',').map((id) => getSource(jobId, id)))
+      .then((texts) => current && setLoaded(texts))
+      .catch(() => current && setLoaded([]))
+    return () => {
+      current = false
+    }
+  }, [jobId, ids])
+  return loaded
+}
+
+// ---- banner ----------------------------------------------------------------------------------------------
+
+function Banner({ kinds, suggested }: { kinds: number; suggested: Tlp }) {
+  const found = kinds > 0
+  return (
+    <section className={found ? 'safety-banner' : 'safety-banner is-clean'}>
+      <span className="banner-icon">
+        <Icon name={found ? 'warning' : 'shieldCheck'} size={26} />
+      </span>
+      <span className="stack gap-2 grow">
+        <span className="banner-title">
+          {found ? `We found ${kinds} kind${kinds === 1 ? '' : 's'} of sensitive information` : 'No private data found'}
+        </span>
+        <span className="banner-text">
+          {found
+            ? 'Internal outputs can keep them. Public outputs will hide them automatically.'
+            : 'Nothing personal, secret or marked was found in the sources.'}
+        </span>
+      </span>
+      <span className="stack gap-6 banner-tlp">
+        <span className="small">Suggested sharing level</span>
+        <TlpLabel tlp={suggested} />
+      </span>
+    </section>
+  )
+}
+
+// ---- the table of findings -------------------------------------------------------------------------------
+
+type TableProps = {
+  findings: Finding[]
+  choices: Record<string, SafetyChoice>
+  options: { value: SafetyChoice; label: string }[]
+  focus: string | null
+  onChoose: (id: string, choice: SafetyChoice) => void
+  onShow: (id: string) => void
+  noneRows?: boolean // add "None found" rows for the main kinds (as in the design)
+}
+
+function FindingTable({ findings, choices, options, focus, onChoose, onShow, noneRows }: TableProps) {
+  const found = new Set(findings.map((f) => f.kind))
+  const empty = noneRows ? ALWAYS_CHECKED.filter((row) => !row.kinds.some((k) => found.has(k))) : []
+  return (
+    <div className="find-table" role="table">
+      <div className="find-row find-head" role="row">
+        <span role="columnheader">Item</span>
+        <span role="columnheader">Found</span>
+        <span role="columnheader">Where</span>
+        <span role="columnheader">Action</span>
+      </div>
+      {findings.map((f) => (
+        <div key={f.id} className={focus === f.id ? 'find-row is-focus' : 'find-row'} role="row">
+          <button type="button" className="find-item" onClick={() => onShow(f.id)} title="Show it in the source" role="cell">
+            <span className={`find-icon ${f.group === 'indicator' ? 'tone-navy' : `risk-${f.risk}`}`}>
+              <Icon name={findingIcon(f)} size={18} />
+            </span>
+            <span className="stack gap-1 find-text">
+              <span className="find-label">{f.label}</span>
+              <span className="find-value mono">{shown(f)}</span>
+              <span className="find-note">
+                {f.group === 'indicator' ? 'Indicator' : `${capital(f.risk)} risk`} · public outputs show {f.redaction}
+              </span>
+            </span>
+          </button>
+          <span role="cell">{f.count}</span>
+          <span role="cell" className="small">
+            {whereFound(f)}
+          </span>
+          <span role="cell">
+            <select
+              className="input select-sm"
+              aria-label={`Action for ${f.label}`}
+              value={choices[f.id]}
+              onChange={(e) => onChoose(f.id, e.target.value as SafetyChoice)}
+            >
+              {options.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </span>
+        </div>
+      ))}
+      {empty.map((row) => (
+        <div key={row.label} className="find-row is-empty" role="row">
+          <span className="find-item" role="cell">
+            <span className="find-icon tone-green">
+              <Icon name={row.icon} size={18} />
+            </span>
+            <span className="muted">{row.label}</span>
+          </span>
+          <span role="cell">0</span>
+          <span role="cell">—</span>
+          <span role="cell">
+            <span className="chip chip-green">
+              <Icon name="check" size={14} strokeWidth={2.4} />
+              None found
+            </span>
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// The value as shown in the table: passwords and keys only partly
+function shown(f: Finding): string {
+  if (f.group === 'secret') return `${f.text.slice(0, 3)}${'•'.repeat(Math.min(8, Math.max(3, f.text.length - 3)))}`
+  return f.text.length > 70 ? `${f.text.slice(0, 67)}…` : f.text
+}
+
+const capital = (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
+
+// ---- "Preview in public outputs" -------------------------------------------------------------------------
+
+function Preview({ findings, choices, sources }: { findings: Finding[]; choices: Record<string, SafetyChoice>; sources: SourceText[] }) {
+  const hidden = findings.find((f) => choices[f.id] !== 'keep')
+  if (!hidden) return null
+  const where = hidden.occurrences[0]
+  const page = sources.find((s) => s.id === where.source_id)?.pages[where.page - 1]
+  if (!page) return null
+  const start = jsIndex(page, where.start)
+  const end = jsIndex(page, where.end)
+  const before = page.slice(Math.max(0, start - 60), start).replace(/^\S*\s/, '').replace(/\s+/g, ' ')
+  const after = page.slice(end, end + 60).replace(/\s\S*$/, '').replace(/\s+/g, ' ')
+  return (
+    <div className="preview-box">
+      Preview in public outputs: “…{before}
+      <span className="redaction">{hidden.redaction}</span>
+      {after}…”
+    </div>
+  )
+}
+
+// ---- suspicious instructions -------------------------------------------------------------------------------
+
+function SuspiciousCard({ items, focus, onShow }: { items: Suspicious[]; focus: string | null; onShow: (id: string) => void }) {
+  if (items.length === 0) {
+    return (
+      <section className="card card-pad row gap-14 align-start">
+        <span className="find-icon tone-green big">
+          <Icon name="shieldCheck" size={22} />
+        </span>
+        <span className="stack gap-4">
+          <h3>No hidden instructions found</h3>
+          <p className="muted small">
+            We look for text that tries to control the AI, such as “ignore your rules”, invisible characters, and
+            white, tiny or hidden text in Word and PDF files.
+          </p>
+        </span>
+      </section>
+    )
+  }
+  return (
+    <section className="card card-pad stack gap-12 suspicious-card">
+      <div className="row gap-14 align-start">
+        <span className="find-icon risk-high big">
+          <Icon name="warning" size={22} />
+        </span>
+        <span className="stack gap-4">
+          <h3>Suspicious instructions found</h3>
+          <p className="muted small">
+            The AI is always told that source text is data and must never be followed as instructions. Hidden
+            characters and hidden text are removed before it reads anything.
+          </p>
+        </span>
+      </div>
+      <ul className="suspicious-list">
+        {items.map((item) => (
+          <li key={item.id}>
+            <button
+              type="button"
+              className={focus === item.id ? 'suspicious-item is-focus' : 'suspicious-item'}
+              onClick={() => onShow(item.id)}
+              disabled={item.start === null}
+              title={item.start === null ? 'Removed from the text, so it cannot be shown there' : 'Show it in the source'}
+            >
+              <span className="row gap-8 wrap">
+                <strong>{item.label}</strong>
+                <span className="muted small">
+                  {item.source_id} · page {item.page}
+                </span>
+              </span>
+              <span className="suspicious-text">{item.text}</span>
+              <span className="muted small">{item.detail}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+// ---- the source with everything highlighted -----------------------------------------------------------------
+
+type Mark = { start: number; end: number; id: string; className: string; title: string }
+
+function SourceView({ sources, findings, suspicious, choices, focus }: {
+  sources: SourceText[]
+  findings: Finding[]
+  suspicious: Suspicious[]
+  choices: Record<string, SafetyChoice>
+  focus: string | null
+}) {
+  const [shownId, setShownId] = useState<string | null>(null)
+  const box = useRef<HTMLDivElement>(null)
+
+  // Show the source of the focused item
+  const focusSource =
+    findings.find((f) => f.id === focus)?.occurrences[0]?.source_id ?? suspicious.find((s) => s.id === focus)?.source_id
+  const current = sources.find((s) => s.id === (focusSource ?? shownId)) ?? sources[0]
+
+  // marks per page: [page number] -> marks, in order, without overlaps
+  const marks = useMemo(() => {
+    const byPage = new Map<number, Mark[]>()
+    if (!current) return byPage
+    const add = (page: number, mark: Mark) => {
+      const list = byPage.get(page) ?? []
+      if (list.every((m) => mark.end <= m.start || mark.start >= m.end)) list.push(mark)
+      byPage.set(page, list)
+    }
+    suspicious
+      .filter((s) => s.source_id === current.id && s.kind === 'instruction')
+      .forEach((s) =>
+        (s.spans ?? [[s.start!, s.end!]]).forEach(([a, b]) =>
+          add(s.page, { start: a, end: b, id: s.id, className: 'scan-mark mark-injection', title: s.label }),
+        ),
+      )
+    findings.forEach((f) =>
+      f.occurrences
+        .filter((o) => o.source_id === current.id)
+        .forEach((o) =>
+          add(o.page, {
+            start: o.start,
+            end: o.end,
+            id: f.id,
+            className: `scan-mark ${f.group === 'indicator' ? 'mark-indicator' : `mark-${f.risk}`}${choices[f.id] === 'keep' ? ' is-kept' : ''}`,
+            title: `${f.label} · ${CHOICES.find((c) => c.value === choices[f.id])?.label ?? ''}`,
+          }),
+        ),
+    )
+    byPage.forEach((list) => list.sort((a, b) => a.start - b.start))
+    return byPage
+  }, [current, findings, suspicious, choices])
+
+  useLayoutEffect(() => {
+    if (!focus || !box.current) return
+    const target = box.current.querySelector<HTMLElement>(`[data-mark="${focus}"]`)
+    if (target) box.current.scrollTop = target.offsetTop - box.current.clientHeight / 3
+  }, [focus, current])
+
+  if (!current) return null
+  return (
+    <section className="card card-pad stack gap-12">
+      <div className="row gap-10 wrap">
+        <h2>Source</h2>
+        <div className="grow" />
+        {sources.length > 1 &&
+          sources.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              className={s.id === current.id ? 'btn btn-xs btn-saffron-outline' : 'btn btn-xs btn-outline'}
+              onClick={() => setShownId(s.id)}
+            >
+              {s.id} · {s.filename}
+            </button>
+          ))}
+      </div>
+      <div className="row gap-10 wrap small legend">
+        <span className="scan-mark mark-high">High risk</span>
+        <span className="scan-mark mark-medium">Medium</span>
+        <span className="scan-mark mark-low">Low</span>
+        <span className="scan-mark mark-indicator">Indicator</span>
+        <span className="scan-mark mark-injection">Aimed at the AI</span>
+        <span className="muted">Click a row above to find it here.</span>
+      </div>
+      <div className="source-text is-wide" ref={box}>
+        {current.pages.map((page, index) => (
+          <div key={index} className="scan-page">
+            {current.pages.length > 1 && <div className="scan-page-label">Page {index + 1}</div>}
+            {highlight(page, marks.get(index + 1) ?? [], focus)}
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function highlight(page: string, marks: Mark[], focus: string | null): ReactNode[] {
+  const parts: ReactNode[] = []
+  let at = 0
+  marks.forEach((m, i) => {
+    const start = jsIndex(page, m.start)
+    const end = jsIndex(page, m.end)
+    if (start < at) return
+    parts.push(page.slice(at, start))
+    parts.push(
+      <mark key={i} data-mark={m.id} className={m.id === focus ? `${m.className} is-focus` : m.className} title={m.title}>
+        {page.slice(start, end)}
+      </mark>,
+    )
+    at = end
+  })
+  parts.push(page.slice(at))
+  return parts
+}

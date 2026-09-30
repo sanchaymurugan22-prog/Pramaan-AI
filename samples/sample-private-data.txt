@@ -1,0 +1,40 @@
+SAMPLE - FICTIONAL
+Every name, number and address below is invented for testing Pramaan AI. None of it belongs to a
+real person or organisation. The Aadhaar number is made up (it only passes the checksum), and the
+IP addresses come from ranges reserved for private networks and for documentation.
+
+Classification: RESTRICTED
+
+INCIDENT NOTE: SUSPICIOUS LOGINS AT THE DISTRICT TREASURY OFFICE
+Prepared by: District IT Cell (fictional)
+Date: 29 September 2026
+
+1. What happened
+
+On 27 September 2026 the file server at 10.20.30.40 (host fs01.treasury.corp) received 312 failed
+login attempts from 203.0.113.77. One staff account was locked after the attacker guessed its
+password. A second internal machine, 192.168.1.15, was checked, cleaned and restored.
+
+2. Affected staff member (fictional)
+
+Name: Asha Verma (fictional)
+Aadhaar: 2345 6789 0124
+PAN: ABCPV1234K
+Mobile: +91 98765 43210
+Email: asha.verma@example.org
+Salary account: A/c No. 000123456789, IFSC ABCD0123456
+Passport: P1234567
+
+3. Other details
+
+The attacker used a shared admin login that had been written in a help-desk ticket:
+password: Treasury@2026!
+The office vehicle MH 12 AB 1234 took the backup disks to the record room at 18.5204, 73.8567.
+
+4. Recommended actions
+
+- Reset the shared admin password and give each officer their own login.
+- Block 203.0.113.77 at the network edge.
+- Never write passwords in tickets or emails.
+
+SAMPLE - FICTIONAL

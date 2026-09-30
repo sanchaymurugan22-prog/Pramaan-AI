@@ -1,7 +1,7 @@
 """Database connection and tables: one SQLite file at data/pramaan.db.
 
-Tables so far: jobs, sources, fact_sheets, outputs (Stage 3), output_versions (Stage 5).
-Later stages add users (Stage 6), reviews / records / audit_log (Stage 7).
+Tables so far: jobs, sources, fact_sheets, outputs (Stage 3), output_versions (Stage 5),
+safety_decisions (Stage 6A). Later stages add users (Stage 6), reviews / records / audit_log (Stage 7).
 `init_db()` creates any missing tables and columns and never deletes data.
 SQLCipher encryption is added in Stage 6, here, behind this same module, so nothing else has
 to change.
@@ -42,7 +42,10 @@ class Job(Base):
     status: Mapped[str] = mapped_column(String(20), default="draft")
     step: Mapped[str] = mapped_column(String(200), default="")   # what the pipeline is doing now
     error: Mapped[str | None] = mapped_column(Text, default=None)
-    tlp: Mapped[str | None] = mapped_column(String(10), default=None)  # set by the safety check (Stage 6)
+    tlp: Mapped[str | None] = mapped_column(String(10), default=None)  # RED | AMBER | GREEN | CLEAR, chosen in the Safety check
+    # The safety report (app/safety/scanner.py): findings with the operator's choices, indicators,
+    # suspicious instructions, suggested TLP. None for jobs made before Stage 6A.
+    safety_json: Mapped[dict | None] = mapped_column(JSON, default=None)
     version: Mapped[int] = mapped_column(default=1)
     settings_json: Mapped[dict] = mapped_column(JSON, default=dict)  # audience, tone, objective, style, detail_level
     quality_score: Mapped[int | None] = mapped_column(default=None)        # 0-100: average of the outputs (Stage 5)
@@ -53,6 +56,7 @@ class Job(Base):
     sources: Mapped[list["Source"]] = relationship(back_populates="job", order_by="Source.id")
     fact_sheet: Mapped["FactSheet | None"] = relationship(back_populates="job")
     outputs: Mapped[list["Output"]] = relationship(back_populates="job", order_by="Output.position")
+    safety_decisions: Mapped[list["SafetyDecision"]] = relationship(back_populates="job", order_by="SafetyDecision.id")
 
 
 class Source(Base):
@@ -129,6 +133,24 @@ class OutputVersion(Base):
     created_at: Mapped[datetime] = mapped_column(default=utc_now)
 
     output: Mapped[Output] = relationship(back_populates="versions")
+
+
+class SafetyDecision(Base):
+    """One safety decision: who, when, what (a choice for a finding, the TLP label, the scan itself).
+    Rows are only added, never changed (see app/safety/decisions.py)."""
+
+    __tablename__ = "safety_decisions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id"), index=True)
+    actor: Mapped[str] = mapped_column(String(100))            # "Operator", "Pramaan (automatic)"
+    action: Mapped[str] = mapped_column(String(20))            # scan | choice | tlp | start
+    item: Mapped[str | None] = mapped_column(String(20), default=None)   # finding id: P1, I2 ...
+    value: Mapped[str | None] = mapped_column(String(40), default=None)  # new choice or label
+    detail: Mapped[str] = mapped_column(Text)                  # the decision in plain words
+    created_at: Mapped[datetime] = mapped_column(default=utc_now)
+
+    job: Mapped[Job] = relationship(back_populates="safety_decisions")
 
 
 def init_db() -> None:

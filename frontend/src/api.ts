@@ -64,6 +64,68 @@ export type Path = (string | number)[]
 
 export type NotInSource = { kind: string; label: string; text: string }
 
+// ---- safety (Stage 6A, see backend/app/safety/) ------------------------------------------------
+
+export type Tlp = 'RED' | 'AMBER' | 'GREEN' | 'CLEAR'
+export type SafetyChoice = 'hide_public' | 'hide_all' | 'keep'
+export type Risk = 'high' | 'medium' | 'low'
+
+export type Occurrence = { source_id: string; page: number; start: number; end: number; text: string }
+
+// One private value (or attack indicator), found once or more in the sources
+export type Finding = {
+  id: string // P1, P2 ... private data; I1, I2 ... attack indicators
+  kind: string // aadhaar, phone, email, private_ip, password, classification, attacker_ip, cve ...
+  label: string // "Phone number"
+  group: 'personal' | 'location' | 'network' | 'secret' | 'marking' | 'indicator'
+  risk: Risk
+  text: string // as first written in the source
+  value: string
+  placeholder: string // what the AI sees instead: PHONE-1
+  redaction: string // what readers of public outputs see: [phone number]
+  choice: SafetyChoice
+  count: number
+  occurrences: Occurrence[]
+}
+
+// Something in the source that speaks to the AI, or that a person cannot see
+export type Suspicious = {
+  id: string // X1, X2 ...
+  kind: 'instruction' | 'hidden_characters' | 'hidden_text'
+  label: string
+  source_id: string
+  page: number
+  start: number | null
+  end: number | null
+  spans?: [number, number][]
+  text: string
+  detail: string
+}
+
+export type SafetyReport = {
+  checked: { sources: number; pages: number }
+  findings: Finding[]
+  indicators: Finding[]
+  suspicious: Suspicious[]
+  kinds_found: number
+  suggested_tlp: Tlp
+  tlp_reason: string
+  switched_off: Record<string, string> // public outputs the label switched off when the job started
+}
+
+export type SafetyDecision = {
+  id: number
+  actor: string
+  action: 'scan' | 'choice' | 'tlp' | 'confirm' | 'start'
+  item: string | null
+  value: string | null
+  detail: string
+  created_at: string | null
+}
+
+// A hidden value found in a finished output: the output is blocked until it is edited out
+export type Leak = { finding_id: string; kind: string; label: string; found: string; where: string; choice: SafetyChoice }
+
 export type Sentence = {
   id: string // "s3", unique within one output
   path: Path // which text field it is in, e.g. ["tweets", 1, "text"]
@@ -100,6 +162,7 @@ export type Quality = {
   unlinked: string[]
   unknown_fact_ids: string[]
   warnings: string[]
+  leaks?: Leak[] // Stage 6A leak check
 }
 
 export type Consistency = {
@@ -170,7 +233,10 @@ export type JobSummary = {
 }
 
 export type JobDetail = JobSummary & {
-  tlp: string | null
+  tlp: Tlp | null
+  safety: SafetyReport | null // null for jobs made before Stage 6A
+  safety_decisions: SafetyDecision[]
+  switched_off: Record<string, string> // output type -> why the TLP label does not allow it
   version: number
   settings: JobSettings
   quality_score: number | null
@@ -229,8 +295,23 @@ export const listVersions = (jobId: number, outputId: number) =>
 export const getVersion = (jobId: number, outputId: number, version: number) =>
   request<VersionDetail>(`${outputPath(jobId, outputId)}/versions/${version}`)
 
-// form: text and/or files, outputs (one entry per ticked output), and the settings
+// Step 1 of a new transformation. form: title, text and/or files. The job comes back as a "draft"
+// with its safety report.
 export const createJob = (form: FormData) => request<JobDetail>('/api/jobs', { method: 'POST', body: form })
+
+const sendJson = (method: string, body: unknown): RequestInit => ({
+  method,
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+})
+
+// Step 2: the operator's choice for each finding (only the changed ones need to be sent) and the TLP label
+export const saveSafety = (jobId: number, update: { tlp?: Tlp; choices?: Record<string, SafetyChoice> }) =>
+  request<JobDetail>(`/api/jobs/${jobId}/safety`, sendJson('PUT', update))
+
+// Step 3: the outputs and settings; starts the AI
+export const startJob = (jobId: number, outputs: string[], settings: JobSettings) =>
+  request<JobDetail>(`/api/jobs/${jobId}/start`, sendJson('POST', { outputs, settings }))
 
 // ---- downloads (real files made from finished outputs; plain links, the browser saves them) ----
 

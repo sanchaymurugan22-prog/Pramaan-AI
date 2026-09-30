@@ -7,13 +7,19 @@ SAMPLE_REPORT = Path(__file__).resolve().parents[2] / "samples" / "sample-ransom
 
 def make_pdf(page_texts: list[str]) -> bytes:
     """Build a tiny real PDF with one line of text per page (so tests need no PDF files)."""
+    return make_pdf_streams([f"BT /F1 12 Tf 72 720 Td ({text}) Tj ET" for text in page_texts])
+
+
+def make_pdf_streams(streams: list[str]) -> bytes:
+    """A PDF with one page per drawing-command stream, e.g. "BT /F1 12 Tf 72 720 Td (Hello) Tj ET"."""
+    page_texts = streams
     objects = {
         1: "<< /Type /Catalog /Pages 2 0 R >>",
         2: f"<< /Type /Pages /Kids [{' '.join(f'{4 + 2 * i} 0 R' for i in range(len(page_texts)))}] /Count {len(page_texts)} >>",
         3: "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
     }
     for i, text in enumerate(page_texts):
-        stream = f"BT /F1 12 Tf 72 720 Td ({text}) Tj ET"
+        stream = text
         objects[4 + 2 * i] = (
             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
             f"/Resources << /Font << /F1 3 0 R >> >> /Contents {5 + 2 * i} 0 R >>"

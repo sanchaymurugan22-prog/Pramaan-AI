@@ -133,7 +133,7 @@ OUTPUT_TYPES: dict[str, dict] = {
     "video_package": {
         "label": "Video package",
         "description": "Scenes, narration and subtitles",
-        "public": False,
+        "public": True,  # made to be shown to anyone (Stage 6A: switched off by TLP RED / AMBER)
         "schema": obj(
             {
                 "title": STR,

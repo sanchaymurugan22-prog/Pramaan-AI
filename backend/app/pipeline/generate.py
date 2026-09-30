@@ -3,6 +3,11 @@
 Every output uses the same system message (instructions + the fact sheet) and only the last
 message changes. llama.cpp remembers the already-processed start of the prompt, so after the
 first output it does not have to re-read the fact sheet: that saves time on the slow CPU.
+
+Safety (Stage 6A): the fact sheet is sent with every hidden value as a placeholder ([PHONE-1]), the
+same for every output (so the prompt start stays the same and is reused), inside <<<FACT SHEET ...
+FACT SHEET>>> delimiters. After the model answers, placeholders are turned back in code: the real value
+in internal outputs, a label like [phone number] in public ones (app/safety/masking.py).
 """
 
 import re
@@ -14,6 +19,8 @@ from app.ai.prompt_files import render_prompt
 from app.config import max_tokens_for
 from app.pipeline.factsheet import fact_sheet_for_prompt
 from app.pipeline.output_types import DETAIL_TOKEN_FACTOR, OUTPUT_TYPES
+from app.safety.masking import Masker
+from app.safety.shield import fence
 
 WORDS_PER_SECOND = 2.5  # normal speaking speed, used to time video narration and subtitles
 
@@ -31,11 +38,15 @@ def generate_output(
     fact_sheet: dict,
     job_settings: dict,
     on_progress: Callable[[str], None] | None = None,
+    masker: Masker | None = None,
 ) -> GeneratedOutput:
-    """on_progress is called while the model works, with notes like "57 tokens written"."""
+    """on_progress is called while the model works, with notes like "57 tokens written".
+    masker: the job's hidden values (None = nothing hidden)."""
     spec = OUTPUT_TYPES[output_type]
+    masker = masker or Masker(None)
+    facts = fence(masker.mask(fact_sheet_for_prompt(fact_sheet)), "FACT SHEET")
     messages = [
-        {"role": "system", "content": render_prompt("system", fact_sheet=fact_sheet_for_prompt(fact_sheet))},
+        {"role": "system", "content": render_prompt("system", fact_sheet=facts)},
         {"role": "user", "content": render_prompt(output_type, settings=settings_text(job_settings))},
     ]
     factor = DETAIL_TOKEN_FACTOR.get(job_settings.get("detail_level", "medium"), 1.0)
@@ -43,10 +54,10 @@ def generate_output(
 
     reply = llm.chat_json(messages, spec["schema"], kind=output_type, max_tokens=max_tokens, on_progress=on_progress)
 
-    content = reply.data
+    content = masker.restore_json(reply.data, public=spec["public"])
     if output_type == "advisory":
         # Indicators come straight from the source (found by exact patterns), never from the model.
-        content["indicators"] = fact_sheet.get("indicators", {})
+        content["indicators"] = masker.indicators_for(fact_sheet.get("indicators", {}), public=spec["public"])
     elif output_type == "video_package":
         add_timings(content)
     elif output_type == "linkedin_post":

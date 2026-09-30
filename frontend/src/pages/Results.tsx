@@ -15,8 +15,11 @@ import {
 } from '../api'
 import { Icon } from '../components/Icon'
 import { StatusChip } from '../components/StatusChip'
+import { TlpLabel } from '../components/TlpLabel'
+import { links } from '../router'
 import { duration, factLookup, FOUND_LABELS, shortTime } from './format'
 import { OutputEditor } from './OutputEditor'
+import { LeakAlert, SafetySection } from './SafetySection'
 import { IndicatorTable, OutputBody, SeverityChip } from './OutputViews'
 import { CheckWarnings, ConsistencyPanel, QualityCard, ScoreBadge, SourcePanel } from './TracePanels'
 import { FactChip, TraceProvider } from './trace'
@@ -141,6 +144,7 @@ export function Results({ jobId }: { jobId: number }) {
           </div>
           <h1>{job.title}</h1>
           <div className="row gap-10 wrap">
+            {job.tlp && <TlpLabel tlp={job.tlp} />}
             <StatusChip status={job.status} />
             <span className="chip chip-navy">
               {done.length} of {job.outputs.length} ready
@@ -177,8 +181,14 @@ export function Results({ jobId }: { jobId: number }) {
 
       {error && <div className="alert alert-red">{error}</div>}
       {job.error && <div className={job.status === 'failed' ? 'alert alert-red' : 'alert alert-yellow'}>{job.error}</div>}
+      {job.status === 'draft' && (
+        <div className="alert alert-yellow">
+          This job has not started yet. <a href={links.safety(job.id)}>Continue with the safety check</a>.
+        </div>
+      )}
 
       <Sources job={job} />
+      <SafetySection job={job} />
       <ConsistencyPanel
         consistency={job.consistency}
         generating={job.status === 'generating'}
@@ -199,6 +209,9 @@ export function Results({ jobId }: { jobId: number }) {
             {o.status === 'generating' && <span className="spinner" aria-label="Writing" />}
             {o.status === 'queued' && <span className="tab-count">…</span>}
             {o.status === 'failed' && <span className="tab-count tab-failed">!</span>}
+            {o.status === 'done' && (o.quality?.leaks?.length ?? 0) > 0 && (
+              <span className="tab-count tab-failed" title="Private data found">!</span>
+            )}
             {o.status === 'done' && <ScoreBadge score={o.quality_score} explanation={o.quality?.explanation} inButton />}
           </TabButton>
         ))}
@@ -512,6 +525,7 @@ function OutputCard({ job, output, now, editing, onEdit, onSaved, viewed, onView
       )}
       {output.status === 'failed' && <div className="alert alert-red">{output.error}</div>}
       {output.status === 'done' && output.error && <div className="alert alert-yellow">{output.error}</div>}
+      {!viewed && <LeakAlert output={output} />}
       {output.status === 'queued' && (
         <p className="muted">{hasText ? 'Waiting to be written again. The current version stays until then.' : 'Will be written after the outputs above.'}</p>
       )}
@@ -543,7 +557,7 @@ function OutputCard({ job, output, now, editing, onEdit, onSaved, viewed, onView
 
       {!editing && hasText && (viewed?.content ?? output.content) && (
         <div className={output.status === 'done' || viewed ? '' : 'is-stale'}>
-          {output.type === 'infographic' && !viewed ? (
+          {output.type === 'infographic' && !viewed && !(output.quality?.leaks ?? []).length ? (
             <div className="infographic-layout">
               <InfographicPreview jobId={job.id} output={output} />
               <OutputBody type={output.type} content={output.content!} />
@@ -553,7 +567,7 @@ function OutputCard({ job, output, now, editing, onEdit, onSaved, viewed, onView
           )}
         </div>
       )}
-      {!editing && output.status === 'done' && <Downloads jobId={job.id} output={output} />}
+      {!editing && output.status === 'done' && <Downloads jobId={job.id} output={output} tlp={job.tlp} />}
     </Card>
   )
 }
@@ -631,11 +645,22 @@ function formatLabel(type: string, format: string): string {
 }
 
 // Download links for one finished output (always its latest version). Plain links: the browser saves the file.
-function Downloads({ jobId, output }: { jobId: number; output: JobOutput }) {
+function Downloads({ jobId, output, tlp }: { jobId: number; output: JobOutput; tlp: JobDetail['tlp'] }) {
   if (output.formats.length === 0) return null
+  if ((output.quality?.leaks ?? []).length > 0) {
+    return (
+      <div className="download-row">
+        <span className="section-label">Download blocked</span>
+        <span className="small" style={{ color: 'var(--red-dark)' }}>
+          Private data found. Edit it out to download.
+        </span>
+      </div>
+    )
+  }
   return (
     <div className="download-row">
       <span className="section-label">Download v{output.version}</span>
+      {tlp && <TlpLabel tlp={tlp} />}
       {output.formats.map((format) => (
         <a key={format} className="btn btn-outline btn-xs" href={downloadUrl(jobId, output.id, format)} download>
           <Icon name="download" size={16} strokeWidth={2} />

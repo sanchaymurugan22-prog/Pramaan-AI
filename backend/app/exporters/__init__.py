@@ -72,6 +72,9 @@ def export_output(job, output, fmt: str) -> Path:
     """Make one file for one output and return its path."""
     if output.status != "done" or not output.content_json:
         raise ExportError("This output is not finished yet.")
+    if is_blocked(output):
+        raise ExportError("Private data found in this output (see the red warning). Edit the hidden values out, "
+                          "then download it.")
     if fmt not in FORMATS.get(output.type, []):
         allowed = ", ".join(FORMATS.get(output.type, [])) or "none"
         raise ExportError(f"A {OUTPUT_TYPES[output.type]['label']} can be downloaded as: {allowed}.")
@@ -83,6 +86,11 @@ def export_output(job, output, fmt: str) -> Path:
     writer(export_info(job, output), output.content_json, temporary)
     os.replace(temporary, path)
     return path
+
+
+def is_blocked(output) -> bool:
+    """True when the leak check found a hidden value in the output (Stage 6A)."""
+    return bool((output.quality_json or {}).get("leaks"))
 
 
 def _writer(output_type: str, fmt: str):

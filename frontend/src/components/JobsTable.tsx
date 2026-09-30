@@ -3,7 +3,8 @@ import { outputKinds, shortTime } from '../pages/format'
 import { links } from '../router'
 import { StatusChip } from './StatusChip'
 
-// The list of jobs used on the dashboard and on "My jobs". Each row opens the job's results.
+// The list of jobs used on the dashboard and on "My jobs". Each row opens the job's results
+// (a draft opens its Safety check, where the operator left off).
 export function JobsTable({ jobs }: { jobs: JobSummary[] }) {
   return (
     <div className="jobs-table" role="table" aria-label="Jobs">
@@ -15,7 +16,7 @@ export function JobsTable({ jobs }: { jobs: JobSummary[] }) {
         <span role="columnheader">Updated</span>
       </div>
       {jobs.map((job) => (
-        <a key={job.id} href={links.job(job.id)} className="jobs-row jobs-link" role="row">
+        <a key={job.id} href={job.status === 'draft' ? links.safety(job.id) : links.job(job.id)} className="jobs-row jobs-link" role="row">
           <span role="cell" className="stack">
             <span className="job-title">{job.title}</span>
             <span className="job-kind">{outputKinds(job.output_types)}</span>

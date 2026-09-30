@@ -9,7 +9,7 @@ type NavItem = { label: string; icon: IconName; badge?: number; href?: string; p
 
 const MAIN_NAV: NavItem[] = [
   { label: 'Dashboard', icon: 'home', href: links.dashboard, pages: ['dashboard'] },
-  { label: 'New transformation', icon: 'plus', href: links.newJob, pages: ['new'] },
+  { label: 'New transformation', icon: 'plus', href: links.newJob, pages: ['new', 'safety', 'outputs'] },
   { label: 'My jobs', icon: 'history', href: links.jobs, pages: ['jobs', 'job'] },
   { label: 'Emergency alert', icon: 'siren' },
   { label: 'Watch folder', icon: 'folder', badge: 2 },
