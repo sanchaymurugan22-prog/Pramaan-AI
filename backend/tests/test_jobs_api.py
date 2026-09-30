@@ -5,13 +5,13 @@ import time
 from tests.helpers import SAMPLE_REPORT, make_pdf
 from fastapi.testclient import TestClient
 
-from tests.auth_helpers import ORIGIN
+from tests.auth_helpers import signed_in_client
 
 from app.ai import llm, mock_ai
 from app.main import app
 from app.pipeline import generate, runner
 
-client = TestClient(app, headers=ORIGIN)
+client = signed_in_client("operator")
 
 
 def wait_for(job_id: int, timeout: float = 10.0) -> dict:

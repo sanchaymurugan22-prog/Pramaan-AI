@@ -1,13 +1,18 @@
 """Test helpers for accounts.
 
+signed_in_client("operator"): a TestClient signed in as a test user with that role.
+
 empty_accounts(): for tests that need "no users yet" (First-time setup). The account tables are
 emptied for the test and put back exactly as they were afterwards, so other tests are not affected.
 """
 
 from contextlib import contextmanager
 
-from app.db import Base, SessionLocal, User
+from fastapi.testclient import TestClient
+
+from app.auth import sessions
 from app.auth.passwords import hash_password
+from app.db import Base, SessionLocal, User
 
 # Tables emptied by empty_accounts(), children first (later parts add more, e.g. sessions).
 ACCOUNT_TABLES = ["sessions", "account_requests", "users"]
@@ -54,3 +59,13 @@ def make_user(username: str, role: str, password: str = TEST_PASSWORD, full_name
             setattr(user, name, value)
         db.commit()
         return user
+
+
+def signed_in_client(role: str, username: str | None = None) -> TestClient:
+    """A TestClient with a session cookie for a (new or existing) test user with this role."""
+    user = make_user(username or f"test.{role}", role)
+    with SessionLocal() as db:
+        token = sessions.start(db, db.get(User, user.id))
+    from app.main import app  # imported here: app.main needs the test settings from conftest.py first
+    return TestClient(app, headers=ORIGIN,
+                      cookies={sessions.COOKIE_NAME: token})

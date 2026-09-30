@@ -16,7 +16,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.db import get_session
+from app.auth.deps import allow
+from app.db import User, get_session
 from app.routes.jobs import _get_job, job_detail
 from app.safety.decisions import record
 from app.safety.masking import Masker
@@ -33,7 +34,8 @@ class SafetyUpdate(BaseModel):
 
 
 @router.put("/jobs/{job_id}/safety")
-def save_safety(job_id: int, update: SafetyUpdate, db: Session = Depends(get_session)):
+def save_safety(job_id: int, update: SafetyUpdate, db: Session = Depends(get_session),
+                user: User = Depends(allow("operator"))):
     job = _get_job(db, job_id)
     if job.status != "draft":
         raise HTTPException(409, "The safety check cannot be changed after the job has started.")
@@ -63,7 +65,7 @@ def save_safety(job_id: int, update: SafetyUpdate, db: Session = Depends(get_ses
                 record(db, job, "instruction",
                        f"Suspicious instruction “{shown[:60]}{'…' if len(shown) > 60 else ''}” ({instruction['source_id']} "
                        f"page {instruction['page']}): {INSTRUCTION_CHOICES[old]} → {INSTRUCTION_CHOICES[choice]}",
-                       item=item_id, value=choice)
+                       by=user, item=item_id, value=choice)
                 instruction["choice"] = choice
             continue
         finding_id = item_id
@@ -72,7 +74,7 @@ def save_safety(job_id: int, update: SafetyUpdate, db: Session = Depends(get_ses
             continue
         record(db, job, "choice",
                f"{finding['label']} {hint(finding)} ({where(finding)}): {CHOICES[finding['choice']]} → {CHOICES[choice]}",
-               item=finding_id, value=choice)
+               by=user, item=finding_id, value=choice)
         finding["choice"] = choice
     job.safety_json = report  # a new object, so SQLAlchemy saves the change
 
@@ -83,7 +85,7 @@ def save_safety(job_id: int, update: SafetyUpdate, db: Session = Depends(get_ses
         if tlp != job.tlp:
             suggested = report.get("suggested_tlp")
             note = "the suggested label" if tlp == suggested else f"suggested was TLP:{suggested}"
-            record(db, job, "tlp", f"Sharing label set to TLP:{tlp} ({note}).", value=tlp)
+            record(db, job, "tlp", f"Sharing label set to TLP:{tlp} ({note}).", by=user, value=tlp)
             job.tlp = tlp
 
     if first_confirmation and job.tlp:
@@ -94,7 +96,7 @@ def save_safety(job_id: int, update: SafetyUpdate, db: Session = Depends(get_ses
         if instructions:
             detail += (f" Suspicious instructions: {removed} removed from what the AI reads, "
                        f"{len(instructions) - removed} kept (AI told to ignore them).")
-        record(db, job, "confirm", detail)
+        record(db, job, "confirm", detail, by=user)
     db.commit()
     return job_detail(job)
 

@@ -7,14 +7,14 @@ import zipfile
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.auth_helpers import ORIGIN
+from tests.auth_helpers import signed_in_client
 
 from app.ai import llm
 from app.main import app
 from tests.helpers import SAMPLE_REPORT
 from tests.test_jobs_api import wait_for
 
-client = TestClient(app, headers=ORIGIN)
+client = signed_in_client("operator")
 SAMPLES = SAMPLE_REPORT.parent
 PRIVATE = (SAMPLES / "sample-private-data.txt").read_bytes()
 INJECTION = (SAMPLES / "sample-injection.txt").read_bytes()
@@ -66,7 +66,8 @@ def test_amber_switches_off_public_outputs_and_decisions_are_logged():
     actions = [d["action"] for d in saved["safety_decisions"]]
     assert actions == ["scan", "choice", "tlp", "confirm"]
     choice = saved["safety_decisions"][1]
-    assert choice["item"] == phone["id"] and choice["value"] == "hide_all" and choice["actor"] == "Operator"
+    assert choice["item"] == phone["id"] and choice["value"] == "hide_all"
+    assert choice["actor"] == "Test Operator" and choice["user_id"]  # the signed-in user (Stage 6B)
     assert "Hide in public outputs → Hide everywhere" in choice["detail"]
     assert "98765 43210" not in choice["detail"]  # the log never shows the full value
     assert choice["created_at"]
@@ -153,6 +154,9 @@ def test_leak_check_blocks_download_until_edited_out():
     kit = zipfile.ZipFile(io.BytesIO(client.get(f"{url}/kit.zip").content))
     assert not any("x-thread" in name for name in kit.namelist())
     assert "Left out because private data was found" in kit.read("README.txt").decode()
+    # ... and the job cannot be sent to a reviewer (Stage 6B)
+    refused = client.post(f"{url}/submit", json={})
+    assert refused.status_code == 409 and "Private data was found in: X thread" in refused.json()["detail"]
 
     # the same phone number is fine in an internal output ("Hide in public outputs")
     summary = next(o for o in done["outputs"] if o["type"] == "executive_summary")

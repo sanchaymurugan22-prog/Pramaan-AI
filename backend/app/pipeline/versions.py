@@ -17,15 +17,17 @@ def current_version(output: Output) -> int:
     return output.version or (1 if output.content_json else 0)
 
 
-def save_version(db, output: Output, content: dict, origin: str) -> OutputVersion:
-    """Make `content` the newest version of `output` (origin: ai | human | regenerated)."""
+def save_version(db, output: Output, content: dict, origin: str, by=None) -> OutputVersion:
+    """Make `content` the newest version of `output` (origin: ai | human | regenerated).
+    by: the user who edited it (human edits); None for versions the AI wrote."""
     if output.content_json and not output.versions:
         # An output from before Stage 5: keep what it said as version 1 before changing it.
         db.add(OutputVersion(output=output, version=current_version(output), origin=output.origin or "ai",
                              content_json=copy.deepcopy(output.content_json), quality_json=output.quality_json,
                              quality_score=output.quality_score, created_at=output.finished_at or utc_now()))
     number = current_version(output) + 1
-    version = OutputVersion(output=output, version=number, origin=origin, content_json=copy.deepcopy(content))
+    version = OutputVersion(output=output, version=number, origin=origin, content_json=copy.deepcopy(content),
+                            created_by=by.id if by is not None else None)
     db.add(version)
     output.content_json, output.version, output.origin = copy.deepcopy(content), number, origin
     return version

@@ -14,9 +14,15 @@ GET  /api/jobs/{id}/sources/{S1}   the text of one source, page by page (for the
 GET  /api/options         the output types and setting choices, for the "New transformation" form
 
 Edit, regenerate, versions and file downloads (Word, PDF, slides, ...) are in outputs.py.
+Submit for review, the review queue, approve and send back are in review.py.
+
+Who may do what (Stage 6B, checked on every request by app/auth/deps.py):
+Operators make and change jobs. Reviewers may read every job (to review it) but not change it.
+Admins manage users and do not see job content. While a job is with a reviewer ("in_review") or
+approved, nobody can change it.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Annotated
 
 import copy
@@ -26,14 +32,15 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db import Job, Output, Source, get_session
+from app.auth.deps import allow, signed_in
+from app.db import Job, Output, Source, User, as_utc, get_session
 from app.exporters import FORMATS
 from app.pipeline import ingest, runner
 from app.pipeline.checks import CHECKS_VERSION, fact_sheet_check, recheck_job
 from app.pipeline.output_types import DEFAULT_SETTINGS, OUTPUT_ORDER, OUTPUT_TYPES, SETTING_OPTIONS
 from app.pipeline.segments import segments
 from app.pipeline.versions import ORIGIN_LABELS, current_version
-from app.safety.decisions import AUTOMATIC, decision_json, record
+from app.safety.decisions import decision_json, record
 from app.safety.scanner import ScanSource, scan_sources
 from app.safety.tlp import switched_off
 
@@ -41,7 +48,7 @@ router = APIRouter(prefix="/api", tags=["jobs"])
 
 
 @router.get("/options")
-def options():
+def options(user: User = Depends(signed_in)):
     return {
         "output_types": [
             {"key": key, "label": spec["label"], "description": spec["description"], "public": spec["public"]}
@@ -64,6 +71,7 @@ async def create_job(
     style: Annotated[str, Form()] = DEFAULT_SETTINGS["style"],
     detail_level: Annotated[str, Form()] = DEFAULT_SETTINGS["detail_level"],
     db: Session = Depends(get_session),
+    user: User = Depends(allow("operator")),
 ):
     """Step 1: read the sources and scan them (no AI). Without `outputs` the job waits as a "draft" for
     the Safety check. With `outputs` it starts at once, using the suggested TLP label."""
@@ -93,7 +101,7 @@ async def create_job(
 
     # --- save the job ---
     job = Job(title=(title.strip() or _guess_title(extracted[0]))[:200], status="draft", step="",
-              settings_json=job_settings, safety_json=report)
+              settings_json=job_settings, safety_json=report, owner_id=user.id)
     db.add(job)
     db.flush()  # gives the job its id
 
@@ -102,13 +110,13 @@ async def create_job(
         pages_path = ingest.save_source(job.id, key, source)
         db.add(Source(job=job, source_key=key, filename=source.filename, kind=source.kind, sha256=source.sha256,
                       text_path=str(pages_path), pages=len(source.pages), chars=source.chars))
-    record(db, job, "scan", scan_summary(report), actor=AUTOMATIC)
+    record(db, job, "scan", scan_summary(report), by=None)
 
     if selected:
         job.tlp = report["suggested_tlp"]
         record(db, job, "tlp", f"TLP:{job.tlp} used as suggested (started in one step, without the Safety check "
-                               f"screen). {report['tlp_reason']}", value=job.tlp)
-        start_outputs(db, job, selected, job_settings)
+                               f"screen). {report['tlp_reason']}", by=user, value=job.tlp)
+        start_outputs(db, job, selected, job_settings, user)
     db.commit()
 
     if selected:
@@ -122,7 +130,8 @@ class StartRequest(BaseModel):
 
 
 @router.post("/jobs/{job_id}/start")
-def start_job(job_id: int, body: StartRequest, db: Session = Depends(get_session)):
+def start_job(job_id: int, body: StartRequest, db: Session = Depends(get_session),
+              user: User = Depends(allow("operator"))):
     """Step 3: the outputs and settings. Creates the outputs and starts the AI in the background."""
     job = _get_job(db, job_id)
     if job.status != "draft":
@@ -131,13 +140,13 @@ def start_job(job_id: int, body: StartRequest, db: Session = Depends(get_session
         raise HTTPException(400, "Choose a sharing label (TLP) in the Safety check first.")
     selected = _selected_outputs(body.outputs, required=True)
     job_settings = _clean_settings(DEFAULT_SETTINGS | body.settings)
-    start_outputs(db, job, selected, job_settings)
+    start_outputs(db, job, selected, job_settings, user)
     db.commit()
     runner.submit(job.id)
     return job_detail(job)
 
 
-def start_outputs(db: Session, job: Job, selected: list[str], job_settings: dict) -> None:
+def start_outputs(db: Session, job: Job, selected: list[str], job_settings: dict, user: User) -> None:
     """Create the chosen outputs (short ones first) and mark the job as generating. Public outputs a
     RED / AMBER label does not allow are refused with the reason."""
     _check_allowed(selected, job.tlp)
@@ -154,24 +163,25 @@ def start_outputs(db: Session, job: Job, selected: list[str], job_settings: dict
     detail = f"Started writing: {_labels(o for o in OUTPUT_ORDER if o in selected)}."
     if off:
         detail += f" Switched off by TLP:{job.tlp}: {_labels(off)}."
-    record(db, job, "start", detail)
+    record(db, job, "start", detail, by=user)
 
 
 @router.get("/jobs")
-def list_jobs(db: Session = Depends(get_session)):
+def list_jobs(db: Session = Depends(get_session), user: User = Depends(allow("operator", "reviewer"))):
     jobs = db.scalars(select(Job).order_by(Job.id.desc()).limit(200))
     return [job_summary(job) for job in jobs]
 
 
 @router.get("/jobs/{job_id}")
-def get_job(job_id: int, db: Session = Depends(get_session)):
+def get_job(job_id: int, db: Session = Depends(get_session), user: User = Depends(allow("operator", "reviewer"))):
     job = _get_job(db, job_id)
     _bring_up_to_date(db, job)
     return job_detail(job)
 
 
 @router.get("/jobs/{job_id}/sources/{source_key}")
-def get_source_text(job_id: int, source_key: str, db: Session = Depends(get_session)):
+def get_source_text(job_id: int, source_key: str, db: Session = Depends(get_session),
+                    user: User = Depends(allow("operator", "reviewer"))):
     """The extracted text of one source, page by page. Highlight positions (start, end) in the fact
     sheet are character positions in these page texts."""
     job = _get_job(db, job_id)
@@ -183,8 +193,9 @@ def get_source_text(job_id: int, source_key: str, db: Session = Depends(get_sess
 
 
 @router.post("/jobs/{job_id}/retry")
-def retry_job(job_id: int, db: Session = Depends(get_session)):
+def retry_job(job_id: int, db: Session = Depends(get_session), user: User = Depends(allow("operator"))):
     job = _get_job(db, job_id)
+    must_be_changeable(job)
     if job.status == "generating":
         raise HTTPException(409, "This job is already running.")
     if job.status == "draft":
@@ -241,6 +252,18 @@ def scan_summary(report: dict) -> str:
             f"Suggested TLP:{report['suggested_tlp']}.")
 
 
+# Jobs in these states are frozen: the reviewer must see exactly what was submitted.
+FROZEN = {
+    "in_review": "This job is with a reviewer, so it cannot be changed now. If it is sent back, you can change it again.",
+    "approved": "This job is approved, so it cannot be changed any more.",
+}
+
+
+def must_be_changeable(job: Job) -> None:
+    if job.status in FROZEN:
+        raise HTTPException(409, FROZEN[job.status])
+
+
 def _get_job(db: Session, job_id: int) -> Job:
     job = db.get(Job, job_id)
     if job is None:
@@ -270,17 +293,20 @@ def _guess_title(source: ingest.ExtractedSource) -> str:
 
 def _time(value: datetime | None) -> str | None:
     """Times are stored in UTC; send them as ISO text with the timezone."""
-    if value is None:
-        return None
-    if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
-    return value.isoformat()
+    return as_utc(value).isoformat() if value is not None else None
+
+
+def review_json(review) -> dict:
+    return {"decision": review.decision, "by": review.user.full_name if review.user else None,
+            "user_id": review.user_id, "notes": review.notes, "version": review.job_version,
+            "created_at": _time(review.created_at)}
 
 
 def job_summary(job: Job) -> dict:
     return {
         "id": job.id,
         "title": job.title,
+        "owner": {"id": job.owner.id, "full_name": job.owner.full_name} if job.owner else None,
         "status": job.status,
         "step": job.step,
         "error": job.error,
@@ -296,6 +322,8 @@ def job_detail(job: Job) -> dict:
     return {
         **job_summary(job),
         "tlp": job.tlp,
+        # Stage 6B: submitted, approved, sent back (with the reviewer's notes), oldest first
+        "reviews": [review_json(r) for r in job.reviews],
         # Stage 6A: the safety report with the operator's choices, every decision, and the public
         # outputs the TLP label switches off ({} = all allowed)
         "safety": job.safety_json,

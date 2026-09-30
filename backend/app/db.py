@@ -37,7 +37,7 @@ class Job(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(200))
-    owner_id: Mapped[int | None] = mapped_column(default=None)  # linked to users in Stage 6
+    owner_id: Mapped[int | None] = mapped_column(default=None)  # the Operator who created it (None: before Stage 6B)
     # draft | generating | ready | failed | in_review | sent_back | approved
     status: Mapped[str] = mapped_column(String(20), default="draft")
     step: Mapped[str] = mapped_column(String(200), default="")   # what the pipeline is doing now
@@ -57,6 +57,9 @@ class Job(Base):
     fact_sheet: Mapped["FactSheet | None"] = relationship(back_populates="job")
     outputs: Mapped[list["Output"]] = relationship(back_populates="job", order_by="Output.position")
     safety_decisions: Mapped[list["SafetyDecision"]] = relationship(back_populates="job", order_by="SafetyDecision.id")
+    reviews: Mapped[list["Review"]] = relationship(back_populates="job", order_by="Review.id")
+    # owner_id has no database-level foreign key (the column is older than the users table)
+    owner: Mapped["User | None"] = relationship(primaryjoin="foreign(Job.owner_id) == User.id", viewonly=True)
 
 
 class Source(Base):
@@ -130,6 +133,8 @@ class OutputVersion(Base):
     content_json: Mapped[dict] = mapped_column(JSON)
     quality_json: Mapped[dict | None] = mapped_column(JSON, default=None)
     quality_score: Mapped[int | None] = mapped_column(default=None)
+    # human: who edited it; regenerated: who asked for it; ai: who started the job (None before Stage 6B)
+    created_by: Mapped[int | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(default=utc_now)
 
     output: Mapped[Output] = relationship(back_populates="versions")
@@ -143,7 +148,8 @@ class SafetyDecision(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id"), index=True)
-    actor: Mapped[str] = mapped_column(String(100))            # "Operator", "Pramaan (automatic)"
+    actor: Mapped[str] = mapped_column(String(100))            # the person's full name, or "Pramaan (automatic)"
+    user_id: Mapped[int | None] = mapped_column(default=None)  # None = automatic (or made before Stage 6B)
     action: Mapped[str] = mapped_column(String(20))            # scan | choice | instruction | tlp | confirm | start
     item: Mapped[str | None] = mapped_column(String(20), default=None)   # finding id: P1, I2 ...
     value: Mapped[str | None] = mapped_column(String(40), default=None)  # new choice or label
@@ -151,6 +157,24 @@ class SafetyDecision(Base):
     created_at: Mapped[datetime] = mapped_column(default=utc_now)
 
     job: Mapped[Job] = relationship(back_populates="safety_decisions")
+
+
+class Review(Base):
+    """The review history of a job (Stage 6B): submitted by an Operator, then approved or sent back
+    (with notes) by a Reviewer. Rows are only added, never changed."""
+
+    __tablename__ = "reviews"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    decision: Mapped[str] = mapped_column(String(20))       # submitted | approved | sent_back
+    notes: Mapped[str] = mapped_column(Text, default="")
+    job_version: Mapped[int] = mapped_column(default=1)     # the job's version at the time
+    created_at: Mapped[datetime] = mapped_column(default=utc_now)
+
+    job: Mapped[Job] = relationship(back_populates="reviews")
+    user: Mapped["User"] = relationship()
 
 
 class User(Base):

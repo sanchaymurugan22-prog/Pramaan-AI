@@ -10,6 +10,9 @@ GET /api/jobs/{id}/outputs/{output_id}/download?format=pdf   one file (docx | pd
 GET /api/jobs/{id}/kit.zip                                     every finished output of the job in one .zip
 
 Files are made from the LATEST version, saved under data/jobs/<id>/exports/ and made again on each download.
+
+Stage 6B: editing and regenerating are for Operators, and only while the job is not with a reviewer
+or approved. Operators and Reviewers may read versions and download files.
 """
 
 from typing import Annotated
@@ -19,7 +22,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.db import Job, Output, get_session
+from app.auth.deps import allow
+from app.db import Job, Output, User, get_session
 from app.exporters import MEDIA_TYPES, ExportError, export_output
 from app.exporters.kit import build_kit
 from app.pipeline import runner
@@ -27,7 +31,7 @@ from app.pipeline.checks import recheck_job
 from app.pipeline.generate import add_timings
 from app.pipeline.segments import EditError, apply_edits
 from app.pipeline.versions import ORIGIN_LABELS, save_version, version_summary
-from app.routes.jobs import _time, job_detail
+from app.routes.jobs import _time, job_detail, must_be_changeable
 
 router = APIRouter(prefix="/api", tags=["outputs"])
 
@@ -50,6 +54,7 @@ def _get_output(db: Session, job_id: int, output_id: int) -> tuple[Job, Output]:
 
 
 def _must_be_editable(job: Job, output: Output) -> None:
+    must_be_changeable(job)
     if job.status == "generating":
         raise HTTPException(409, "The AI is still working on this job. Wait until it has finished.")
     if output.status != "done" or not output.content_json:
@@ -57,7 +62,8 @@ def _must_be_editable(job: Job, output: Output) -> None:
 
 
 @router.put("/jobs/{job_id}/outputs/{output_id}")
-def edit_output(job_id: int, output_id: int, edit: OutputEdit, db: Session = Depends(get_session)):
+def edit_output(job_id: int, output_id: int, edit: OutputEdit, db: Session = Depends(get_session),
+                user: User = Depends(allow("operator"))):
     """Save the operator's changes as a new version ("Edited by human") and run every check again.
     The old version is kept. No AI call."""
     job, output = _get_output(db, job_id, output_id)
@@ -71,7 +77,7 @@ def edit_output(job_id: int, output_id: int, edit: OutputEdit, db: Session = Dep
     if content == output.content_json:
         raise HTTPException(400, "Nothing was changed.")
 
-    save_version(db, output, content, "human")
+    save_version(db, output, content, "human", by=user)
     output.truncated = False  # a person has now read and fixed the text
     output.error = None
     db.commit()
@@ -80,7 +86,8 @@ def edit_output(job_id: int, output_id: int, edit: OutputEdit, db: Session = Dep
 
 
 @router.post("/jobs/{job_id}/outputs/{output_id}/regenerate")
-def regenerate_output(job_id: int, output_id: int, db: Session = Depends(get_session)):
+def regenerate_output(job_id: int, output_id: int, db: Session = Depends(get_session),
+                      user: User = Depends(allow("operator"))):
     """Write this one output again from the same fact sheet (in the background, like a new job).
     The current text stays until the new one is ready, and is kept as an older version."""
     job, output = _get_output(db, job_id, output_id)
@@ -93,7 +100,8 @@ def regenerate_output(job_id: int, output_id: int, db: Session = Depends(get_ses
 
 
 @router.get("/jobs/{job_id}/outputs/{output_id}/versions")
-def list_versions(job_id: int, output_id: int, db: Session = Depends(get_session)):
+def list_versions(job_id: int, output_id: int, db: Session = Depends(get_session),
+                  user: User = Depends(allow("operator", "reviewer"))):
     _, output = _get_output(db, job_id, output_id)
     versions = [version_summary(v) | {"created_at": _time(v.created_at)} for v in reversed(output.versions)]
     if not versions and output.content_json:  # finished before Stage 5: the one version there is
@@ -103,7 +111,8 @@ def list_versions(job_id: int, output_id: int, db: Session = Depends(get_session
 
 
 @router.get("/jobs/{job_id}/outputs/{output_id}/versions/{number}")
-def get_version(job_id: int, output_id: int, number: int, db: Session = Depends(get_session)):
+def get_version(job_id: int, output_id: int, number: int, db: Session = Depends(get_session),
+                user: User = Depends(allow("operator", "reviewer"))):
     _, output = _get_output(db, job_id, output_id)
     version = next((v for v in output.versions if v.version == number), None)
     if version is None:
@@ -119,6 +128,7 @@ def download_output(
     fmt: Annotated[str, Query(alias="format", description="docx, pdf, pptx, png, srt or txt")],
     inline: bool = False,
     db: Session = Depends(get_session),
+    user: User = Depends(allow("operator", "reviewer")),
 ):
     job = db.get(Job, job_id)
     output = db.get(Output, output_id)
@@ -134,7 +144,7 @@ def download_output(
 
 
 @router.get("/jobs/{job_id}/kit.zip")
-def download_kit(job_id: int, db: Session = Depends(get_session)):
+def download_kit(job_id: int, db: Session = Depends(get_session), user: User = Depends(allow("operator", "reviewer"))):
     job = db.get(Job, job_id)
     if job is None:
         raise HTTPException(404, f"Job {job_id} not found.")

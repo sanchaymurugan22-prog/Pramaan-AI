@@ -3,23 +3,23 @@
 Rows are only ever added, never changed, so the Results page (and later the reviewer) can see how
 each item was handled.
 
-Until login arrives (later in Stage 6), the person is recorded as "Operator". Automatic steps
-(the scan itself) are recorded as "Pramaan (automatic)".
+Each decision records the signed-in user who made it (name and id). Automatic steps (the scan
+itself) are recorded as "Pramaan (automatic)". Decisions made before Stage 6B say "Operator".
 """
 
 from datetime import timezone
 
-from app.db import SafetyDecision
+from app.db import SafetyDecision, User
 
-OPERATOR = "Operator"  # replaced by the signed-in user's name when login is added
 AUTOMATIC = "Pramaan (automatic)"
 
 
-def record(db, job, action: str, detail: str, actor: str = OPERATOR, item: str | None = None,
+def record(db, job, action: str, detail: str, by: User | None, item: str | None = None,
            value: str | None = None) -> SafetyDecision:
-    """Add one decision.
+    """Add one decision. by: the signed-in user, or None for an automatic step.
     action: scan | choice | instruction | tlp | confirm | start ; item: P1, I2, X1 ; value: the new choice or label."""
-    decision = SafetyDecision(job=job, actor=actor, action=action, item=item, value=value, detail=detail)
+    decision = SafetyDecision(job=job, actor=by.full_name if by else AUTOMATIC, user_id=by.id if by else None,
+                              action=action, item=item, value=value, detail=detail)
     db.add(decision)
     return decision
 
@@ -31,6 +31,7 @@ def decision_json(decision: SafetyDecision) -> dict:
     return {
         "id": decision.id,
         "actor": decision.actor,
+        "user_id": decision.user_id,
         "action": decision.action,
         "item": decision.item,
         "value": decision.value,

@@ -1,22 +1,24 @@
 """System routes: health check and a quick "is the AI working?" ping."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.concurrency import run_in_threadpool
 
 from app.ai import llm
+from app.auth.deps import signed_in
 from app.config import settings
+from app.db import User
 
 router = APIRouter(prefix="/api", tags=["system"])
 
 
 @router.get("/health")
 def health():
-    """Is the backend running? Also tells the UI which AI mode is set."""
+    """Is the backend running? Also tells the UI which AI mode is set. Open to everyone (no sign-in)."""
     return {"status": "ok", "ai_mode": settings.ai_mode}
 
 
 @router.get("/ai/ping")
-async def ai_ping():
+async def ai_ping(user: User = Depends(signed_in)):
     """Ask the LLM to say namaste. Returns a friendly error if the LLM is not reachable."""
     info = llm.describe()
     messages = [{"role": "user", "content": "Say namaste in one word"}]
