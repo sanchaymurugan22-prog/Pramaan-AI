@@ -66,7 +66,11 @@ def chat(messages: list[dict], max_tokens: int = 256, temperature: float = 0.2, 
     }
 
     try:
-        response = httpx.post(url, json=body, headers=headers, timeout=settings.llm_timeout_seconds)
+        # Wait up to LLM_TIMEOUT_SECONDS (default 600) for the reply: the local model is slow
+        # (~1.4 tokens/second on the dev Intel Mac). Connecting should be instant, so fail fast
+        # after 10 seconds if the server is not there.
+        timeout = httpx.Timeout(settings.llm_timeout_seconds, connect=10.0)
+        response = httpx.post(url, json=body, headers=headers, timeout=timeout)
     except httpx.ConnectError:
         if settings.ai_mode == "local":
             raise LLMError(

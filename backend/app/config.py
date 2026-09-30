@@ -33,7 +33,7 @@ class Settings:
     sarvam_model: str = _get("SARVAM_MODEL", "sarvam-105b")
     sarvam_api_key: str = _get("SARVAM_API_KEY")
 
-    llm_timeout_seconds: float = float(_get("LLM_TIMEOUT_SECONDS", "300"))
+    llm_timeout_seconds: float = float(_get("LLM_TIMEOUT_SECONDS", "600"))
 
     # where the database, uploads and outputs live
     data_dir: Path = (PROJECT_ROOT / _get("DATA_DIR", "./data")).resolve()

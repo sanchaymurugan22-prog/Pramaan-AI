@@ -34,11 +34,23 @@ cd frontend && npm install && cd ..
 
 ## Run the app
 
+Use two terminals, both in the project folder (`cd ~/Documents/"Pramaan AI"`).
+
+**Terminal 1: the AI model** (Sarvam 30B on port 8081):
+
+```bash
+./scripts/start-ai.sh
+```
+
+Wait until it prints that the server is listening (loading the model can take a few minutes).
+
+**Terminal 2: the app** (backend on port 8000 + frontend on port 5173):
+
 ```bash
 ./scripts/start.sh
 ```
 
-Then open <http://localhost:5173>. Press **Ctrl+C** in that terminal to stop both servers.
+Then open <http://localhost:5173>. Press **Ctrl+C** in each terminal to stop.
 
 | Part | Address |
 |---|---|
@@ -47,21 +59,24 @@ Then open <http://localhost:5173>. Press **Ctrl+C** in that terminal to stop bot
 | API docs (auto-generated) | http://localhost:8000/docs |
 | AI model (llama-server) | http://localhost:8081 |
 
-## Start the AI model (separate terminal)
+## About the AI model
 
 The app works without the model; the dashboard's **Test AI** button then shows a friendly
-"llama-server is not running" message. To start Sarvam 30B locally:
+"llama-server is not running" message.
 
-```bash
-~/llama/llama-server -hf sarvamai/sarvam-30b-gguf:Q4_K_M --port 8081 -c 4096 -t 4
+`scripts/start-ai.sh` runs:
+
+```
+llama-server -hf sarvamai/sarvam-30b-gguf:Q4_K_M --offline --port 8081 -c 4096 -t 4 -np 1 --reasoning-budget 0
 ```
 
-The first run downloads the model (~20 GB) into `~/.cache/huggingface`; after that it runs offline.
-If you have the GGUF file in `models/` instead, use `-m models/<file>.gguf` in place of `-hf ...`.
-It is slow on the dev laptop (about 4 words per second), so the first reply can take a minute.
-
-Sarvam 30B is a "thinking" model. `backend/app/ai/llm.py` switches thinking off by default so short
-answers come back quickly.
+- `--offline` uses the copy already downloaded to `~/.cache/huggingface` and never goes online.
+  On a new computer, download the model (~20 GB) once by running the same command without
+  `--offline`.
+- `--reasoning-budget 0` turns off Sarvam 30B's "thinking", so answers start straight away.
+  `backend/app/ai/llm.py` also switches thinking off for each request.
+- It is slow on the dev Intel Mac (about 1.4 tokens per second), so the backend waits up to
+  `LLM_TIMEOUT_SECONDS` (600 seconds by default, set in `.env`) for a reply.
 
 ## Test it
 
@@ -100,7 +115,7 @@ Restart the app after changing `.env`.
 backend/        FastAPI app (app/main.py), settings (app/config.py), LLM module (app/ai/llm.py)
 frontend/       React + TypeScript + Vite app; design tokens in src/styles/tokens.css
 verify-page/    public "Is this real?" page (Stage 7)
-scripts/        start.sh
+scripts/        start.sh (app), start-ai.sh (AI model)
 samples/        public sample reports for testing
 models/, data/  model files and app data (never committed)
 Designs/        screen designs and clickable prototype (reference only)
