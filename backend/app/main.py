@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Pramaan AI", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="Pramaan AI", version="0.5.0", lifespan=lifespan)
 
 # The React dev server (port 5173) proxies /api to us, but allow it directly too.
 app.add_middleware(

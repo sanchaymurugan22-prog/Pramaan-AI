@@ -55,7 +55,8 @@ def advisory_blocks(c: dict) -> list[Block]:
     if rows:
         blocks += [
             Block("heading", "Indicators found in the source"),
-            Block("table", header=["Type", "Value"], rows=rows, widths=[0.3, 0.7], mono_columns=[1]),
+            # A SHA-256 fingerprint is 64 characters: the value column is wide enough for it on one line.
+            Block("table", header=["Type", "Value"], rows=rows, widths=[0.24, 0.76], mono_columns=[1]),
         ]
     blocks += [
         Block("heading", "Recommended actions"),

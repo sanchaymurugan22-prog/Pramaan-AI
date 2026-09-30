@@ -7,7 +7,9 @@ The local model has a 4096-token context, so a long source is split into chunks.
 model for facts from each chunk, then merge the answers in code (no extra model call).
 
 Grounding: each fact comes with a quote. We check the quote really is in the source and
-record where ("quote_found": exact / close / no). Indicators (CVEs, IP addresses, file hashes)
+record where ("quote_found": exact / close / no, plus the character positions used to highlight
+it; see trace.py). Recommended actions (A1, A2 ...) and dates (D1, D2 ...) are found in the
+source the same way, by their own words. Indicators (CVEs, IP addresses, file hashes)
 are found with exact patterns, not by the model, so they can never be made up. Entity types are
 corrected with simple rules after the model answers (see fix_entity_type).
 """
@@ -20,6 +22,7 @@ from app.ai import llm
 from app.ai.prompt_files import render_prompt
 from app.config import max_tokens_for, settings
 from app.pipeline.output_types import ENTITY_TYPES, FACTSHEET_SCHEMA
+from app.pipeline.trace import locate
 
 MAX_FACTS_TOTAL = 15  # the merged fact sheet is sent with every output prompt, so keep it small
 SEVERITY_RANK = {"unknown": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
@@ -171,7 +174,7 @@ def merge_partials(partials: list[tuple[Chunk, dict]]) -> dict:
             key = _key(f"{item.get('date', '')} {item.get('event', '')}")
             if key and key not in seen_dates:
                 seen_dates.add(key)
-                dates.append({"date": item.get("date", ""), "event": item.get("event", "")})
+                dates.append({"id": f"D{len(dates) + 1}", "date": item.get("date", ""), "event": item.get("event", "")})
 
         for item in data.get("entities", []):
             key = _key(item.get("name", ""))
@@ -250,39 +253,38 @@ def fix_entity_type(name: str, entity_type: str) -> str:
 
 
 def verify_quotes(sheet: dict, sources: list[SourcePages]) -> None:
-    """For each fact, find its quote in the source and set quote_found, source_id and page.
+    """Find every fact's quote in the source, and every action and date by its own words.
 
-    exact = the quote's words appear in the source in the same order
-    close = most of the quote's word pairs appear on one page (the model changed a word or two)
-    no    = not found: the UI shows this fact with a warning
+    Sets on each item: quote_found (exact / close / no), source_id, page, start, end (the characters
+    to highlight on that page). Actions and dates get a "quote" too: the source text that was found.
+    Safe to run again (older fact sheets are brought up to date this way).
     """
-    pages = [(s.source_id, number, _key(text)) for s in sources for number, text in enumerate(s.pages, start=1)]
+    pages = [(s.source_id, number, text) for s in sources for number, text in enumerate(s.pages, start=1)]
 
-    for fact in sheet["key_facts"]:
-        quote = _key(fact.get("quote", ""))
-        fact["quote_found"] = "no"
-        if not quote:
-            continue
-        # Look on the page the model gave first, then everywhere else.
-        ordered = sorted(pages, key=lambda p: (p[0], p[1]) != (fact["source_id"], fact["page"]))
-        exact = next((p for p in ordered if quote in p[2]), None)
-        if exact:
-            fact["quote_found"], fact["source_id"], fact["page"] = "exact", exact[0], exact[1]
-            continue
-        best = max(ordered, key=lambda p: _pair_overlap(quote, p[2]), default=None)
-        if best and _pair_overlap(quote, best[2]) >= 0.7:
-            fact["quote_found"], fact["source_id"], fact["page"] = "close", best[0], best[1]
+    for fact in sheet.get("key_facts", []):
+        found = locate(fact.get("quote", ""), pages, prefer=(fact.get("source_id"), fact.get("page")))
+        _set_trace(fact, found)
+
+    for number, action in enumerate(sheet.get("recommended_actions", []), start=1):
+        action.setdefault("id", f"A{number}")
+        _set_trace(action, locate(action.get("text", ""), pages), pages)
+
+    for number, item in enumerate(sheet.get("dates", []), start=1):
+        item.setdefault("id", f"D{number}")
+        found = locate(f"{item.get('date', '')} {item.get('event', '')}", pages)
+        if found.found == "no":  # the event was reworded: at least show where the date is
+            found = locate(item.get("date", ""), pages)
+            if found.found == "exact":
+                found.found = "close"
+        _set_trace(item, found, pages)
 
 
-def _pair_overlap(quote: str, page: str) -> float:
-    """Share of the quote's word pairs (bigrams) that also appear in the page."""
-    words = quote.split()
-    if len(words) < 2:
-        return 1.0 if quote in page.split() else 0.0
-    quote_pairs = set(zip(words, words[1:]))
-    page_words = page.split()
-    page_pairs = set(zip(page_words, page_words[1:]))
-    return len(quote_pairs & page_pairs) / len(quote_pairs)
+def _set_trace(item: dict, found, pages: list | None = None) -> None:
+    item["quote_found"], item["source_id"], item["page"] = found.found, found.source_id, found.page
+    item["start"], item["end"] = found.start, found.end
+    if pages is not None:  # actions and dates: keep the words found in the source as their quote
+        page_text = next((text for sid, number, text in pages if (sid, number) == (found.source_id, found.page)), "")
+        item["quote"] = page_text[found.start : found.end] if found.start is not None else ""
 
 
 # ---- the fact sheet as prompt text ---------------------------------------------------------
@@ -294,7 +296,7 @@ def fact_sheet_for_prompt(sheet: dict) -> str:
     lines += [f"{f['id']}: {f['text']}" for f in sheet["key_facts"]]
     if sheet["dates"]:
         lines.append("Dates:")
-        lines += [f"- {d['date']}: {d['event']}" for d in sheet["dates"]]
+        lines += [f"{d.get('id', '-')}: {d['date']}: {d['event']}" for d in sheet["dates"]]
     if sheet["entities"]:
         lines.append("Named: " + ", ".join(f"{e['name']} ({e['type']})" for e in sheet["entities"]))
     indicators = sheet.get("indicators", {})

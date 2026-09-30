@@ -4,8 +4,10 @@ closing slide. Every slide has speaker notes, the tricolour strip, navy titles, 
 have an empty box for the QR code (added in Stage 7). Opens in PowerPoint, Keynote and LibreOffice.
 """
 
+from functools import cache
 from pathlib import Path
 
+from PIL import ImageFont
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.enum.dml import MSO_LINE_DASH_STYLE
@@ -16,11 +18,17 @@ from pptx.oxml.ns import qn
 from pptx.util import Inches, Pt
 
 from app.exporters.common import FOOTER, PALETTE, QR_PLACEHOLDER, TLP_TEXT_COLOURS, ExportInfo, texts
-from app.exporters.fonts import family
+from app.exporters.fonts import family, font_file
 
 WIDTH, HEIGHT = Inches(13.333), Inches(7.5)  # 16:9
 LEFT = Inches(0.8)
 CONTENT_WIDTH = WIDTH - 2 * LEFT
+
+FOOTER_SIZE = 11             # points
+FOOTER_BOX = Inches(7)       # the right-hand footer box ("Job #12 · title · date · 3/6")
+# Room for text inside that box: its width minus the 0.1-inch inner margins, less 10% in case the
+# computer that opens the deck does not have Hind installed and uses a slightly wider font.
+FOOTER_TEXT_POINTS = (FOOTER_BOX / 12700 - 2 * 7.2) * 0.9
 
 
 def write_pptx(info: ExportInfo, content: dict, path: Path) -> Path:
@@ -61,14 +69,35 @@ def _new_slide(deck, info: ExportInfo, number: int, total: int, notes: str):
     _rect(slide, LEFT, HEIGHT - Inches(0.62), CONTENT_WIDTH, Pt(1), "line")
     _text(slide, LEFT, HEIGHT - Inches(0.55), Inches(5), Inches(0.35), FOOTER, "heading", 11, info,
           colour="saffron_dark", bold=True)
-    job = f"Job #{info.job_id} · {info.job_title}"
-    if len(job) > 70:
-        job = job[:67] + "…"
-    _text(slide, WIDTH - LEFT - Inches(7), HEIGHT - Inches(0.55), Inches(7), Inches(0.35),
-          f"{job} · {info.date} · {number}/{total}", "body", 11, info, colour="muted", align=PP_ALIGN.RIGHT)
+    box = _text(slide, WIDTH - LEFT - FOOTER_BOX, HEIGHT - Inches(0.55), FOOTER_BOX, Inches(0.35),
+                footer_text(info, number, total), "body", FOOTER_SIZE, info, colour="muted", align=PP_ALIGN.RIGHT)
+    box.text_frame.word_wrap = False  # one line, always (footer_text already made it fit)
 
     slide.notes_slide.notes_text_frame.text = notes
     return slide
+
+
+def footer_text(info: ExportInfo, number: int, total: int) -> str:
+    """'Job #12 · Hospital ransomware · 30 Sep 2026 · 3/6'. A long job title is shortened with '…' so the
+    whole footer fits on one line; the date and slide number are always shown in full."""
+    start, end = f"Job #{info.job_id} · ", f" · {info.date} · {number}/{total}"
+    title = info.job_title.strip()
+    text = f"{start}{title}{end}"
+    while title and footer_width(text, info.language) > FOOTER_TEXT_POINTS:
+        # drop the last word (or the last letter of a single very long word)
+        title = (title.rsplit(" ", 1)[0] if " " in title else title[:-1]).rstrip(" ·,:;-")
+        text = f"{start}{title}…{end}"
+    return text
+
+
+def footer_width(text: str, language: str = "en") -> float:
+    """Width of footer text in points, measured with the bundled body font (Hind)."""
+    return _body_font(language).getlength(text) * FOOTER_SIZE / 1000
+
+
+@cache
+def _body_font(language: str):
+    return ImageFont.truetype(str(font_file("body", "regular", language)), size=1000)
 
 
 def _title_slide(deck, info: ExportInfo, title: str, count: int, total: int) -> None:

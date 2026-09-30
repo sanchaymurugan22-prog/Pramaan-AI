@@ -193,6 +193,19 @@ def _tlp_label(canvas, info: ExportInfo, fonts, right: float, bottom: float) -> 
 
 # ---- blocks -------------------------------------------------------------------------------
 
+CELL_PADDING = 6  # ReportLab's default left and right padding inside a table cell, in points
+SMALLEST_MONO = 6.5
+
+
+def _mono_style(style: ParagraphStyle, values: list[str], room: float) -> ParagraphStyle:
+    """Codes and hashes should never break across lines: use a smaller size if the longest one is too wide."""
+    widest = max((pdfmetrics.stringWidth(v, style.fontName, style.fontSize) for v in values), default=0)
+    if widest <= room:
+        return style
+    size = max(SMALLEST_MONO, style.fontSize * room / widest - 0.05)
+    return ParagraphStyle(f"{style.name}-fit", parent=style, fontSize=size, leading=size * 1.3)
+
+
 
 def _flowables(block: Block, styles, fonts) -> list:
     if block.kind == "heading":
@@ -216,12 +229,14 @@ def _flowables(block: Block, styles, fonts) -> list:
         return [KeepTogether([box]), Spacer(1, 4 * mm)]
     if block.kind == "table":
         cell = styles["cell_small"] if len(block.header) > 3 else styles["cell"]
+        widths = [TEXT_WIDTH * share for share in (block.widths or [1 / len(block.header)] * len(block.header))]
+        mono = {column: _mono_style(styles["cell_mono"], [row[column] for row in block.rows], widths[column] - 2 * CELL_PADDING)
+                for column in block.mono_columns}
         rows = [[_p(value, styles["cell_head"]) for value in block.header]]
         rows += [
-            [_p(value, styles["cell_mono"] if column in block.mono_columns else cell) for column, value in enumerate(row)]
+            [_p(value, mono.get(column, cell)) for column, value in enumerate(row)]
             for row in block.rows
         ]
-        widths = [TEXT_WIDTH * share for share in (block.widths or [1 / len(block.header)] * len(block.header))]
         table = Table(rows, colWidths=widths, repeatRows=1)
         table.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), _colour("navy_light")),

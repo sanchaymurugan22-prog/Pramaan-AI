@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from app.ai import llm
 from app.ai.prompt_files import render_prompt
 from app.config import max_tokens_for
-from app.pipeline import checks
 from app.pipeline.factsheet import fact_sheet_for_prompt
 from app.pipeline.output_types import DETAIL_TOKEN_FACTOR, OUTPUT_TYPES
 
@@ -21,8 +20,7 @@ WORDS_PER_SECOND = 2.5  # normal speaking speed, used to time video narration an
 
 @dataclass
 class GeneratedOutput:
-    content: dict
-    quality: dict
+    content: dict        # checked afterwards by checks.py (it needs the source, not only the fact sheet)
     truncated: bool
     seconds: float
     tokens: int | None
@@ -54,10 +52,7 @@ def generate_output(
     elif output_type == "linkedin_post":
         content["hashtags"] = [tag.lstrip("#") for tag in content.get("hashtags", [])]
 
-    quality = checks.check_output(output_type, content, fact_sheet)
-    if reply.truncated:
-        quality["warnings"].append("The answer was cut off at the token limit; the last part may be missing.")
-    return GeneratedOutput(content, quality, reply.truncated, reply.seconds, reply.tokens)
+    return GeneratedOutput(content, reply.truncated, reply.seconds, reply.tokens)
 
 
 def settings_text(job_settings: dict) -> str:

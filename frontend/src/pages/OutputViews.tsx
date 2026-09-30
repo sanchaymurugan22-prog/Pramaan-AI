@@ -1,8 +1,11 @@
 // Readable views of each output type. The JSON shapes come from
-// backend/app/pipeline/output_types.py. Every piece of text shows the facts it is based on;
-// text that is not linked to any fact is highlighted in yellow (it must never be hidden).
+// backend/app/pipeline/output_types.py. Every text field is drawn with <Traced>, which splits it into
+// sentences and shows the facts each sentence uses; a sentence that is not linked to any fact is
+// underlined in yellow, and numbers that are not in the source in red (they must never be hidden).
+// The path given to <Traced> is where that text is in the output JSON, e.g. ['tweets', 0, 'text'].
 import type { FactSheet } from '../api'
-import type { FactLookup } from './format'
+import { Traced, TraceTags } from './trace'
+import { useTraceBlock } from './traceState'
 
 // ---- shapes of the output JSON ------------------------------------------------------------
 
@@ -38,47 +41,26 @@ type VideoPackage = {
   subtitles: { index: number; start: string; end: string; text: string }[]
 }
 
-// ---- grounding helpers --------------------------------------------------------------------
+const list = <T,>(value: T[] | undefined): T[] => value ?? []
 
-function FactChips({ ids, facts }: { ids: string[]; facts: FactLookup }) {
-  const known = (ids ?? []).filter((id) => facts.has(id))
-  if (known.length === 0) return <span className="not-linked">Not linked to a fact</span>
-  return (
-    <span className="fact-chips">
-      {known.map((id) => {
-        const fact = facts.get(id)!
-        return (
-          <span key={id} className="fact-chip" title={`${id}: ${fact.text}${fact.page ? ` (page ${fact.page})` : ''}`}>
-            {id}
-          </span>
-        )
-      })}
-    </span>
-  )
-}
-
-// A piece of text with its fact chips; yellow if it is not linked to any fact.
-function GroundedText({ item, facts, as = 'p' }: { item?: Grounded; facts: FactLookup; as?: 'p' | 'li' }) {
+// A grounded piece of text ({text, fact_ids}) at `path` in the output JSON
+function G({ item, path, as: Tag = 'p' }: { item?: Grounded; path: (string | number)[]; as?: 'p' | 'li' }) {
   if (!item) return null
-  const linked = (item.fact_ids ?? []).some((id) => facts.has(id))
-  const Tag = as
   return (
-    <Tag className={linked ? 'grounded' : 'grounded is-unlinked'}>
-      {item.text} <FactChips ids={item.fact_ids} facts={facts} />
+    <Tag className="grounded">
+      <Traced path={[...path, 'text']} text={item.text} />
     </Tag>
   )
 }
 
-const list = <T,>(value: T[] | undefined): T[] => value ?? []
-
 // ---- one view per output type -------------------------------------------------------------
 
-function XThreadView({ c, facts }: { c: XThread; facts: FactLookup }) {
+function XThreadView({ c }: { c: XThread }) {
   return (
     <ol className="tweet-list">
       {list(c.tweets).map((tweet, i) => (
         <li key={i} className="tweet">
-          <GroundedText item={tweet} facts={facts} />
+          <G item={tweet} path={['tweets', i]} />
           <span className={tweet.text.length > 280 ? 'tweet-count is-over' : 'tweet-count'}>
             {i + 1}/{c.tweets.length} · {tweet.text.length}/280
           </span>
@@ -88,60 +70,76 @@ function XThreadView({ c, facts }: { c: XThread; facts: FactLookup }) {
   )
 }
 
-function LinkedInView({ c, facts }: { c: LinkedInPost; facts: FactLookup }) {
+function LinkedInView({ c }: { c: LinkedInPost }) {
   return (
     <div className="stack gap-10">
       {list(c.paragraphs).map((p, i) => (
-        <GroundedText key={i} item={p} facts={facts} />
+        <G key={i} item={p} path={['paragraphs', i]} />
       ))}
       {list(c.hashtags).length > 0 && <p className="hashtags">{c.hashtags.map((t) => `#${t}`).join(' ')}</p>}
     </div>
   )
 }
 
-function ExecutiveSummaryView({ c, facts }: { c: ExecutiveSummary; facts: FactLookup }) {
+function ExecutiveSummaryView({ c }: { c: ExecutiveSummary }) {
   return (
     <div className="stack gap-12">
-      <h3>{c.title}</h3>
+      <h3>
+        <Traced path={['title']} text={c.title} />
+      </h3>
       <div className="bottom-line">
         <span className="section-label">Bottom line</span>
-        <GroundedText item={c.bottom_line} facts={facts} />
+        <G item={c.bottom_line} path={['bottom_line']} />
       </div>
       <span className="section-label">Key points</span>
       <ul className="clean-list">
         {list(c.key_points).map((p, i) => (
-          <GroundedText key={i} item={p} facts={facts} as="li" />
+          <G key={i} item={p} path={['key_points', i]} as="li" />
         ))}
       </ul>
       <span className="section-label">Actions needed</span>
       <ol className="clean-list numbered">
         {list(c.actions_needed).map((p, i) => (
-          <GroundedText key={i} item={p} facts={facts} as="li" />
+          <G key={i} item={p} path={['actions_needed', i]} as="li" />
         ))}
       </ol>
     </div>
   )
 }
 
-function InfographicView({ c, facts }: { c: Infographic; facts: FactLookup }) {
+// A number tile is checked as one sentence ("42 hospitals disrupted"); clicking the tile traces it.
+function NumberTile({ n, i }: { n: Infographic['key_numbers'][number]; i: number }) {
+  const block = useTraceBlock(['key_numbers', i])
+  return (
+    <div className={`number-tile ${block.className}`} onClick={block.onClick}>
+      <span className="number-value">{n.value}</span>
+      <span className="number-label">{n.label}</span>
+      <span>
+        <TraceTags path={['key_numbers', i]} />
+      </span>
+    </div>
+  )
+}
+
+function InfographicView({ c }: { c: Infographic }) {
   return (
     <div className="infographic">
       <div className="infographic-head">
-        <h3>{c.headline}</h3>
-        <p>{c.subheadline}</p>
+        <h3>
+          <Traced path={['headline']} text={c.headline} />
+        </h3>
+        <p>
+          <Traced path={['subheadline']} text={c.subheadline} />
+        </p>
       </div>
       <div className="number-tiles">
         {list(c.key_numbers).map((n, i) => (
-          <div key={i} className="number-tile">
-            <span className="number-value">{n.value}</span>
-            <span className="number-label">{n.label}</span>
-            <FactChips ids={n.fact_ids} facts={facts} />
-          </div>
+          <NumberTile key={i} n={n} i={i} />
         ))}
       </div>
       <ol className="clean-list numbered">
         {list(c.steps).map((s, i) => (
-          <GroundedText key={i} item={s} facts={facts} as="li" />
+          <G key={i} item={s} path={['steps', i]} as="li" />
         ))}
       </ol>
       <span className="muted small">Suggested layout: {c.layout?.replace('_', ' ')}</span>
@@ -149,7 +147,7 @@ function InfographicView({ c, facts }: { c: Infographic; facts: FactLookup }) {
   )
 }
 
-function AdvisoryView({ c, facts }: { c: Advisory; facts: FactLookup }) {
+function AdvisoryView({ c }: { c: Advisory }) {
   const ind = c.indicators
   return (
     <div className="stack gap-12">
@@ -157,19 +155,21 @@ function AdvisoryView({ c, facts }: { c: Advisory; facts: FactLookup }) {
         <span className="mono muted">ADVISORY</span>
         <SeverityChip severity={c.severity} />
       </div>
-      <h3>{c.title}</h3>
+      <h3>
+        <Traced path={['title']} text={c.title} />
+      </h3>
       <span className="section-title">Overview</span>
-      <GroundedText item={c.overview} facts={facts} />
+      <G item={c.overview} path={['overview']} />
       <span className="section-title">Who and what is affected</span>
       <ul className="clean-list">
         {list(c.affected).map((a, i) => (
-          <GroundedText key={i} item={a} facts={facts} as="li" />
+          <G key={i} item={a} path={['affected', i]} as="li" />
         ))}
       </ul>
       <span className="section-title">How the attack works</span>
-      <GroundedText item={c.description} facts={facts} />
+      <G item={c.description} path={['description']} />
       <span className="section-title">Impact</span>
-      <GroundedText item={c.impact} facts={facts} />
+      <G item={c.impact} path={['impact']} />
       {ind && (ind.cves.length > 0 || ind.ips.length > 0 || ind.hashes.length > 0) && (
         <>
           <span className="section-title">Indicators found in the source</span>
@@ -179,32 +179,37 @@ function AdvisoryView({ c, facts }: { c: Advisory; facts: FactLookup }) {
       <span className="section-title">Recommended actions</span>
       <ol className="clean-list numbered">
         {list(c.recommendations).map((r, i) => (
-          <GroundedText key={i} item={r} facts={facts} as="li" />
+          <G key={i} item={r} path={['recommendations', i]} as="li" />
         ))}
       </ol>
     </div>
   )
 }
 
-function PresentationView({ c, facts }: { c: Presentation; facts: FactLookup }) {
+function PresentationView({ c }: { c: Presentation }) {
   return (
     <div className="stack gap-12">
-      <h3>{c.title}</h3>
+      <h3>
+        <Traced path={['title']} text={c.title} />
+      </h3>
       <div className="slide-list">
         {list(c.slides).map((slide, i) => (
           <div key={i} className="slide">
             <div className="row gap-10">
               <span className="slide-number">{i + 1}</span>
-              <span className="slide-title grow">{slide.title}</span>
-              <FactChips ids={slide.fact_ids} facts={facts} />
+              <span className="slide-title grow">
+                <Traced path={['slides', i, 'title']} text={slide.title} />
+              </span>
             </div>
             <ul className="clean-list">
               {list(slide.bullets).map((b, j) => (
-                <li key={j}>{b}</li>
+                <li key={j} className="grounded">
+                  <Traced path={['slides', i, 'bullets', j]} text={b} />
+                </li>
               ))}
             </ul>
             <p className="speaker-notes">
-              <strong>Speaker notes:</strong> {slide.speaker_notes}
+              <strong>Speaker notes:</strong> <Traced path={['slides', i, 'speaker_notes']} text={slide.speaker_notes} />
             </p>
           </div>
         ))}
@@ -213,11 +218,13 @@ function PresentationView({ c, facts }: { c: Presentation; facts: FactLookup }) 
   )
 }
 
-function VideoView({ c, facts }: { c: VideoPackage; facts: FactLookup }) {
+function VideoView({ c }: { c: VideoPackage }) {
   return (
     <div className="stack gap-12">
       <div className="row gap-10 wrap">
-        <h3 className="grow">{c.title}</h3>
+        <h3 className="grow">
+          <Traced path={['title']} text={c.title} />
+        </h3>
         <span className="chip chip-neutral">About {c.duration_seconds} seconds</span>
       </div>
       <div className="scene-list">
@@ -228,12 +235,17 @@ function VideoView({ c, facts }: { c: VideoPackage; facts: FactLookup }) {
             </div>
             <div className="stack gap-6 grow">
               <span>
-                <span className="section-label">Visual</span> {scene.visual}
+                <span className="section-label">Visual</span> <Traced path={['scenes', i, 'visual']} text={scene.visual} />
               </span>
               <span>
-                <span className="section-label">On screen</span> <strong>{scene.on_screen_text}</strong>
+                <span className="section-label">On screen</span>{' '}
+                <strong>
+                  <Traced path={['scenes', i, 'on_screen_text']} text={scene.on_screen_text} />
+                </strong>
               </span>
-              <GroundedText item={{ text: scene.narration, fact_ids: scene.fact_ids }} facts={facts} />
+              <p className="grounded">
+                <Traced path={['scenes', i, 'narration']} text={scene.narration} />
+              </p>
             </div>
           </div>
         ))}
@@ -284,22 +296,23 @@ export function IndicatorTable({ indicators }: { indicators: FactSheet['indicato
 }
 
 // Picks the right view for an output type. Unknown types just show their JSON.
-export function OutputBody({ type, content, facts }: { type: string; content: Record<string, unknown>; facts: FactLookup }) {
+// The facts and warnings come from the surrounding <TraceProvider> (see trace.tsx).
+export function OutputBody({ type, content }: { type: string; content: Record<string, unknown> }) {
   switch (type) {
     case 'x_thread':
-      return <XThreadView c={content as XThread} facts={facts} />
+      return <XThreadView c={content as XThread} />
     case 'linkedin_post':
-      return <LinkedInView c={content as LinkedInPost} facts={facts} />
+      return <LinkedInView c={content as LinkedInPost} />
     case 'executive_summary':
-      return <ExecutiveSummaryView c={content as ExecutiveSummary} facts={facts} />
+      return <ExecutiveSummaryView c={content as ExecutiveSummary} />
     case 'infographic':
-      return <InfographicView c={content as Infographic} facts={facts} />
+      return <InfographicView c={content as Infographic} />
     case 'advisory':
-      return <AdvisoryView c={content as Advisory} facts={facts} />
+      return <AdvisoryView c={content as Advisory} />
     case 'presentation':
-      return <PresentationView c={content as Presentation} facts={facts} />
+      return <PresentationView c={content as Presentation} />
     case 'video_package':
-      return <VideoView c={content as VideoPackage} facts={facts} />
+      return <VideoView c={content as VideoPackage} />
     default:
       return <pre className="json-box">{JSON.stringify(content, null, 2)}</pre>
   }

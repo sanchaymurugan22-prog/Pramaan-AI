@@ -19,6 +19,12 @@
   --hero-text: #5A4632;      /* body text on the saffron hero */
   --yellow-dark: #6B5300;    /* icon on yellow warning */
   --green-text: #2F4F2A;     /* small text on green-light */
+  --yellow-line: #D9A800;    /* "Not linked to a fact" underline (Stage 5) */
+  --yellow-border: #EDD77A;  /* border of the yellow warning card */
+  --yellow-text: #3F3405;    /* text on the yellow warning card */
+  --red-border: #F3C4BD;     /* border of the red warning card */
+  --tab-bar: #F4EFE6;        /* background behind the output tabs */
+  --bar-track: #EFE8DC;      /* empty part of a score bar */
 
   /* Fonts */
   --font-body: 'Hind', 'Noto Sans', 'Noto Sans Tamil', 'Noto Sans Bengali', 'Noto Sans Telugu', sans-serif;

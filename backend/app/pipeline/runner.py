@@ -5,7 +5,9 @@ wait in a queue. Each step is saved to the database as soon as it finishes, so t
 show the fact sheet and every output as they arrive.
 
 A job can be run again safely: finished steps (the fact sheet, done outputs) are skipped. That is
-used to resume unfinished jobs when the server restarts, and by the "Try again" button.
+used to resume unfinished jobs when the server restarts, by the "Try again" button, and by
+"Regenerate" (which marks one finished output as queued again; its old text is kept as a version).
+After each output, every check is run again (checks.recheck_job), so scores appear as outputs arrive.
 """
 
 import logging
@@ -19,7 +21,9 @@ from app.db import FactSheet, Job, SessionLocal, utc_now
 from app.pipeline.factsheet import SourcePages, build_fact_sheet
 from app.pipeline.generate import generate_output
 from app.pipeline.ingest import load_pages
+from app.pipeline.checks import recheck_job
 from app.pipeline.output_types import OUTPUT_TYPES
+from app.pipeline.versions import save_version
 
 log = logging.getLogger("pramaan.runner")
 
@@ -77,18 +81,23 @@ def _run(db, job: Job) -> None:
         output.status, output.error, output.started_at = "generating", None, utc_now()
         step = f"Writing the {OUTPUT_TYPES[output.type]['label']}"
         report(step)
+        had_text = bool(output.content_json)  # True when regenerating an output that was already written
         try:
             result = generate_output(
                 output.type, sheet, job.settings_json, on_progress=lambda note, step=step: report(f"{step} · {note}")
             )
         except llm.LLMError as exc:
-            output.status, output.error = "failed", str(exc)
+            if had_text:  # keep the previous version rather than losing it
+                output.status, output.error = "done", f"Could not write it again ({exc}). The previous version is kept."
+            else:
+                output.status, output.error = "failed", str(exc)
         else:
+            save_version(db, output, result.content, "regenerated" if had_text else "ai")
             output.status = "done"
-            output.content_json, output.quality_json = result.content, result.quality
             output.truncated, output.seconds, output.tokens = result.truncated, result.seconds, result.tokens
         output.finished_at = utc_now()
         db.commit()
+        recheck_job(db, job)
 
     failed = [o for o in job.outputs if o.status != "done"]
     job.step = ""
@@ -98,6 +107,7 @@ def _run(db, job: Job) -> None:
         job.status = "ready"
         job.error = f"{len(failed)} output(s) failed. Use 'Try again' to retry them." if failed else None
     db.commit()
+    recheck_job(db, job)
 
 
 class _StepReporter:

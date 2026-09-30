@@ -2,11 +2,12 @@
 
 POST /api/jobs            create a job (pasted text and/or files + outputs + settings); starts it in the background
 GET  /api/jobs            list jobs, newest first
-GET  /api/jobs/{id}       status, fact sheet and each output as it finishes (the page polls this)
+GET  /api/jobs/{id}       status, fact sheet, each output as it finishes, checks and scores (the page polls this)
 POST /api/jobs/{id}/retry run a failed job again; finished parts are kept
+GET  /api/jobs/{id}/sources/{S1}   the text of one source, page by page (for the "Source trace" panel)
 GET  /api/options         the output types and setting choices, for the "New transformation" form
 
-File downloads (Word, PDF, slides, ...) are in outputs.py.
+Edit, regenerate, versions and file downloads (Word, PDF, slides, ...) are in outputs.py.
 """
 
 from datetime import datetime, timezone
@@ -19,7 +20,10 @@ from sqlalchemy.orm import Session
 from app.db import Job, Output, Source, get_session
 from app.exporters import FORMATS
 from app.pipeline import ingest, runner
+from app.pipeline.checks import recheck_job
 from app.pipeline.output_types import DEFAULT_SETTINGS, OUTPUT_ORDER, OUTPUT_TYPES, SETTING_OPTIONS
+from app.pipeline.segments import segments
+from app.pipeline.versions import ORIGIN_LABELS, current_version
 
 router = APIRouter(prefix="/api", tags=["jobs"])
 
@@ -109,7 +113,21 @@ def list_jobs(db: Session = Depends(get_session)):
 
 @router.get("/jobs/{job_id}")
 def get_job(job_id: int, db: Session = Depends(get_session)):
-    return job_detail(_get_job(db, job_id))
+    job = _get_job(db, job_id)
+    _bring_up_to_date(db, job)
+    return job_detail(job)
+
+
+@router.get("/jobs/{job_id}/sources/{source_key}")
+def get_source_text(job_id: int, source_key: str, db: Session = Depends(get_session)):
+    """The extracted text of one source, page by page. Highlight positions (start, end) in the fact
+    sheet are character positions in these page texts."""
+    job = _get_job(db, job_id)
+    source = next((s for s in job.sources if s.source_key == source_key.upper()), None)
+    if source is None:
+        raise HTTPException(404, f"Source {source_key} of job {job_id} not found.")
+    return {"id": source.source_key, "filename": source.filename, "kind": source.kind,
+            "pages": ingest.load_pages(source.text_path)}
 
 
 @router.post("/jobs/{job_id}/retry")
@@ -134,6 +152,15 @@ def _get_job(db: Session, job_id: int) -> Job:
     if job is None:
         raise HTTPException(404, f"Job {job_id} not found.")
     return job
+
+
+def _bring_up_to_date(db: Session, job: Job) -> None:
+    """Jobs finished before Stage 5 have no sentence checks or scores yet: work them out once (no AI)."""
+    if job.status == "generating" or job.fact_sheet is None:
+        return
+    written = [o for o in job.outputs if o.content_json]
+    if written and (job.consistency_json is None or any("score" not in (o.quality_json or {}) for o in written)):
+        recheck_job(db, job)
 
 
 def _guess_title(source: ingest.ExtractedSource) -> str:
@@ -176,6 +203,8 @@ def job_detail(job: Job) -> dict:
         "tlp": job.tlp,
         "version": job.version,
         "settings": job.settings_json,
+        "quality_score": job.quality_score,
+        "consistency": job.consistency_json,
         "sources": [
             {"id": s.source_key, "filename": s.filename, "kind": s.kind, "pages": s.pages, "chars": s.chars, "sha256": s.sha256}
             for s in job.sources
@@ -189,8 +218,17 @@ def job_detail(job: Job) -> dict:
                 "formats": FORMATS.get(o.type, []),  # file types it can be downloaded as
                 "language": o.language,
                 "status": o.status,
-                "content": o.content_json,
+                "content": o.content_json,  # always the latest version
+                "version": current_version(o),
+                "origin": o.origin,  # ai | human | regenerated
+                "origin_label": ORIGIN_LABELS.get(o.origin, o.origin),
                 "quality": o.quality_json,
+                "quality_score": o.quality_score,
+                # the text fields the operator can edit (see segments.py)
+                "fields": [
+                    {"path": seg.path, "label": seg.label, "text": seg.text}
+                    for seg in segments(o.type, o.content_json or {}) if seg.editable
+                ],
                 "error": o.error,
                 "truncated": o.truncated,
                 "seconds": o.seconds,

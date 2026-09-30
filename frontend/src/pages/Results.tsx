@@ -1,18 +1,43 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { downloadUrl, getJob, kitUrl, retryJob, type FactSheet, type JobDetail, type JobOutput } from '../api'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  downloadUrl,
+  getJob,
+  getVersion,
+  kitUrl,
+  listVersions,
+  regenerateOutput,
+  retryJob,
+  type FactSheet,
+  type JobDetail,
+  type JobOutput,
+  type VersionDetail,
+  type VersionSummary,
+} from '../api'
 import { Icon } from '../components/Icon'
 import { StatusChip } from '../components/StatusChip'
-import { duration, factLookup, type FactLookup } from './format'
+import { duration, factLookup, FOUND_LABELS, shortTime } from './format'
+import { OutputEditor } from './OutputEditor'
 import { IndicatorTable, OutputBody, SeverityChip } from './OutputViews'
+import { CheckWarnings, ConsistencyPanel, QualityCard, ScoreBadge, SourcePanel } from './TracePanels'
+import { FactChip, TraceProvider } from './trace'
+import { NO_SELECTION, sentencesByPath, type Selection } from './traceState'
 
 const POLL_MS = 2000
 
+type Tab = 'facts' | number // the fact sheet, or an output id
+
 // Results of one job. While the job is generating, it asks the backend for news every 2 seconds
 // and shows the fact sheet, then each output, as soon as they are ready.
+// Layout as in the design "13 · Results · Advisory with source trace": a tab per output, the
+// output on the left, and on the right the source trace, the warnings and the quality score.
 export function Results({ jobId }: { jobId: number }) {
   const [job, setJob] = useState<JobDetail | null>(null)
   const [error, setError] = useState('')
-  const [pollRound, setPollRound] = useState(0) // bump to start polling again (after "Try again")
+  const [pollRound, setPollRound] = useState(0) // bump to start polling again (after "Try again" or "Regenerate")
+  const [chosenTab, setTab] = useState<Tab | null>(null) // null until the reviewer picks a tab
+  const [selection, setSelection] = useState<Selection>(NO_SELECTION)
+  const [editing, setEditing] = useState<number | null>(null) // output id being edited
+  const [viewing, setViewing] = useState<Record<number, VersionDetail | undefined>>({}) // old version on screen
   const now = useNow(job?.status === 'generating')
 
   useEffect(() => {
@@ -38,14 +63,13 @@ export function Results({ jobId }: { jobId: number }) {
     }
   }, [jobId, pollRound])
 
-  async function tryAgain() {
-    try {
-      setJob(await retryJob(jobId))
-      setPollRound((n) => n + 1)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not restart the job.')
-    }
-  }
+  // Until a tab is picked: the first finished output, or the fact sheet while nothing is finished yet.
+  const tab: Tab = chosenTab ?? job?.outputs.find((o) => o.status === 'done')?.id ?? 'facts'
+  const facts = useMemo(() => factLookup(job?.fact_sheet ?? null), [job?.fact_sheet])
+  const active = typeof tab === 'number' ? job?.outputs.find((o) => o.id === tab) : undefined
+  const viewed = active ? viewing[active.id] : undefined
+  const shownQuality = viewed ? viewed.quality : active?.quality
+  const byPath = useMemo(() => sentencesByPath(shownQuality?.sentences), [shownQuality])
 
   if (!job) {
     return (
@@ -55,9 +79,58 @@ export function Results({ jobId }: { jobId: number }) {
     )
   }
 
-  const facts = factLookup(job.fact_sheet)
-  const done = job.outputs.filter((o) => o.status === 'done').length
-  const canRetry = job.status !== 'generating' && (job.status === 'failed' || job.outputs.some((o) => o.status !== 'done'))
+  async function tryAgain() {
+    try {
+      setJob(await retryJob(jobId))
+      setPollRound((n) => n + 1)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not restart the job.')
+    }
+  }
+
+  async function regenerate(output: JobOutput) {
+    const ok = window.confirm(
+      `Write the ${output.label} again from the same fact sheet?\n\nThe current text (version ${output.version}) is kept as an older version.`,
+    )
+    if (!ok) return
+    try {
+      setViewing((v) => ({ ...v, [output.id]: undefined }))
+      setSelection(NO_SELECTION)
+      setJob(await regenerateOutput(jobId, output.id))
+      setPollRound((n) => n + 1)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not start writing it again.')
+    }
+  }
+
+  function changeTab(next: Tab) {
+    setTab(next)
+    setSelection(NO_SELECTION)
+    setEditing(null)
+  }
+
+  // From the consistency panel or a warning: show that output and that sentence.
+  function openSentence(outputId: number, sentenceId: string, factId: string | null) {
+    setTab(outputId)
+    setEditing(null)
+    setViewing((v) => ({ ...v, [outputId]: undefined }))
+    setSelection({ outputId, sentenceId, factId, scroll: true })
+  }
+
+  const selectedSentence =
+    active && selection.outputId === active.id && selection.sentenceId
+      ? (shownQuality?.sentences?.find((s) => s.id === selection.sentenceId) ?? null)
+      : null
+  const done = job.outputs.filter((o) => o.status === 'done')
+  const canRetry = job.status !== 'generating' && (job.status === 'failed' || job.outputs.some((o) => o.status === 'failed'))
+  const scored = done.filter((o) => o.quality_score !== null)
+  const lowest = scored.reduce<JobOutput | null>((low, o) => (!low || o.quality_score! < low.quality_score! ? o : low), null)
+  const jobExplanation =
+    scored.length > 0
+      ? `Job quality ${job.quality_score} out of 100: the average of the ${scored.length} output score${scored.length === 1 ? '' : 's'}.` +
+        (lowest && scored.length > 1 ? ` Lowest: ${lowest.label} (${lowest.quality_score}).` : '') +
+        ' Each score counts sentences linked to a fact, quotes found in the source, numbers not in the source, and length rules.'
+      : undefined
 
   return (
     <main className="page">
@@ -70,8 +143,9 @@ export function Results({ jobId }: { jobId: number }) {
           <div className="row gap-10 wrap">
             <StatusChip status={job.status} />
             <span className="chip chip-navy">
-              {done} of {job.outputs.length} ready
+              {done.length} of {job.outputs.length} ready
             </span>
+            <ScoreBadge score={job.quality_score} explanation={jobExplanation} big />
             {job.status === 'generating' && job.step && (
               <span className="row gap-6 muted small">
                 <span className="spinner" aria-hidden="true" />
@@ -87,8 +161,8 @@ export function Results({ jobId }: { jobId: number }) {
             Try again
           </button>
         )}
-        {/* One .zip with every finished output (made from the saved outputs, no AI needed) */}
-        {done > 0 ? (
+        {/* One .zip with every finished output (latest versions, made without AI) */}
+        {done.length > 0 ? (
           <a className="btn btn-saffron" href={kitUrl(job.id)} download>
             <Icon name="box" size={18} strokeWidth={2} />
             Download campaign kit (.zip)
@@ -105,10 +179,94 @@ export function Results({ jobId }: { jobId: number }) {
       {job.error && <div className={job.status === 'failed' ? 'alert alert-red' : 'alert alert-yellow'}>{job.error}</div>}
 
       <Sources job={job} />
-      <FactSheetCard sheet={job.fact_sheet} generating={job.status === 'generating'} step={job.step} />
-      {job.outputs.map((output) => (
-        <OutputCard key={output.id} jobId={job.id} output={output} facts={facts} now={now} />
-      ))}
+      <ConsistencyPanel
+        consistency={job.consistency}
+        generating={job.status === 'generating'}
+        facts={facts}
+        onOpen={openSentence}
+        onFact={(factId) => setSelection({ outputId: null, sentenceId: null, factId })}
+      />
+
+      <nav className="output-tabs" aria-label="Outputs">
+        <TabButton current={tab === 'facts'} onClick={() => changeTab('facts')}>
+          <Icon name="file" size={18} />
+          Fact sheet
+          {job.fact_sheet && <span className="tab-count">{job.fact_sheet.key_facts.length}</span>}
+        </TabButton>
+        {job.outputs.map((o) => (
+          <TabButton key={o.id} current={tab === o.id} onClick={() => changeTab(o.id)}>
+            {o.label}
+            {o.status === 'generating' && <span className="spinner" aria-label="Writing" />}
+            {o.status === 'queued' && <span className="tab-count">…</span>}
+            {o.status === 'failed' && <span className="tab-count tab-failed">!</span>}
+            {o.status === 'done' && <ScoreBadge score={o.quality_score} explanation={o.quality?.explanation} inButton />}
+          </TabButton>
+        ))}
+      </nav>
+
+      <TraceProvider value={{ outputId: active?.id ?? null, byPath, facts, selection, select: setSelection }}>
+        <div className="results-grid">
+          <div className="results-main">
+            {tab === 'facts' && (
+              <FactSheetCard
+                sheet={job.fact_sheet}
+                generating={job.status === 'generating'}
+                step={job.step}
+                selectedFact={selection.outputId === null ? selection.factId : null}
+                onFact={(factId) => setSelection({ outputId: null, sentenceId: null, factId })}
+              />
+            )}
+            {active && (
+              <OutputCard
+                key={active.id}
+                job={job}
+                output={active}
+                now={now}
+                editing={editing === active.id}
+                onEdit={(on) => {
+                  setEditing(on ? active.id : null)
+                  setSelection(NO_SELECTION)
+                }}
+                onSaved={(updated) => {
+                  setJob(updated)
+                  setEditing(null)
+                  setViewing((v) => ({ ...v, [active.id]: undefined }))
+                }}
+                viewed={viewed}
+                onView={(version) => {
+                  setViewing((v) => ({ ...v, [active.id]: version }))
+                  setSelection(NO_SELECTION)
+                }}
+                onRegenerate={() => regenerate(active)}
+              />
+            )}
+          </div>
+          <aside className="results-side">
+            <SourcePanel
+              jobId={job.id}
+              facts={facts}
+              selection={selection}
+              sentence={selectedSentence}
+              where={active && selectedSentence ? `${active.label} · ${selectedSentence.label}` : ''}
+              select={setSelection}
+              onClose={() => setSelection(NO_SELECTION)}
+            />
+            {active && shownQuality && editing !== active.id && (
+              <>
+                <CheckWarnings outputId={active.id} quality={shownQuality} select={setSelection} />
+                <QualityCard
+                  quality={shownQuality}
+                  versionNote={
+                    viewed
+                      ? `Version ${viewed.version} · ${viewed.origin_label} (older version)`
+                      : `Version ${active.version} · ${active.origin_label}`
+                  }
+                />
+              </>
+            )}
+          </aside>
+        </div>
+      </TraceProvider>
     </main>
   )
 }
@@ -122,6 +280,14 @@ function useNow(active: boolean): number {
     return () => window.clearInterval(timer)
   }, [active])
   return now
+}
+
+function TabButton({ current, onClick, children }: { current: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button type="button" className={current ? 'output-tab is-current' : 'output-tab'} aria-current={current ? 'page' : undefined} onClick={onClick}>
+      {children}
+    </button>
+  )
 }
 
 function Sources({ job }: { job: JobDetail }) {
@@ -143,14 +309,14 @@ function Card({ title, right, json, children }: { title: ReactNode; right?: Reac
   const [showJson, setShowJson] = useState(false)
   return (
     <section className="card card-pad stack gap-14">
-      <div className="row gap-12 wrap">
+      <div className="row gap-10 wrap">
         <h2>{title}</h2>
         <div className="grow" />
         {right}
         {json !== undefined && (
           <button type="button" className="btn btn-outline btn-xs" onClick={() => setShowJson(!showJson)}>
             <Icon name="code" size={16} strokeWidth={2} />
-            {showJson ? 'Hide JSON' : 'Show JSON'}
+            {showJson ? 'Hide JSON' : 'JSON'}
           </button>
         )}
       </div>
@@ -159,7 +325,15 @@ function Card({ title, right, json, children }: { title: ReactNode; right?: Reac
   )
 }
 
-function FactSheetCard({ sheet, generating, step }: { sheet: FactSheet | null; generating: boolean; step: string }) {
+type FactSheetProps = {
+  sheet: FactSheet | null
+  generating: boolean
+  step: string
+  selectedFact: string | null
+  onFact: (factId: string) => void
+}
+
+function FactSheetCard({ sheet, generating, step, selectedFact, onFact }: FactSheetProps) {
   if (!sheet) {
     return (
       <Card title="Fact sheet">
@@ -185,6 +359,7 @@ function FactSheetCard({ sheet, generating, step }: { sheet: FactSheet | null; g
       }
     >
       <p className="lead">{sheet.summary}</p>
+      <p className="muted small">Click a fact to see its quote highlighted in the source.</p>
       {notFound > 0 && (
         <div className="alert alert-yellow">
           {notFound} fact{notFound === 1 ? '' : 's'} could not be matched to the exact words in the source. Check
@@ -195,18 +370,23 @@ function FactSheetCard({ sheet, generating, step }: { sheet: FactSheet | null; g
 
       <div className="fact-list">
         {sheet.key_facts.map((fact) => (
-          <div key={fact.id} className={fact.quote_found === 'no' ? 'fact is-unlinked' : 'fact'}>
+          <button
+            type="button"
+            key={fact.id}
+            className={['fact', fact.quote_found === 'no' && 'is-unlinked', selectedFact === fact.id && 'is-selected'].filter(Boolean).join(' ')}
+            onClick={() => onFact(fact.id)}
+          >
             <span className="fact-id">{fact.id}</span>
-            <div className="stack gap-4 grow">
+            <span className="stack gap-4 grow">
               <span>{fact.text}</span>
               <span className="fact-quote">
                 “{fact.quote}” — {fact.source_id}, page {fact.page}{' '}
-                {fact.quote_found === 'exact' && <span className="chip chip-green chip-xs">Found in source</span>}
-                {fact.quote_found === 'close' && <span className="chip chip-saffron chip-xs">Close match</span>}
-                {fact.quote_found === 'no' && <span className="chip chip-red chip-xs">Not found in source</span>}
+                <span className={`chip chip-xs ${{ exact: 'chip-green', close: 'chip-saffron', no: 'chip-red' }[fact.quote_found]}`}>
+                  {FOUND_LABELS[fact.quote_found]}
+                </span>
               </span>
-            </div>
-          </div>
+            </span>
+          </button>
         ))}
       </div>
 
@@ -216,7 +396,8 @@ function FactSheetCard({ sheet, generating, step }: { sheet: FactSheet | null; g
             <span className="section-label">Dates</span>
             <ul className="clean-list small">
               {sheet.dates.map((d, i) => (
-                <li key={i}>
+                <li key={d.id ?? i}>
+                  {d.id && <FactChip id={d.id} active={selectedFact === d.id} onClick={() => onFact(d.id!)} />}{' '}
                   <strong>{d.date}</strong> — {d.event}
                 </li>
               ))}
@@ -229,7 +410,7 @@ function FactSheetCard({ sheet, generating, step }: { sheet: FactSheet | null; g
             <ul className="clean-list small">
               {sheet.recommended_actions.map((a) => (
                 <li key={a.id}>
-                  <span className="fact-chip">{a.id}</span> {a.text}
+                  <FactChip id={a.id} active={selectedFact === a.id} onClick={() => onFact(a.id)} /> {a.text}
                 </li>
               ))}
             </ul>
@@ -251,67 +432,186 @@ function FactSheetCard({ sheet, generating, step }: { sheet: FactSheet | null; g
   )
 }
 
-function OutputCard({ jobId, output, facts, now }: { jobId: number; output: JobOutput; facts: FactLookup; now: number }) {
+type OutputCardProps = {
+  job: JobDetail
+  output: JobOutput
+  now: number
+  editing: boolean
+  onEdit: (on: boolean) => void
+  onSaved: (job: JobDetail) => void
+  viewed: VersionDetail | undefined
+  onView: (version: VersionDetail | undefined) => void
+  onRegenerate: () => void
+}
+
+function OutputCard({ job, output, now, editing, onEdit, onSaved, viewed, onView, onRegenerate }: OutputCardProps) {
+  const [showVersions, setShowVersions] = useState(false)
+  const busy = job.status === 'generating'
+  const hasText = Boolean(output.content)
   const q = output.quality
-  let right: ReactNode = null
-  if (output.status === 'done') {
-    right = (
-      <>
-        {q && (
-          <span className={q.linked === q.parts ? 'chip chip-green' : 'chip chip-saffron'}>
-            {q.linked}/{q.parts} parts linked to facts
-          </span>
-        )}
-        {output.seconds !== null && output.seconds > 0 && (
-          <span className="muted small">
-            {duration(output.seconds)}
-            {output.tokens ? ` · ${output.tokens} tokens` : ''}
-          </span>
-        )}
-      </>
-    )
-  } else if (output.status === 'generating') {
+
+  let status: ReactNode = null
+  if (output.status === 'generating') {
     const started = output.started_at ? new Date(output.started_at).getTime() : now
-    right = (
+    status = (
       <span className="row gap-6 chip chip-saffron">
         <span className="spinner" aria-hidden="true" />
         Writing… {duration((now - started) / 1000)}
       </span>
     )
   } else if (output.status === 'queued') {
-    right = <span className="chip chip-neutral">Waiting</span>
-  } else {
-    right = <span className="chip chip-red">Failed</span>
+    status = <span className="chip chip-neutral">Waiting</span>
+  } else if (output.status === 'failed') {
+    status = <span className="chip chip-red">Failed</span>
+  } else if (output.seconds !== null && output.seconds > 0) {
+    status = (
+      <span className="muted small">
+        {duration(output.seconds)}
+        {output.tokens ? ` · ${output.tokens} tokens` : ''}
+      </span>
+    )
+  }
+
+  const toolbar = hasText && (
+    <>
+      <span className={output.origin === 'human' ? 'chip chip-saffron' : 'chip chip-neutral'} title="Latest version">
+        {output.origin === 'human' && <Icon name="pencil" size={14} strokeWidth={2.2} />}v{output.version} · {output.origin_label}
+      </span>
+      {status}
+      <button type="button" className="btn btn-outline btn-xs" onClick={() => setShowVersions(!showVersions)} aria-expanded={showVersions}>
+        <Icon name="history" size={16} />
+        Versions
+      </button>
+      <button
+        type="button"
+        className="btn btn-saffron-outline btn-xs"
+        onClick={onRegenerate}
+        disabled={busy || editing}
+        title={busy ? 'Wait until the AI has finished' : 'Write this output again from the same fact sheet'}
+      >
+        <Icon name="refresh" size={16} strokeWidth={2} />
+        Regenerate
+      </button>
+      <button
+        type="button"
+        className="btn btn-outline btn-xs"
+        onClick={() => onEdit(!editing)}
+        disabled={busy || output.status !== 'done'}
+        title={busy ? 'Wait until the AI has finished' : 'Change the text yourself'}
+      >
+        <Icon name="pencil" size={16} strokeWidth={2} />
+        {editing ? 'Stop editing' : 'Edit'}
+      </button>
+    </>
+  )
+
+  return (
+    <Card title={output.label} right={toolbar || status} json={(viewed?.content ?? output.content) || undefined}>
+      {showVersions && hasText && (
+        <VersionList jobId={job.id} output={output} viewed={viewed} onView={onView} onClose={() => setShowVersions(false)} />
+      )}
+      {output.status === 'failed' && <div className="alert alert-red">{output.error}</div>}
+      {output.status === 'done' && output.error && <div className="alert alert-yellow">{output.error}</div>}
+      {output.status === 'queued' && (
+        <p className="muted">{hasText ? 'Waiting to be written again. The current version stays until then.' : 'Will be written after the outputs above.'}</p>
+      )}
+      {output.status === 'generating' && (
+        <p className="muted">
+          {hasText
+            ? `The AI is writing a new version from the fact sheet. Version ${output.version} below stays until it is ready.`
+            : 'The AI is writing this from the fact sheet. It appears here when finished.'}
+        </p>
+      )}
+      {q && q.unknown_fact_ids.length > 0 && !viewed && (
+        <div className="alert alert-yellow">Refers to fact ids that do not exist: {q.unknown_fact_ids.join(', ')}.</div>
+      )}
+
+      {editing && <OutputEditor jobId={job.id} output={output} onSaved={onSaved} onCancel={() => onEdit(false)} />}
+
+      {!editing && viewed && (
+        <div className="version-banner">
+          <Icon name="history" size={18} />
+          <span className="grow">
+            You are looking at <strong>version {viewed.version}</strong> ({viewed.origin_label}
+            {viewed.created_at ? `, ${shortTime(viewed.created_at)}` : ''}). Downloads always use the latest version (v{output.version}).
+          </span>
+          <button type="button" className="btn btn-outline btn-xs" onClick={() => onView(undefined)}>
+            Back to latest
+          </button>
+        </div>
+      )}
+
+      {!editing && hasText && (viewed?.content ?? output.content) && (
+        <div className={output.status === 'done' || viewed ? '' : 'is-stale'}>
+          {output.type === 'infographic' && !viewed ? (
+            <div className="infographic-layout">
+              <InfographicPreview jobId={job.id} output={output} />
+              <OutputBody type={output.type} content={output.content!} />
+            </div>
+          ) : (
+            <OutputBody type={output.type} content={(viewed?.content ?? output.content)!} />
+          )}
+        </div>
+      )}
+      {!editing && output.status === 'done' && <Downloads jobId={job.id} output={output} />}
+    </Card>
+  )
+}
+
+// Every version of an output, newest first. "View" shows an older one (read only).
+function VersionList({ jobId, output, viewed, onView, onClose }: {
+  jobId: number
+  output: JobOutput
+  viewed: VersionDetail | undefined
+  onView: (version: VersionDetail | undefined) => void
+  onClose: () => void
+}) {
+  const [versions, setVersions] = useState<VersionSummary[] | null>(null)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    listVersions(jobId, output.id)
+      .then(setVersions)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load the versions.'))
+  }, [jobId, output.id, output.version])
+
+  async function view(number: number) {
+    if (number === output.version) return onView(undefined)
+    try {
+      onView(await getVersion(jobId, output.id, number))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not load that version.')
+    }
   }
 
   return (
-    <Card title={output.label} right={right} json={output.content ?? undefined}>
-      {output.status === 'failed' && <div className="alert alert-red">{output.error}</div>}
-      {output.status === 'queued' && <p className="muted">Will be written after the outputs above.</p>}
-      {output.status === 'generating' && (
-        <p className="muted">The AI is writing this from the fact sheet. It appears here when finished.</p>
-      )}
-      {output.status === 'done' && output.content && (
-        <>
-          {q && q.warnings.length > 0 && (
-            <div className="alert alert-yellow">
-              {q.warnings.map((w) => (
-                <div key={w}>{w}</div>
-              ))}
-            </div>
-          )}
-          {output.type === 'infographic' ? (
-            <div className="infographic-layout">
-              <InfographicPreview jobId={jobId} output={output} />
-              <OutputBody type={output.type} content={output.content} facts={facts} />
-            </div>
-          ) : (
-            <OutputBody type={output.type} content={output.content} facts={facts} />
-          )}
-          <Downloads jobId={jobId} output={output} />
-        </>
-      )}
-    </Card>
+    <div className="version-list">
+      <div className="row gap-8">
+        <span className="section-label grow">Versions</span>
+        <button type="button" className="icon-btn icon-btn-sm" aria-label="Close versions" onClick={onClose}>
+          <Icon name="cross" size={16} />
+        </button>
+      </div>
+      {error && <div className="alert alert-red small">{error}</div>}
+      {!versions && !error && <p className="muted small">Loading…</p>}
+      {versions?.map((v) => {
+        const current = v.version === output.version
+        const shown = viewed ? viewed.version === v.version : current
+        return (
+          <div key={v.version} className={shown ? 'version-row is-shown' : 'version-row'}>
+            <strong className="mono">v{v.version}</strong>
+            <span className="grow">
+              {v.origin_label}
+              {v.created_at && <span className="muted"> · {shortTime(v.created_at)}</span>}
+              {current && <span className="chip chip-green chip-xs">Latest</span>}
+            </span>
+            <ScoreBadge score={v.quality_score} />
+            <button type="button" className="btn btn-outline btn-xs" disabled={shown} onClick={() => view(v.version)}>
+              {shown ? 'On screen' : 'View'}
+            </button>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
@@ -330,12 +630,12 @@ function formatLabel(type: string, format: string): string {
   return FORMAT_LABELS[format] ?? format.toUpperCase()
 }
 
-// Download links for one finished output. Plain links: the browser saves the file.
+// Download links for one finished output (always its latest version). Plain links: the browser saves the file.
 function Downloads({ jobId, output }: { jobId: number; output: JobOutput }) {
   if (output.formats.length === 0) return null
   return (
     <div className="download-row">
-      <span className="section-label">Download</span>
+      <span className="section-label">Download v{output.version}</span>
       {output.formats.map((format) => (
         <a key={format} className="btn btn-outline btn-xs" href={downloadUrl(jobId, output.id, format)} download>
           <Icon name="download" size={16} strokeWidth={2} />
@@ -347,10 +647,10 @@ function Downloads({ jobId, output }: { jobId: number; output: JobOutput }) {
   )
 }
 
-// The real PNG, drawn by the backend. finished_at in the address makes the browser fetch it
-// again if the output is regenerated.
+// The real PNG, drawn by the backend. The version in the address makes the browser fetch it
+// again after an edit or a regeneration.
 function InfographicPreview({ jobId, output }: { jobId: number; output: JobOutput }) {
-  const src = `${downloadUrl(jobId, output.id, 'png', true)}&v=${encodeURIComponent(output.finished_at ?? '')}`
+  const src = `${downloadUrl(jobId, output.id, 'png', true)}&v=${output.version}`
   return (
     <a className="infographic-preview" href={src} target="_blank" rel="noreferrer" title="Open the full-size image">
       <img src={src} alt="Infographic preview" width={1080} height={1350} />

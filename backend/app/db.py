@@ -1,15 +1,15 @@
 """Database connection and tables: one SQLite file at data/pramaan.db.
 
-Tables so far (Stage 3): jobs, sources, fact_sheets, outputs.
+Tables so far: jobs, sources, fact_sheets, outputs (Stage 3), output_versions (Stage 5).
 Later stages add users (Stage 6), reviews / records / audit_log (Stage 7).
-`init_db()` creates any missing tables and never deletes data.
+`init_db()` creates any missing tables and columns and never deletes data.
 SQLCipher encryption is added in Stage 6, here, behind this same module, so nothing else has
 to change.
 """
 
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, ForeignKey, String, Text, create_engine
+from sqlalchemy import JSON, ForeignKey, String, Text, create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 from app.config import settings
@@ -45,6 +45,8 @@ class Job(Base):
     tlp: Mapped[str | None] = mapped_column(String(10), default=None)  # set by the safety check (Stage 6)
     version: Mapped[int] = mapped_column(default=1)
     settings_json: Mapped[dict] = mapped_column(JSON, default=dict)  # audience, tone, objective, style, detail_level
+    quality_score: Mapped[int | None] = mapped_column(default=None)        # 0-100: average of the outputs (Stage 5)
+    consistency_json: Mapped[dict | None] = mapped_column(JSON, default=None)  # same numbers in every output? (Stage 5)
     created_at: Mapped[datetime] = mapped_column(default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(default=utc_now, onupdate=utc_now)
 
@@ -95,8 +97,11 @@ class Output(Base):
     language: Mapped[str] = mapped_column(String(10), default="en")
     position: Mapped[int] = mapped_column(default=0)  # generation order: short outputs first
     status: Mapped[str] = mapped_column(String(20), default="queued")  # queued | generating | done | failed
-    content_json: Mapped[dict | None] = mapped_column(JSON, default=None)
-    quality_json: Mapped[dict | None] = mapped_column(JSON, default=None)
+    content_json: Mapped[dict | None] = mapped_column(JSON, default=None)  # always the LATEST version
+    quality_json: Mapped[dict | None] = mapped_column(JSON, default=None)  # checks of the latest version
+    quality_score: Mapped[int | None] = mapped_column(default=None)         # 0-100
+    version: Mapped[int] = mapped_column(default=0)                         # 0 = nothing written yet
+    origin: Mapped[str] = mapped_column(String(20), default="ai")           # latest version: ai | human | regenerated
     error: Mapped[str | None] = mapped_column(Text, default=None)
     truncated: Mapped[bool] = mapped_column(default=False)
     seconds: Mapped[float | None] = mapped_column(default=None)
@@ -105,11 +110,52 @@ class Output(Base):
     finished_at: Mapped[datetime | None] = mapped_column(default=None)
 
     job: Mapped[Job] = relationship(back_populates="outputs")
+    versions: Mapped[list["OutputVersion"]] = relationship(back_populates="output", order_by="OutputVersion.version")
+
+
+class OutputVersion(Base):
+    """Every version of an output: as the AI wrote it, each human edit, each regeneration.
+    Old versions are never changed or deleted, so a reviewer can always see what changed."""
+
+    __tablename__ = "output_versions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    output_id: Mapped[int] = mapped_column(ForeignKey("outputs.id"), index=True)
+    version: Mapped[int]                                   # 1, 2, 3 ...
+    origin: Mapped[str] = mapped_column(String(20))        # ai | human | regenerated
+    content_json: Mapped[dict] = mapped_column(JSON)
+    quality_json: Mapped[dict | None] = mapped_column(JSON, default=None)
+    quality_score: Mapped[int | None] = mapped_column(default=None)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now)
+
+    output: Mapped[Output] = relationship(back_populates="versions")
 
 
 def init_db() -> None:
-    """Create any tables that don't exist yet (safe to call every time the app starts)."""
+    """Create any tables and columns that don't exist yet (safe to call every time the app starts)."""
     Base.metadata.create_all(engine)
+    _add_missing_columns()
+
+
+def _add_missing_columns() -> None:
+    """create_all() makes new tables but does not add new columns to old tables. A database made by an
+    earlier stage gets them here (existing rows get the column's default), so no data is lost."""
+    existing = inspect(engine)
+    with engine.begin() as connection:
+        for table in Base.metadata.sorted_tables:
+            have = {column["name"] for column in existing.get_columns(table.name)}
+            for column in table.columns:
+                if column.name in have:
+                    continue
+                default = column.default.arg if column.default is not None and column.default.is_scalar else None
+                sql = f"ALTER TABLE {table.name} ADD COLUMN {column.name} {column.type.compile(engine.dialect)}"
+                if isinstance(default, bool):
+                    sql += f" DEFAULT {int(default)}"
+                elif isinstance(default, (int, float)):
+                    sql += f" DEFAULT {default}"
+                elif isinstance(default, str):
+                    sql += " DEFAULT '" + default.replace("'", "''") + "'"
+                connection.execute(text(sql))
 
 
 def get_session():
