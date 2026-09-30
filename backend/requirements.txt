@@ -10,6 +10,10 @@ httpx==0.28.1
 python-multipart==0.0.32
 pypdf==6.19.0
 python-docx==1.2.0
+# making files: PowerPoint, PDF, images (Stage 4)
+python-pptx==1.0.2
+reportlab==5.0.1
+pillow==12.3.0
 
 # for running tests (backend/tests)
 pytest==9.1.1

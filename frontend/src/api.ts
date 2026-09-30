@@ -62,6 +62,8 @@ export type JobOutput = {
   id: number
   type: string
   label: string
+  // File types this output can be downloaded as, e.g. ['pdf', 'docx']
+  formats: string[]
   language: string
   status: OutputStatus
   // The shape depends on the output type (see backend/app/pipeline/output_types.py)
@@ -124,3 +126,11 @@ export const retryJob = (id: number) => request<JobDetail>(`/api/jobs/${id}/retr
 
 // form: text and/or files, outputs (one entry per ticked output), and the settings
 export const createJob = (form: FormData) => request<JobDetail>('/api/jobs', { method: 'POST', body: form })
+
+// ---- downloads (real files made from finished outputs; plain links, the browser saves them) ----
+
+// inline=true asks the browser to show the file instead of saving it (used for the infographic preview)
+export const downloadUrl = (jobId: number, outputId: number, format: string, inline = false) =>
+  `/api/jobs/${jobId}/outputs/${outputId}/download?format=${format}${inline ? '&inline=true' : ''}`
+
+export const kitUrl = (jobId: number) => `/api/jobs/${jobId}/kit.zip`

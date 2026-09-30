@@ -44,7 +44,8 @@ class Settings:
     factsheet_chunk_chars: int = int(_get("FACTSHEET_CHUNK_CHARS", "6000"))
 
     # How many key facts to ask for (per chunk when the source is split). Fewer = faster.
-    factsheet_max_facts: int = int(_get("FACTSHEET_MAX_FACTS", "8"))
+    # Never more than 8: with more, the local model ran out of tokens before finishing the JSON.
+    factsheet_max_facts: int = min(int(_get("FACTSHEET_MAX_FACTS", "8")), 8)
 
     # where the database, uploads and outputs live
     data_dir: Path = (PROJECT_ROOT / _get("DATA_DIR", "./data")).resolve()
@@ -57,7 +58,7 @@ settings = Settings()
 # 1.4 tokens/second, so 350 tokens is about 4 minutes. Override any of these in .env,
 # e.g. MAX_TOKENS_X_THREAD=250
 DEFAULT_MAX_TOKENS = {
-    "factsheet": 1100,
+    "factsheet": 1400,  # was 1100: the local fact sheet was cut off at the limit
     "x_thread": 350,
     "linkedin_post": 350,
     "executive_summary": 450,

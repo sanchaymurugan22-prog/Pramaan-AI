@@ -144,6 +144,9 @@ button { font-family: inherit; }
   border: 1px solid transparent; cursor: pointer; white-space: nowrap; text-decoration: none;
 }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+/* links styled as buttons keep their text colour on hover */
+a.btn-saffron:hover { color: #fff; }
+a.btn-outline:hover { color: var(--ink); }
 .btn-lg { min-height: 52px; padding: 0 26px; font-size: 16px; }
 .btn-sm { min-height: 42px; padding: 0 14px; font-size: 14px; font-weight: 500; }
 .btn-saffron { background: var(--saffron-dark); color: #fff; border-color: var(--saffron-dark); }
@@ -364,6 +367,14 @@ h3 { font-size: 18px; font-weight: 600; line-height: 1.35; }
 .number-tile { background: var(--card); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
 .number-value { font-family: var(--font-heading); font-size: 26px; font-weight: 700; color: var(--saffron-dark); line-height: 1.1; }
 .number-label { font-size: 14px; }
+
+/* Stage 4: downloads and the infographic preview */
+.download-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-top: 14px; border-top: 1px solid var(--line); }
+.download-row .muted { margin-left: auto; }
+.infographic-layout { display: grid; grid-template-columns: minmax(220px, 340px) 1fr; gap: 18px; align-items: start; }
+.infographic-preview { display: block; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: var(--bg); }
+.infographic-preview img { display: block; width: 100%; height: auto; }
+@media (max-width: 760px) { .infographic-layout { grid-template-columns: 1fr; } }
 
 .slide-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
 .slide { border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }

@@ -79,3 +79,16 @@ def test_mock_fact_sheet_for_sample_is_fully_grounded():
     assert sheet["indicators"]["cves"] == ["CVE-2026-XXXXX"]
     text = factsheet.fact_sheet_for_prompt(sheet)
     assert "F1: " in text and "A1: " in text and "203.0.113.45" in text
+
+
+def test_key_facts_are_capped_at_8(monkeypatch):
+    """The local model ran out of tokens with more facts, so each answer keeps at most 8."""
+    from app.ai import llm
+    from app.pipeline.output_types import FACTSHEET_SCHEMA
+
+    assert FACTSHEET_SCHEMA["properties"]["key_facts"]["maxItems"] == 8
+    many = {"summary": "S.", "severity": "high", "recommended_actions": [], "dates": [], "entities": [],
+            "key_facts": [{"id": f"F{i}", "text": f"Fact number {i}.", "page": 1, "quote": "q"} for i in range(1, 13)]}
+    monkeypatch.setattr(llm, "chat_json", lambda *args, **kwargs: llm.JsonReply(many, False, 0.1, 10))
+    sheet = factsheet.build_fact_sheet(sample_sources())
+    assert [f["id"] for f in sheet["key_facts"]] == [f"F{i}" for i in range(1, 9)]

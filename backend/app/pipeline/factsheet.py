@@ -63,6 +63,8 @@ def build_fact_sheet(sources: list[SourcePages], on_progress: Callable[[str], No
             max_tokens=max_tokens_for("factsheet"),
             on_progress=lambda note, step=step: on_progress(f"{step} · {note}"),
         )
+        # The JSON shape already allows at most 8 facts; this also covers servers that ignore it.
+        reply.data["key_facts"] = reply.data.get("key_facts", [])[:max_facts]
         partials.append((chunk, reply))
 
     sheet = merge_partials([(chunk, reply.data) for chunk, reply in partials])

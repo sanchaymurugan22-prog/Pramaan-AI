@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { getJob, retryJob, type FactSheet, type JobDetail, type JobOutput } from '../api'
+import { downloadUrl, getJob, kitUrl, retryJob, type FactSheet, type JobDetail, type JobOutput } from '../api'
 import { Icon } from '../components/Icon'
 import { StatusChip } from '../components/StatusChip'
 import { duration, factLookup, type FactLookup } from './format'
@@ -87,6 +87,18 @@ export function Results({ jobId }: { jobId: number }) {
             Try again
           </button>
         )}
+        {/* One .zip with every finished output (made from the saved outputs, no AI needed) */}
+        {done > 0 ? (
+          <a className="btn btn-saffron" href={kitUrl(job.id)} download>
+            <Icon name="box" size={18} strokeWidth={2} />
+            Download campaign kit (.zip)
+          </a>
+        ) : (
+          <button type="button" className="btn btn-saffron" disabled title="Available when an output is ready">
+            <Icon name="box" size={18} strokeWidth={2} />
+            Download campaign kit (.zip)
+          </button>
+        )}
       </div>
 
       {error && <div className="alert alert-red">{error}</div>}
@@ -95,7 +107,7 @@ export function Results({ jobId }: { jobId: number }) {
       <Sources job={job} />
       <FactSheetCard sheet={job.fact_sheet} generating={job.status === 'generating'} step={job.step} />
       {job.outputs.map((output) => (
-        <OutputCard key={output.id} output={output} facts={facts} now={now} />
+        <OutputCard key={output.id} jobId={job.id} output={output} facts={facts} now={now} />
       ))}
     </main>
   )
@@ -239,7 +251,7 @@ function FactSheetCard({ sheet, generating, step }: { sheet: FactSheet | null; g
   )
 }
 
-function OutputCard({ output, facts, now }: { output: JobOutput; facts: FactLookup; now: number }) {
+function OutputCard({ jobId, output, facts, now }: { jobId: number; output: JobOutput; facts: FactLookup; now: number }) {
   const q = output.quality
   let right: ReactNode = null
   if (output.status === 'done') {
@@ -288,9 +300,60 @@ function OutputCard({ output, facts, now }: { output: JobOutput; facts: FactLook
               ))}
             </div>
           )}
-          <OutputBody type={output.type} content={output.content} facts={facts} />
+          {output.type === 'infographic' ? (
+            <div className="infographic-layout">
+              <InfographicPreview jobId={jobId} output={output} />
+              <OutputBody type={output.type} content={output.content} facts={facts} />
+            </div>
+          ) : (
+            <OutputBody type={output.type} content={output.content} facts={facts} />
+          )}
+          <Downloads jobId={jobId} output={output} />
         </>
       )}
     </Card>
+  )
+}
+
+// Button text for each file type. The video package's Word file is its script and storyboard.
+const FORMAT_LABELS: Record<string, string> = {
+  pdf: 'PDF',
+  docx: 'Word (.docx)',
+  pptx: 'PowerPoint (.pptx)',
+  png: 'Image (.png)',
+  srt: 'Subtitles (.srt)',
+  txt: 'Text (.txt)',
+}
+
+function formatLabel(type: string, format: string): string {
+  if (type === 'video_package' && format === 'docx') return 'Script & storyboard (.docx)'
+  return FORMAT_LABELS[format] ?? format.toUpperCase()
+}
+
+// Download links for one finished output. Plain links: the browser saves the file.
+function Downloads({ jobId, output }: { jobId: number; output: JobOutput }) {
+  if (output.formats.length === 0) return null
+  return (
+    <div className="download-row">
+      <span className="section-label">Download</span>
+      {output.formats.map((format) => (
+        <a key={format} className="btn btn-outline btn-xs" href={downloadUrl(jobId, output.id, format)} download>
+          <Icon name="download" size={16} strokeWidth={2} />
+          {formatLabel(output.type, format)}
+        </a>
+      ))}
+      <span className="muted small">AI-assisted · pending human approval</span>
+    </div>
+  )
+}
+
+// The real PNG, drawn by the backend. finished_at in the address makes the browser fetch it
+// again if the output is regenerated.
+function InfographicPreview({ jobId, output }: { jobId: number; output: JobOutput }) {
+  const src = `${downloadUrl(jobId, output.id, 'png', true)}&v=${encodeURIComponent(output.finished_at ?? '')}`
+  return (
+    <a className="infographic-preview" href={src} target="_blank" rel="noreferrer" title="Open the full-size image">
+      <img src={src} alt="Infographic preview" width={1080} height={1350} />
+    </a>
   )
 }

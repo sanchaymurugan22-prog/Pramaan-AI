@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import init_db
 from app.pipeline import runner
-from app.routes import jobs, system
+from app.routes import jobs, outputs, system
 
 
 @asynccontextmanager
@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Pramaan AI", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="Pramaan AI", version="0.3.0", lifespan=lifespan)
 
 # The React dev server (port 5173) proxies /api to us, but allow it directly too.
 app.add_middleware(
@@ -35,3 +35,4 @@ app.add_middleware(
 
 app.include_router(system.router)
 app.include_router(jobs.router)
+app.include_router(outputs.router)

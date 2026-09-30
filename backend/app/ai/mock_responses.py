@@ -31,51 +31,39 @@ MOCK_REPLIES: dict[str, dict] = {
             },
             {
                 "id": "F3",
-                "text": "The gateway flaw was first exploited on 22 September 2026.",
-                "page": 1,
-                "quote": "The gateway flaw was first exploited on 22 September 2026.",
-            },
-            {
-                "id": "F4",
                 "text": "By 28 September, 42 hospitals in five states had reported disruption.",
                 "page": 1,
                 "quote": "As of 28 September, 42 hospitals in five states have reported disruption",
             },
             {
-                "id": "F5",
+                "id": "F4",
                 "text": "Emergency care continued, but 11 hospitals used paper records for more than 48 hours.",
                 "page": 1,
                 "quote": "11 hospitals moved to paper records for more than 48 hours",
             },
             {
-                "id": "F6",
+                "id": "F5",
                 "text": "In three cases, backups on the same network were also encrypted.",
                 "page": 1,
                 "quote": "In three cases, backups kept on the same network were also encrypted",
             },
             {
-                "id": "F7",
+                "id": "F6",
                 "text": "The ransom note demands cryptocurrency within 72 hours and threatens to publish patient data.",
                 "page": 1,
                 "quote": "demands payment in cryptocurrency within 72 hours and threatens to publish stolen patient data",
             },
             {
-                "id": "F8",
+                "id": "F7",
                 "text": "About 1.2 million patient records may have been copied.",
                 "page": 1,
                 "quote": "About 1.2 million patient records may have been copied.",
             },
             {
-                "id": "F9",
+                "id": "F8",
                 "text": "Hospitals with offline backups recovered in under 2 days; the average was 4 days.",
                 "page": 1,
                 "quote": "Hospitals that had offline backups restored their systems in under 2 days.",
-            },
-            {
-                "id": "F10",
-                "text": "The vendor published an emergency patch on 26 September 2026.",
-                "page": 1,
-                "quote": "26 September 2026: the vendor publishes an emergency patch for the gateway.",
             },
         ],
         "dates": [
@@ -103,15 +91,15 @@ MOCK_REPLIES: dict[str, dict] = {
         "tweets": [
             {
                 "text": "Alert: a ransomware group is locking patient-record and billing systems at hospitals. 42 hospitals in five states have reported disruption since 22 September.",
-                "fact_ids": ["F1", "F3", "F4"],
+                "fact_ids": ["F1", "F3"],
             },
             {
                 "text": "The attackers get in through remote-access gateways that are missing the vendor's September update. A patch has been available since 26 September.",
-                "fact_ids": ["F2", "F10"],
+                "fact_ids": ["F2"],
             },
             {
                 "text": "Hospitals with offline backups recovered in under 2 days. Keep one backup offline and test it.",
-                "fact_ids": ["F9", "A4"],
+                "fact_ids": ["F8", "A4"],
             },
             {
                 "text": "Hospital IT teams: patch every gateway today, reset admin passwords, and report any sign of infection within 6 hours. #CyberSecurity",
@@ -123,15 +111,15 @@ MOCK_REPLIES: dict[str, dict] = {
         "paragraphs": [
             {
                 "text": "42 hospitals in five states have reported ransomware disruption since 22 September 2026.",
-                "fact_ids": ["F3", "F4"],
+                "fact_ids": ["F3"],
             },
             {
                 "text": "The attackers enter through remote-access gateways that have not received the vendor's September update, then encrypt patient-record and billing systems. About 1.2 million patient records may have been copied.",
-                "fact_ids": ["F1", "F2", "F8"],
+                "fact_ids": ["F1", "F2", "F7"],
             },
             {
                 "text": "The lesson is clear: offline backups work. Hospitals that had them were back in under 2 days.",
-                "fact_ids": ["F9"],
+                "fact_ids": ["F8"],
             },
             {
                 "text": "Cyber hygiene is a leadership responsibility, not just an IT task.",
@@ -144,13 +132,13 @@ MOCK_REPLIES: dict[str, dict] = {
         "title": "Ransomware campaign against hospitals",
         "bottom_line": {
             "text": "A ransomware group is encrypting hospital patient-record and billing systems; 42 hospitals in five states are affected. Severity is high.",
-            "fact_ids": ["F1", "F4"],
+            "fact_ids": ["F1", "F3"],
         },
         "key_points": [
             {"text": "Entry is through an unpatched remote-access gateway (CVE-2026-XXXXX, sample).", "fact_ids": ["F2"]},
-            {"text": "11 hospitals ran on paper records for more than 48 hours; emergency care continued.", "fact_ids": ["F5"]},
-            {"text": "About 1.2 million patient records may have been copied.", "fact_ids": ["F8"]},
-            {"text": "Hospitals with offline backups recovered in under 2 days, against 4 days on average.", "fact_ids": ["F9"]},
+            {"text": "11 hospitals ran on paper records for more than 48 hours; emergency care continued.", "fact_ids": ["F4"]},
+            {"text": "About 1.2 million patient records may have been copied.", "fact_ids": ["F7"]},
+            {"text": "Hospitals with offline backups recovered in under 2 days, against 4 days on average.", "fact_ids": ["F8"]},
         ],
         "actions_needed": [
             {"text": "Direct all hospitals to patch remote-access gateways today.", "fact_ids": ["A1"]},
@@ -162,9 +150,9 @@ MOCK_REPLIES: dict[str, dict] = {
         "headline": "Ransomware is hitting hospitals",
         "subheadline": "Patch gateways and keep backups offline to recover fast.",
         "key_numbers": [
-            {"value": "42", "label": "hospitals disrupted", "fact_ids": ["F4"]},
-            {"value": "1.2 million", "label": "patient records at risk", "fact_ids": ["F8"]},
-            {"value": "< 2 days", "label": "recovery with offline backups", "fact_ids": ["F9"]},
+            {"value": "42", "label": "hospitals disrupted", "fact_ids": ["F3"]},
+            {"value": "1.2 million", "label": "patient records at risk", "fact_ids": ["F7"]},
+            {"value": "< 2 days", "label": "recovery with offline backups", "fact_ids": ["F8"]},
         ],
         "steps": [
             {"text": "Patch every remote-access gateway today", "fact_ids": ["A1"]},
@@ -179,7 +167,7 @@ MOCK_REPLIES: dict[str, dict] = {
         "severity": "high",
         "overview": {
             "text": "A ransomware group called NightLedger is encrypting patient-record and billing systems at hospitals after entering through an unpatched remote-access gateway. As of 28 September 2026, 42 hospitals in five states have reported disruption.",
-            "fact_ids": ["F1", "F2", "F4"],
+            "fact_ids": ["F1", "F2", "F3"],
         },
         "affected": [
             {"text": "Hospitals using the remote-access gateway without the vendor's September update.", "fact_ids": ["F2"]},
@@ -187,14 +175,14 @@ MOCK_REPLIES: dict[str, dict] = {
         ],
         "description": {
             "text": "The flaw was first exploited on 22 September 2026. The attackers copy data out before encrypting files, and in three cases backups on the same network were also encrypted. The ransom note demands cryptocurrency within 72 hours.",
-            "fact_ids": ["F3", "F6", "F7"],
+            "fact_ids": ["F5", "F6"],
         },
         "impact": {
             "text": "About 1.2 million patient records may have been copied. 11 hospitals used paper records for more than 48 hours.",
-            "fact_ids": ["F8", "F5"],
+            "fact_ids": ["F7", "F4"],
         },
         "recommendations": [
-            {"text": "Apply the vendor's September patch to every remote-access gateway today.", "fact_ids": ["A1", "F10"]},
+            {"text": "Apply the vendor's September patch to every remote-access gateway today.", "fact_ids": ["A1"]},
             {"text": "Block the listed addresses at the network edge and review connection logs since 22 September.", "fact_ids": ["A2"]},
             {"text": "Reset administrator passwords and turn on two-step login for all remote access.", "fact_ids": ["A3"]},
             {"text": "Keep at least one backup offline and test a full restore.", "fact_ids": ["A4"]},
@@ -213,7 +201,7 @@ MOCK_REPLIES: dict[str, dict] = {
                     "First exploited on 22 September 2026",
                 ],
                 "speaker_notes": "Since 22 September a ransomware group has been attacking hospitals. By 28 September, 42 hospitals in five states had reported disruption.",
-                "fact_ids": ["F1", "F3", "F4"],
+                "fact_ids": ["F1", "F3"],
             },
             {
                 "title": "How they get in",
@@ -223,7 +211,7 @@ MOCK_REPLIES: dict[str, dict] = {
                     "Backups on the same network also encrypted",
                 ],
                 "speaker_notes": "The entry point is a remote-access gateway missing the September update. In three cases the attackers also encrypted backups kept on the same network.",
-                "fact_ids": ["F2", "F6"],
+                "fact_ids": ["F2", "F5"],
             },
             {
                 "title": "Impact",
@@ -233,7 +221,7 @@ MOCK_REPLIES: dict[str, dict] = {
                     "Offline backups: recovery in under 2 days",
                 ],
                 "speaker_notes": "The biggest risk is the copied patient data. Hospitals with offline backups recovered much faster than the 4-day average.",
-                "fact_ids": ["F8", "F5", "F9"],
+                "fact_ids": ["F7", "F4", "F8"],
             },
             {
                 "title": "What to do now",
@@ -255,7 +243,7 @@ MOCK_REPLIES: dict[str, dict] = {
                 "visual": "A hospital billing screen turns red with a lock icon.",
                 "on_screen_text": "42 hospitals disrupted",
                 "narration": "Since 22 September, a ransomware group has disrupted 42 hospitals in five states.",
-                "fact_ids": ["F3", "F4"],
+                "fact_ids": ["F3"],
             },
             {
                 "visual": "Animated door labelled 'gateway' left open.",
@@ -267,13 +255,13 @@ MOCK_REPLIES: dict[str, dict] = {
                 "visual": "Stack of patient files flying out of a server.",
                 "on_screen_text": "1.2 million records at risk",
                 "narration": "About 1.2 million patient records may have been copied.",
-                "fact_ids": ["F8"],
+                "fact_ids": ["F7"],
             },
             {
                 "visual": "Checklist ticking off: patch, passwords, offline backup.",
                 "on_screen_text": "Patch. Reset. Back up offline.",
                 "narration": "Patch every gateway today, reset admin passwords, and keep one backup offline. Hospitals that did recovered in under 2 days.",
-                "fact_ids": ["A1", "A3", "A4", "F9"],
+                "fact_ids": ["A1", "A3", "A4", "F8"],
             },
         ],
     },

@@ -5,6 +5,8 @@ GET  /api/jobs            list jobs, newest first
 GET  /api/jobs/{id}       status, fact sheet and each output as it finishes (the page polls this)
 POST /api/jobs/{id}/retry run a failed job again; finished parts are kept
 GET  /api/options         the output types and setting choices, for the "New transformation" form
+
+File downloads (Word, PDF, slides, ...) are in outputs.py.
 """
 
 from datetime import datetime, timezone
@@ -15,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import Job, Output, Source, get_session
+from app.exporters import FORMATS
 from app.pipeline import ingest, runner
 from app.pipeline.output_types import DEFAULT_SETTINGS, OUTPUT_ORDER, OUTPUT_TYPES, SETTING_OPTIONS
 
@@ -183,6 +186,7 @@ def job_detail(job: Job) -> dict:
                 "id": o.id,
                 "type": o.type,
                 "label": OUTPUT_TYPES[o.type]["label"],
+                "formats": FORMATS.get(o.type, []),  # file types it can be downloaded as
                 "language": o.language,
                 "status": o.status,
                 "content": o.content_json,

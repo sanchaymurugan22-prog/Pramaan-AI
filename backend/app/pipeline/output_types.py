@@ -27,11 +27,14 @@ SEVERITY = {"type": "string", "enum": ["low", "medium", "high", "critical", "unk
 
 # ---- the fact sheet ------------------------------------------------------------------------
 
+MAX_KEY_FACTS = 8  # per model answer (per chunk when a long source is split)
+
 FACTSHEET_SCHEMA = obj(
     {
         "summary": STR,
         "severity": SEVERITY,
-        "key_facts": array(obj({"id": STR, "text": STR, "page": {"type": "integer"}, "quote": STR}), 10),
+        # At most 8 facts, so the answer finishes well inside its token limit on the local model
+        "key_facts": array(obj({"id": STR, "text": STR, "page": {"type": "integer"}, "quote": STR}), MAX_KEY_FACTS),
         # Actions before dates and entities: if the answer is cut off at the token limit,
         # the less important lists are the ones lost.
         "recommended_actions": array(STR, 6, 0),

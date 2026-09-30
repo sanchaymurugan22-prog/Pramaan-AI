@@ -28,6 +28,8 @@ const ICONS = {
   file: ['M6 3h8l4 4v14H6z', 'M14 3v4h4'],
   refresh: ['M20 11a8 8 0 1 0-2.3 5.7', 'M20 4v7h-7'],
   code: ['m8 8-4 4 4 4', 'm16 8 4 4-4 4'],
+  download: ['M12 4v12', 'm6 10 6 6 6-6', 'M4 20h16'],
+  box: ['M3 7l9-4 9 4-9 4-9-4z', 'M3 7v10l9 4 9-4V7', 'M12 11v10'],
 } as const
 
 export type IconName = keyof typeof ICONS

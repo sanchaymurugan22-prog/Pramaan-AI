@@ -6,9 +6,10 @@ and every document signed and verifiable.
 
 Smart India Hackathon · Problem Statement 26154 · NTRO.
 
-**Current stage: 3 — Core engine.** Paste text or upload a .txt / .pdf / .docx, and the app builds
+**Current stage: 4 — Real files.** Paste text or upload a .txt / .pdf / .docx, and the app builds
 one fact sheet from it, then writes any of 7 outputs from that fact sheet, each linked back to the
-facts it uses. See `CLAUDE.md` for the full plan.
+facts it uses. Every finished output can be downloaded as a real file (Word, PDF, PowerPoint, PNG,
+subtitles, text), or all together as one campaign kit (.zip). See `CLAUDE.md` for the full plan.
 
 ## What you need (already installed on the dev Mac)
 
@@ -18,6 +19,9 @@ facts it uses. See `CLAUDE.md` for the full plan.
 - llama.cpp prebuilt binary in `~/llama` (only needed to talk to the AI)
 
 ## First-time setup
+
+(If you set up an earlier stage, run the `pip install` line again: Stage 4 added python-pptx,
+ReportLab and Pillow.)
 
 Run these from the project folder (`cd ~/Documents/"Pramaan AI"`):
 
@@ -70,6 +74,7 @@ check the screens without waiting for the real model.
 3. Open <http://localhost:5173>, click **New transformation**.
 4. Click **Choose files** and pick `samples/sample-ransomware-report.txt` (or paste its text).
 5. Tick some outputs, click **Generate**. The Results page shows the fact sheet, then each output.
+6. Under each output, click a **Download** button; at the top, **Download campaign kit (.zip)**.
 
 Set `AI_MODE=local` again (and restart `start.sh`) to use the real model.
 
@@ -106,7 +111,39 @@ source (text / .txt / .pdf / .docx)
   don't time out and progress can be shown). If a server can't do that, it finds the JSON in the
   reply and retries once. If an answer is cut off at the token limit, it keeps what was written.
 - Token limits per output are in `.env` (`MAX_TOKENS_...`); "Short" detail uses 75% of them.
+- The fact sheet keeps at most 8 key facts per model answer and may write up to 1400 tokens
+  (`MAX_TOKENS_FACTSHEET`), so it finishes cleanly instead of being cut off.
 - Jobs run in the background, one at a time. If the backend restarts, unfinished jobs carry on.
+
+## Downloads (Stage 4)
+
+Files are made from the outputs already saved in the database — no AI call, so they take about a
+second even on the slow laptop. They are made again on every download (so they always match the
+output) and saved under `data/jobs/<id>/exports/`.
+
+| Output | Files |
+|---|---|
+| Advisory, Executive summary | `.pdf` and `.docx` |
+| Presentation | `.pptx` — title slide, one slide per generated slide, closing slide; speaker notes on every slide |
+| Infographic | `.png`, 1080 × 1350, drawn in the layout the AI suggested (number grid, vertical steps or timeline); previewed on the Results page |
+| Video package | `.docx` (script and storyboard) and `.srt` (subtitles) |
+| LinkedIn post, X thread | `.txt` (the thread is numbered 1/4, 2/4 …) |
+| Campaign kit | one `.zip` with every file of every finished output, plus `README.txt` listing each file's SHA-256 fingerprint |
+
+Every file carries the job title, the date, the footer **"AI-assisted · pending human approval"**,
+the TLP label when one is set (Stage 6 sets it), and an empty box where the QR code goes once a
+reviewer signs it (Stage 7). Fact ids (F1, A2 …) are kept out of the files; they stay in the JSON.
+An `.srt` file can only hold subtitles, so its labels are one extra subtitle after the narration.
+
+**Fonts.** Poppins, Hind and IBM Plex Mono (all OFL, licences included) are bundled in
+`backend/app/assets/fonts/`. PDF and PNG files carry the fonts inside them. Word and PowerPoint
+files only *name* the font, so for the exact look install the fonts once on the computer that opens
+them: double-click each `.ttf` file in that folder and click **Install Font**. Without them, Pages /
+Keynote / Word use a similar font; nothing else changes. Indian-script fonts are added in Stage 8
+(see `backend/app/exporters/fonts.py`).
+
+The exporters are in `backend/app/exporters/`: `blocks.py` (the sections of each document, shared
+by Word and PDF), `docx.py`, `pdf.py`, `pptx.py`, `infographic.py`, `srt.py`, `text.py`, `kit.py`.
 
 ## API (see <http://localhost:8000/docs> for all details)
 
@@ -117,11 +154,19 @@ source (text / .txt / .pdf / .docx)
 | `GET /api/jobs` | list jobs |
 | `GET /api/jobs/{id}` | status, current step, fact sheet, and each output as it finishes |
 | `POST /api/jobs/{id}/retry` | run the failed parts of a job again |
+| `GET /api/jobs/{id}/outputs/{output_id}/download?format=pdf` | one file: `docx`, `pdf`, `pptx`, `png`, `srt` or `txt` (each output lists its `formats`); add `&inline=true` to view instead of save |
+| `GET /api/jobs/{id}/kit.zip` | the campaign kit: every finished output in one .zip |
 
 Example with curl (from the project folder):
 
 ```bash
 curl -F files=@samples/sample-ransomware-report.txt -F outputs=x_thread -F outputs=linkedin_post http://localhost:8000/api/jobs
+```
+
+Download job 1's campaign kit into the current folder:
+
+```bash
+curl -OJ http://localhost:8000/api/jobs/1/kit.zip
 ```
 
 ## About the AI model
@@ -184,7 +229,9 @@ Restart the app after changing `.env`.
 backend/        FastAPI app (app/main.py), settings (app/config.py), database (app/db.py)
   app/ai/         llm.py (the only file that talks to the model), prompts/*.md, mock answers
   app/pipeline/   ingest.py, factsheet.py, generate.py, checks.py, output_types.py, runner.py
-  app/routes/     system.py (health, AI ping), jobs.py (jobs API)
+  app/exporters/  real files: docx.py, pdf.py, pptx.py, infographic.py, srt.py, text.py, kit.py
+  app/assets/fonts/  Poppins, Hind, IBM Plex Mono (TTF, OFL)
+  app/routes/     system.py (health, AI ping), jobs.py (jobs API), outputs.py (downloads)
 frontend/       React + TypeScript + Vite app; design tokens in src/styles/tokens.css
 verify-page/    public "Is this real?" page (Stage 7)
 scripts/        start.sh (app), start-ai.sh (AI model)
