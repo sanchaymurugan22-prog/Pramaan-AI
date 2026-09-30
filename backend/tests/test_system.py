@@ -16,7 +16,7 @@ def test_health():
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "ok"
-    assert body["ai_mode"] in ("local", "cloud")
+    assert body["ai_mode"] in ("local", "cloud", "mock")
 
 
 def test_ai_ping_success(monkeypatch):

@@ -1,15 +1,16 @@
+import type { Route } from '../router'
+import { links } from '../router'
 import { Icon, type IconName } from './Icon'
 import { Logo } from './Logo'
 import { TricolourStrip } from './TricolourStrip'
 
-type NavItem = { label: string; icon: IconName; badge?: number; current?: boolean }
+// href = a page that exists; items without one are built in later stages and do nothing yet.
+type NavItem = { label: string; icon: IconName; badge?: number; href?: string; pages?: Route['page'][] }
 
-// Only the Dashboard exists in Stage 2. The other pages are built in later stages,
-// so their links are shown (to match the design) but do nothing yet.
 const MAIN_NAV: NavItem[] = [
-  { label: 'Dashboard', icon: 'home', current: true },
-  { label: 'New transformation', icon: 'plus' },
-  { label: 'My jobs', icon: 'history' },
+  { label: 'Dashboard', icon: 'home', href: links.dashboard, pages: ['dashboard'] },
+  { label: 'New transformation', icon: 'plus', href: links.newJob, pages: ['new'] },
+  { label: 'My jobs', icon: 'history', href: links.jobs, pages: ['jobs', 'job'] },
   { label: 'Emergency alert', icon: 'siren' },
   { label: 'Watch folder', icon: 'folder', badge: 2 },
   { label: 'Is this real?', icon: 'scan' },
@@ -20,24 +21,25 @@ const ACCOUNT_NAV: NavItem[] = [
   { label: 'Profile & settings', icon: 'sliders' },
 ]
 
-function NavLink({ item }: { item: NavItem }) {
+function NavLink({ item, route }: { item: NavItem; route: Route }) {
+  const current = item.pages?.includes(route.page) ?? false
   return (
     <a
-      href="#"
-      className={item.current ? 'nav-link is-current' : 'nav-link'}
-      aria-current={item.current ? 'page' : undefined}
-      title={item.current ? undefined : 'Coming in a later stage'}
-      onClick={(e) => e.preventDefault()}
+      href={item.href ?? '#'}
+      className={current ? 'nav-link is-current' : 'nav-link'}
+      aria-current={current ? 'page' : undefined}
+      title={item.href ? undefined : 'Coming in a later stage'}
+      onClick={item.href ? undefined : (e) => e.preventDefault()}
     >
-      {item.current && <span className="nav-marker" />}
-      <Icon name={item.icon} color={item.current ? 'var(--saffron)' : 'var(--icon)'} />
+      {current && <span className="nav-marker" />}
+      <Icon name={item.icon} color={current ? 'var(--saffron)' : 'var(--icon)'} />
       {item.label}
       {item.badge !== undefined && <span className="nav-badge">{item.badge}</span>}
     </a>
   )
 }
 
-export function Sidebar() {
+export function Sidebar({ route }: { route: Route }) {
   return (
     <nav className="sidebar" aria-label="Main">
       <TricolourStrip />
@@ -51,7 +53,7 @@ export function Sidebar() {
 
         <div className="nav-group">
           {MAIN_NAV.map((item) => (
-            <NavLink key={item.label} item={item} />
+            <NavLink key={item.label} item={item} route={route} />
           ))}
         </div>
 
@@ -59,7 +61,7 @@ export function Sidebar() {
 
         <div className="nav-group">
           {ACCOUNT_NAV.map((item) => (
-            <NavLink key={item.label} item={item} />
+            <NavLink key={item.label} item={item} route={route} />
           ))}
         </div>
 

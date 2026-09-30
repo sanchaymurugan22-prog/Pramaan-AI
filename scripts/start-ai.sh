@@ -9,6 +9,8 @@
 #   -c 4096                 small context, to fit in 16 GB RAM
 #   -t 4                    4 CPU threads
 #   -np 1                   one request at a time (saves memory)
+#   -b 512                  read the prompt in pieces of 512 tokens, so the server can report
+#                           progress (and the backend doesn't time out) while it reads a long prompt
 #   --reasoning-budget 0    turn off "thinking", so answers start straight away
 
 set -euo pipefail
@@ -23,4 +25,4 @@ else
   exit 1
 fi
 
-exec "$LLAMA_SERVER" -hf sarvamai/sarvam-30b-gguf:Q4_K_M --offline --port 8081 -c 4096 -t 4 -np 1 --reasoning-budget 0
+exec "$LLAMA_SERVER" -hf sarvamai/sarvam-30b-gguf:Q4_K_M --offline --port 8081 -c 4096 -t 4 -np 1 -b 512 --reasoning-budget 0

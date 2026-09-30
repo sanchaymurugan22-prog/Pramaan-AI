@@ -1,4 +1,5 @@
 import type { Health } from '../api'
+import { aiLabel } from '../pages/format'
 import { Icon } from './Icon'
 
 type Props = {
@@ -17,9 +18,9 @@ function ModelChip({ health }: Props) {
       </span>
     )
   return (
-    <span className="chip chip-navy">
+    <span className={health.ai_mode === 'mock' ? 'chip chip-saffron' : 'chip chip-navy'}>
       <Icon name="chip" size={14} strokeWidth={2.2} />
-      {health.ai_mode === 'local' ? 'Sarvam 30B · local' : 'Sarvam · cloud'}
+      {aiLabel(health.ai_mode)}
     </span>
   )
 }

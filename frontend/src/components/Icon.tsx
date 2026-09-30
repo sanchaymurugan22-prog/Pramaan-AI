@@ -24,6 +24,10 @@ const ICONS = {
   pencil: ['M4 20h4L19 9l-4-4L4 16z', 'm13.5 6.5 4 4'],
   warning: ['M12 3 2 20h20L12 3Z', 'M12 10v4M12 17h.01'],
   cross: ['M6 6l12 12M18 6 6 18'],
+  upload: ['M12 16V4', 'm6 10 6-6 6 6', 'M4 20h16'],
+  file: ['M6 3h8l4 4v14H6z', 'M14 3v4h4'],
+  refresh: ['M20 11a8 8 0 1 0-2.3 5.7', 'M20 4v7h-7'],
+  code: ['m8 8-4 4 4 4', 'm16 8 4 4-4 4'],
 } as const
 
 export type IconName = keyof typeof ICONS

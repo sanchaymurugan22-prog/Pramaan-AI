@@ -4,12 +4,26 @@ Run (from the backend/ folder):
     .venv/bin/uvicorn app.main:app --reload --port 8000
 """
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routes import system
+from app.db import init_db
+from app.pipeline import runner
+from app.routes import jobs, system
 
-app = FastAPI(title="Pramaan AI", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # On start: create any missing database tables, then carry on with jobs that were
+    # still running when the server last stopped.
+    init_db()
+    runner.resume_unfinished()
+    yield
+
+
+app = FastAPI(title="Pramaan AI", version="0.2.0", lifespan=lifespan)
 
 # The React dev server (port 5173) proxies /api to us, but allow it directly too.
 app.add_middleware(
@@ -20,3 +34,4 @@ app.add_middleware(
 )
 
 app.include_router(system.router)
+app.include_router(jobs.router)

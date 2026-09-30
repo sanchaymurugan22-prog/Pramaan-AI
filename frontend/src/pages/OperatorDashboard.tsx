@@ -1,9 +1,11 @@
-import { useState, type ReactNode } from 'react'
-import { pingAi, type AiPing, type Health } from '../api'
+import { useEffect, useState, type ReactNode } from 'react'
+import { listJobs, pingAi, type AiPing, type Health, type JobSummary } from '../api'
 import { Icon, type IconName } from '../components/Icon'
 import { Mandala } from '../components/Mandala'
-import { StatusChip } from '../components/StatusChip'
-import { SAMPLE_ATTENTION, SAMPLE_JOBS, SAMPLE_STATS } from './sampleData'
+import { JobsTable } from '../components/JobsTable'
+import { links } from '../router'
+import { aiLabel } from './format'
+import { SAMPLE_ATTENTION, SAMPLE_STATS } from './sampleData'
 
 // e.g. "Wednesday, 30 September"
 function todayLabel() {
@@ -24,10 +26,10 @@ function Hero() {
         <h1>Namaste, Priya</h1>
         <p>2 items need your attention. Your ransomware advisory kit was approved at 10:21.</p>
         <div className="row gap-10 mt-8">
-          <button type="button" className="btn btn-lg btn-saffron">
+          <a href={links.newJob} className="btn btn-lg btn-saffron">
             <Icon name="plus" size={18} strokeWidth={2} />
             New transformation
-          </button>
+          </a>
           <button type="button" className="btn btn-lg btn-red-outline">
             <Icon name="siren" size={18} strokeWidth={2} />
             Emergency alert
@@ -58,40 +60,32 @@ function StatCards() {
 }
 
 function RecentJobs() {
+  // undefined = loading, null = could not load
+  const [jobs, setJobs] = useState<JobSummary[] | null | undefined>(undefined)
+  useEffect(() => {
+    listJobs()
+      .then((all) => setJobs(all.slice(0, 5)))
+      .catch(() => setJobs(null))
+  }, [])
+
   return (
     <section className="card card-pad stack gap-12">
       <div className="row gap-12">
         <h2>Recent jobs</h2>
-        <span className="chip chip-neutral" title="Real jobs appear from Stage 3">Sample data</span>
         <div className="grow" />
-        <button type="button" className="btn btn-link">
+        <a href={links.jobs} className="btn btn-link">
           View all
           <Icon name="arrowRight" size={18} strokeWidth={2} />
-        </button>
+        </a>
       </div>
-      <div className="jobs-table" role="table" aria-label="Recent jobs">
-        <div className="jobs-row jobs-head" role="row">
-          <span role="columnheader">Job</span>
-          <span role="columnheader">Status</span>
-          <span role="columnheader">Outputs</span>
-          <span role="columnheader">Languages</span>
-          <span role="columnheader">Updated</span>
-        </div>
-        {SAMPLE_JOBS.map((job) => (
-          <div key={job.title} className="jobs-row" role="row">
-            <span role="cell" className="stack">
-              <span className="job-title">{job.title}</span>
-              <span className="job-kind">{job.kind}</span>
-            </span>
-            <span role="cell">
-              <StatusChip status={job.status} progress={job.progress} />
-            </span>
-            <span role="cell">{job.outputs}</span>
-            <span role="cell">{job.languages}</span>
-            <span role="cell">{job.updated}</span>
-          </div>
-        ))}
-      </div>
+      {jobs === undefined && <p className="muted">Loading…</p>}
+      {jobs === null && <p className="muted">Could not load jobs. Is the backend running?</p>}
+      {jobs && jobs.length === 0 && (
+        <p className="muted">
+          No jobs yet. <a href={links.newJob}>Start a new transformation</a>.
+        </p>
+      )}
+      {jobs && jobs.length > 0 && <JobsTable jobs={jobs} />}
     </section>
   )
 }
@@ -155,7 +149,7 @@ function ThisComputer({ health }: { health: Health | null | undefined }) {
 
   const backendState: CheckState = health === undefined ? 'pending' : health ? 'ok' : 'bad'
   const aiState: CheckState = ping === null ? 'pending' : ping.ok ? 'ok' : 'bad'
-  const modelName = health?.ai_mode === 'cloud' ? 'Sarvam cloud' : 'Sarvam 30B'
+  const modelName = aiLabel(health?.ai_mode)
 
   return (
     <section className="card card-pad stack gap-14">

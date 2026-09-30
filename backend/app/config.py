@@ -21,8 +21,12 @@ def _get(name: str, default: str = "") -> str:
 
 
 class Settings:
-    # "local" = llama.cpp on this computer, "cloud" = Sarvam hosted API (dev fallback)
+    # "local" = llama.cpp on this computer, "cloud" = Sarvam hosted API (dev fallback),
+    # "mock" = instant canned answers, for testing the UI without any model
     ai_mode: str = _get("AI_MODE", "local").lower()
+
+    # mock mode only: pretend each answer takes this many seconds (0 = instant)
+    mock_delay_seconds: float = float(_get("MOCK_DELAY_SECONDS", "0"))
 
     # local llama.cpp server
     llm_base_url: str = _get("LLM_BASE_URL", "http://localhost:8081/v1")
@@ -35,8 +39,35 @@ class Settings:
 
     llm_timeout_seconds: float = float(_get("LLM_TIMEOUT_SECONDS", "600"))
 
+    # Long sources are split into pieces of about this many characters, so each piece fits in the
+    # model's 4096-token context together with the instructions and the answer (~4 characters per token).
+    factsheet_chunk_chars: int = int(_get("FACTSHEET_CHUNK_CHARS", "6000"))
+
+    # How many key facts to ask for (per chunk when the source is split). Fewer = faster.
+    factsheet_max_facts: int = int(_get("FACTSHEET_MAX_FACTS", "8"))
+
     # where the database, uploads and outputs live
     data_dir: Path = (PROJECT_ROOT / _get("DATA_DIR", "./data")).resolve()
 
 
 settings = Settings()
+
+
+# Most tokens the model may write for each kind of answer. The local model writes about
+# 1.4 tokens/second, so 350 tokens is about 4 minutes. Override any of these in .env,
+# e.g. MAX_TOKENS_X_THREAD=250
+DEFAULT_MAX_TOKENS = {
+    "factsheet": 1100,
+    "x_thread": 350,
+    "linkedin_post": 350,
+    "executive_summary": 450,
+    "infographic": 400,
+    "advisory": 800,
+    "presentation": 900,
+    "video_package": 900,
+}
+
+
+def max_tokens_for(kind: str) -> int:
+    """Token limit for one kind of answer: MAX_TOKENS_<KIND> from .env, or the default above."""
+    return int(_get(f"MAX_TOKENS_{kind.upper()}", str(DEFAULT_MAX_TOKENS.get(kind, 400))))
