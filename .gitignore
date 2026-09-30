@@ -1,0 +1,18 @@
+# secrets
+.env
+# models and data
+models/
+*.gguf
+data/
+# python
+.venv/
+__pycache__/
+*.pyc
+# node
+node_modules/
+dist/
+# os
+.DS_Store
+.pytest_cache/
+# logs
+*.log

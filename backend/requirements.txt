@@ -1,0 +1,11 @@
+# Pramaan AI backend — Python 3.12
+# Install:  cd backend && .venv/bin/pip install -r requirements.txt
+fastapi==0.142.1
+uvicorn==0.54.0
+pydantic==2.13.5
+sqlalchemy==2.1.1
+python-dotenv==1.2.3
+httpx==0.28.1
+
+# for running tests (backend/tests)
+pytest==9.1.1

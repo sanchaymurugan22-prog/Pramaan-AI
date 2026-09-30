@@ -1,0 +1,35 @@
+/* Pramaan AI design tokens (from CLAUDE.md and the clickable prototype).
+   Use these variables everywhere instead of typing colours directly. */
+
+:root {
+  /* Tricolour palette. Role colours: Operator = saffron, Reviewer = green, Admin = navy */
+  --saffron: #F28C28;  --saffron-dark: #A34A00;  --saffron-light: #FFF4E8;  --saffron-mid: #FFDDB8;
+  --green: #138808;    --green-dark: #0E6A06;    --green-light: #EBF7E7;    --green-mid: #C9EBC1;
+  --navy: #1E2F8F;     --navy-dark: #15206B;     --navy-light: #EEF0FB;     --navy-mid: #D2D8F4;
+
+  --ink: #1B1D26;  --muted: #555B6B;  --bg: #FBF8F2;  --card: #FFFFFF;  --line: #EFE7D9;  --line-2: #E2D8C6;
+  --red: #C0392B;  --red-dark: #A3261B;  --red-light: #FDEDEA;  --yellow: #FCE68A;  --yellow-light: #FFF8DB;
+
+  /* Extra shades used in the prototype */
+  --ink-2: #3C4150;          /* sidebar link text */
+  --icon: #6B7080;           /* grey icons */
+  --logo-green: #3DBA4A;     /* green half of the logo tick */
+  --table-head: #FAF6EE;     /* table header background */
+  --neutral-chip: #F2EDE4;   /* "Draft" chip background */
+  --hero-text: #5A4632;      /* body text on the saffron hero */
+  --yellow-dark: #6B5300;    /* icon on yellow warning */
+  --green-text: #2F4F2A;     /* small text on green-light */
+
+  /* Fonts */
+  --font-body: 'Hind', 'Noto Sans', 'Noto Sans Tamil', 'Noto Sans Bengali', 'Noto Sans Telugu', sans-serif;
+  --font-heading: 'Poppins', 'Hind', sans-serif;
+  --font-brand: 'Rozha One', serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+
+  /* Shapes */
+  --radius-card: 18px;
+  --radius-button: 12px;
+  --button-height: 44px;
+  --shadow-card: 0 1px 2px rgba(27, 29, 38, 0.04), 0 6px 20px rgba(27, 29, 38, 0.04);
+  --sidebar-width: 268px;
+}
