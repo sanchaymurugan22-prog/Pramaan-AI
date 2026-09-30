@@ -411,7 +411,7 @@ export function ConsistencyPanel({ consistency, generating, facts, onOpen, onFac
           </span>
         )}
         <span className="muted small">
-          {consistency.checked} numbers and dates in {consistency.outputs} output{consistency.outputs === 1 ? '' : 's'} compared
+          {consistency.checked} numbers, dates and times in {consistency.outputs} output{consistency.outputs === 1 ? '' : 's'} compared
           with the fact they come from.
         </span>
       </div>

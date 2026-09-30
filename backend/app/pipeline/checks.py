@@ -8,14 +8,14 @@ For each output (check_output):
      A sentence with no fact is "Not linked to a fact" (yellow on the page). Never silently dropped.
      A sentence linked only to facts whose quotes were NOT found in the source is "Linked fact not
      verified" (yellow too): the fact itself may be made up.
-  2. "Not in source": every number, date, CVE id, IP address, file hash, link, email and phone number
+  2. "Not in source": every number, date, clock time, CVE id, IP address, file hash, link, email and phone number
      in the output must be in the SOURCE text itself (red on the page). The fact sheet does not count:
      the AI wrote it, so a made-up number there would otherwise "prove" itself.
   3. Format rules: X posts at most 280 characters, slides at most 15 words a point, ...
   4. A quality score from 0 to 100 (see score_parts), with a plain-words explanation.
 
-For the whole job (check_consistency): the same fact must carry the same number / date in every
-output ("42 hospitals" everywhere); any output that says otherwise is listed.
+For the whole job (check_consistency): the same fact must carry the same number / date / time in
+every output ("42 hospitals" everywhere); any output that says otherwise is listed.
 
 Does the fact sheet match the source (fact_sheet_check)? If fewer than half of its quotes are found
 in the source, the Results page shows a red "Do not publish" banner and every score is capped at 50.
@@ -39,7 +39,7 @@ from app.pipeline.values import KnownValues, find_values
 POINTS = {"linked": 40, "quotes": 25, "values": 20, "format": 15}
 QUOTE_CREDIT = {"exact": 1.0, "close": 0.5, "no": 0.0}
 MISMATCH_CAP = 50        # highest score when the fact sheet does not match the source
-CHECKS_VERSION = 2       # bumped when the checks change, so older results are worked out again
+CHECKS_VERSION = 3       # bumped when the checks change, so older results are worked out again
 
 # ---- sentences ---------------------------------------------------------------------------------
 
@@ -85,10 +85,16 @@ def item_text(item: dict) -> str:
 
 
 def _words(text: str) -> set[str]:
-    """Meaning-carrying words, plus each date as one word ("date:22-9") so dates can link too."""
+    """Meaning-carrying words, plus each date and clock time as one word ("date:22-9", "time:14:00") so
+    they can link too. The digits of a time are not also words ("14:00" is not "14" and "00")."""
     text = _DECORATION.sub(" ", text)
+    values = find_values(text)
+    for v in values:
+        if v.kind == "time":
+            text = text[: v.start] + " " * (v.end - v.start) + text[v.end :]
     words = content_words(text)
-    words |= {f"date:{key}" for v in find_values(text) if v.kind == "date" for key in v.keys}
+    words |= {f"date:{key}" for v in values if v.kind == "date" for key in v.keys}
+    words |= {f"time:{key}" for v in values if v.kind == "time" for key in v.keys | set(v.ends)}
     return words
 
 
@@ -179,7 +185,7 @@ def _score(sentences: list[dict], items: dict, rules: list[dict]) -> dict:
                    "points": round(POINTS["linked"] * linked_share), "max": POINTS["linked"]},
         "quotes": {"label": "Quotes found in the source", "done": found, "close": close, "total": len(used),
                    "points": round(POINTS["quotes"] * quote_share), "max": POINTS["quotes"]},
-        "values": {"label": "Numbers, dates and links in the source", "problems": len(flags),
+        "values": {"label": "Numbers, dates, times and links in the source", "problems": len(flags),
                    "points": round(POINTS["values"] * values_share), "max": POINTS["values"]},
         "format": {"label": "Length and format rules", "done": len(rules_ok), "total": len(rules),
                    "points": round(POINTS["format"] * format_share), "max": POINTS["format"]},
@@ -214,10 +220,10 @@ def _explain(score: int, parts: dict, rules: list[dict]) -> str:
     else:
         lines.append(f"No facts are used, so no quotes could be checked (0 of {quotes['max']}).")
     if values["problems"]:
-        lines.append(f"{values['problems']} number(s), date(s), code(s) or link(s) are not in the source "
+        lines.append(f"{values['problems']} number(s), date(s), time(s), code(s) or link(s) are not in the source "
                      f"({values['points']} of {values['max']}).")
     else:
-        lines.append(f"Every number, date and code is in the source ({values['points']} of {values['max']}).")
+        lines.append(f"Every number, date, time and code is in the source ({values['points']} of {values['max']}).")
     broken = [r["rule"] + (f" ({r['detail']})" if r["detail"] else "") for r in rules if not r["ok"]]
     if broken:
         lines.append(f"Rules not met: {'; '.join(broken)} ({fmt['points']} of {fmt['max']}).")
@@ -321,19 +327,20 @@ def format_rules(output_type: str, content: dict, truncated: bool) -> list[dict]
 def check_consistency(sheet: dict, outputs: list[dict]) -> dict:
     """outputs: [{"id", "type", "label", "sentences"}] (sentences from check_output).
 
-    For each linked sentence, every number (with its unit word) and date is compared with the facts
-    the sentence is linked to. "43 hospitals" linked to a fact that says "42 hospitals" is a
+    For each linked sentence, every number (with its unit word), date and clock time is compared with
+    the facts the sentence is linked to. A time range ("10:00 to 14:00") is one value; a sentence that
+    gives only one of its times ("until 14:00") agrees with it. "43 hospitals" linked to a fact that says "42 hospitals" is a
     mismatch, unless 43 hospitals is what another fact says (then it just uses a second fact).
     """
     items = sheet_items(sheet)
-    # item id -> {"hospital": {"42": "42"}, "date": {"28-9": "28 September"}}
+    # item id -> {"hospital": {"42": "42"}, "date": {"28-9": "28 September"}, "time": {"14:00": "14:00"}}
     reference: dict[str, dict[str, dict[str, str]]] = {}
     for item_id, item in items.items():
         ref: dict[str, dict[str, str]] = defaultdict(dict)
         for v in find_values(item_text(item)):
             what = _what(v)
             if what:
-                for key in v.keys:
+                for key in v.keys | set(v.ends):
                     ref[what].setdefault(key, f"{v.text} {v.unit_text}".strip() if v.kind == "number" else v.text)
         reference[item_id] = ref
 
@@ -349,16 +356,16 @@ def check_consistency(sheet: dict, outputs: list[dict]) -> dict:
                 if not relevant:
                     continue
                 checked += 1
-                match = next((i for i in relevant if v.keys & set(reference[i][what])), None)
+                match = next((i for i in relevant if _same(v, reference[i][what])), None)
                 if match:
-                    key = (match, what, min(v.keys & set(reference[match][what])))
+                    key = (match, what, _same(v, reference[match][what]))
                     entry = agreed.setdefault(key, {"fact_id": match, "value": reference[match][what][key[2]],
                                                     "outputs": []})
                     if output["label"] not in entry["outputs"]:
                         entry["outputs"].append(output["label"])
                     continue
                 # Belongs to a fact the sentence is not linked to (e.g. "11 hospitals" is another fact)?
-                if any(v.keys & set(ref.get(what, {})) for i, ref in reference.items() if i not in s["fact_ids"]):
+                if any(_same(v, ref.get(what, {})) for i, ref in reference.items() if i not in s["fact_ids"]):
                     continue
                 dedupe = (output["id"], s["id"], v.text)
                 if dedupe in seen:
@@ -367,7 +374,7 @@ def check_consistency(sheet: dict, outputs: list[dict]) -> dict:
                 fact_id = relevant[0]
                 mismatches.append({
                     "fact_id": fact_id,
-                    "what": "date" if what == "date" else f"number of {what}",
+                    "what": what if what in ("date", "time") else f"number of {what}",
                     "expected": list(dict.fromkeys(reference[fact_id][what].values())),
                     "found": f"{v.text} {v.unit_text}".strip() if v.kind == "number" else v.text,
                     "output_id": output["id"], "output_type": output["type"], "output_label": output["label"],
@@ -384,10 +391,21 @@ def check_consistency(sheet: dict, outputs: list[dict]) -> dict:
     }
 
 
+def _same(value, keys: dict[str, str]) -> str | None:
+    """The key in `keys` that this value agrees with, or None. A time range also agrees when both of
+    its times are there ("10:00 to 14:00" with a fact that gives "10:00" and "14:00" separately)."""
+    common = value.keys & set(keys)
+    if common:
+        return min(common)
+    if value.ends and all(end in keys for end in value.ends):
+        return value.ends[0]
+    return None
+
+
 def _what(value) -> str:
-    """What a value measures: a unit word for numbers ("hospital"), "date" for dates, "" otherwise."""
-    if value.kind == "date":
-        return "date"
+    """What a value measures: a unit word for numbers ("hospital"), "date" or "time", "" otherwise."""
+    if value.kind in ("date", "time"):
+        return value.kind
     if value.kind == "number" and value.unit:
         return value.unit
     return ""

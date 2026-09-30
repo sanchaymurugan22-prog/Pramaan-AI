@@ -71,6 +71,10 @@ Wait until it prints that the server is listening (loading the model can take a 
 
 Then open <http://localhost:5173>. Press **Ctrl+C** in each terminal to stop.
 
+If an old Pramaan AI is still running on port 8000 or 5173 (for example a terminal closed without
+Ctrl+C), `start.sh` stops it first and says so. If another program uses one of those ports, it
+tells you which one and does not start.
+
 | Part | Address |
 |---|---|
 | Frontend (the app) | http://localhost:5173 |

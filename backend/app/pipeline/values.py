@@ -10,6 +10,10 @@ These are the things an AI most often gets subtly wrong (43 instead of 42, 23 Se
 Each number also remembers the word after it (its "unit"), so "42 hospitals" and "42 hours" are
 different things, and "1.2 million records" matches "1,200,000 records".
 
+Clock times ("14:00", "2 pm", "10.30 a.m.") are one value, not two numbers, so "14:00 security
+updates" is not read as "14" and "00 security". A range ("10:00 to 14:00", "10:00-14:00") is one
+value too; it matches the same range, and a single time from it ("until 14:00") is known as well.
+
 Every value must be in the SOURCE itself (the fact sheet does not count). A link or phone number that
 an injected instruction slipped into an output is flagged too (prompt-injection shield). Placeholders
 like [PHONE-1] are skipped.
@@ -46,13 +50,21 @@ DATE_PATTERNS = [
     # 22/09/2026 or 22-09-2026 (day first, as written in India)
     re.compile(r"\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})\b"),
 ]
+# 14:00, 9:30, 23:59:59, 00:01:02,500 (subtitle times), 2 pm, 10.30 a.m.
+_AMPM = r"(?:\s?([ap])(?:\.\s?m\b\.?|\s?m\b))"  # "pm" or "p.m." (a full stop after "pm" ends the sentence)
+TIME_PATTERNS = [
+    re.compile(rf"(?<![\w.:])(\d{{1,2}}):(\d{{2}})(?::(\d{{2}})(?:[,.]\d{{1,3}})?)?{_AMPM}?(?![\w:])", re.IGNORECASE),
+    re.compile(rf"(?<![\w.:])(\d{{1,2}})(?:\.(\d{{2}}))?(){_AMPM}", re.IGNORECASE),
+]
+# what may stand between the two times of a range: "10:00 to 14:00", "10:00 - 14:00", "10 am till 2 pm"
+TIME_RANGE_JOIN = re.compile(r"\s*(?:-|–|—|to|till|until)\s*", re.IGNORECASE)
 NUMBER = re.compile(r"(?<![\w.])(\d+(?:[.,]\d+)*)(?:st|nd|rd|th)?(?!\w)")
 NUMBER_WORD = re.compile(r"\b(" + "|".join(NUMBER_WORDS) + r")\b", re.IGNORECASE)
 
 
 @dataclass
 class Value:
-    kind: str                # number | date | cve | ip | hash | url | email | phone
+    kind: str                # number | date | time | cve | ip | hash | url | email | phone
     text: str                # as written, e.g. "1.2 million", "22 September 2026"
     start: int
     end: int
@@ -60,10 +72,11 @@ class Value:
     unit: str = ""           # number: stem of the word after it ("hospital"); date: ""
     unit_text: str = ""      # number: that word as written ("hospitals")
     year: str = ""           # date: the year, if written
+    ends: tuple[str, ...] = ()  # time range: the keys of its two times, ("10:00", "14:00")
 
     @property
     def label(self) -> str:
-        return {"number": "Number", "date": "Date", "cve": "CVE id", "ip": "IP address", "hash": "File hash",
+        return {"number": "Number", "date": "Date", "time": "Time", "cve": "CVE id", "ip": "IP address", "hash": "File hash",
                 "url": "Link", "email": "Email address", "phone": "Phone number"}[self.kind]
 
 
@@ -102,6 +115,10 @@ def find_values(text: str) -> list[Value]:
         if free(m.start(), m.end()) and not m.group().isdigit():
             add(Value("hash", m.group(), m.start(), m.end(), {m.group().lower()}))
 
+    for value in _times(text):
+        if free(value.start, value.end):
+            add(value)
+
     for pattern_number, pattern in enumerate(DATE_PATTERNS):
         for m in pattern.finditer(text):
             if not free(m.start(), m.end()):
@@ -121,6 +138,42 @@ def find_values(text: str) -> list[Value]:
             add(value)
 
     return sorted(found, key=lambda v: v.start)
+
+
+def _times(text: str) -> list[Value]:
+    """Clock times, with a time range joined into one value: "10:00 to 14:00" -> key "10:00-14:00"."""
+    single = []
+    for pattern in TIME_PATTERNS:
+        for m in pattern.finditer(text):
+            key = _time_key(*m.groups())
+            if key is None and pattern is TIME_PATTERNS[0]:
+                key = m.group().strip()  # "25:00" is not a real time, but still one value (not 25 and 00)
+            if key and all(m.end() <= v.start or m.start() >= v.end for v in single):
+                single.append(Value("time", m.group().rstrip(), m.start(), m.start() + len(m.group().rstrip()), {key}))
+    single.sort(key=lambda v: v.start)
+
+    joined: list[Value] = []
+    for value in single:
+        before = joined[-1] if joined else None
+        if (before and not before.ends and TIME_RANGE_JOIN.fullmatch(text[before.end : value.start])):
+            ends = (min(before.keys), min(value.keys))
+            joined[-1] = Value("time", text[before.start : value.end], before.start, value.end,
+                               {"-".join(ends)}, ends=ends)
+        else:
+            joined.append(value)
+    return joined
+
+
+def _time_key(hour: str, minute: str | None, second: str | None, am_pm: str | None) -> str | None:
+    """("2", "30", None, "p") -> "14:30"; ("09", "00", "15", None) -> "9:00:15". None if not a real time."""
+    h, m, sec = int(hour), int(minute or 0), int(second or 0)
+    if am_pm:
+        if not 1 <= h <= 12:
+            return None
+        h = h % 12 + (12 if am_pm.lower() == "p" else 0)
+    if h > 23 or m > 59 or sec > 59:
+        return None
+    return f"{h}:{m:02d}" + (f":{sec:02d}" if sec else "")
 
 
 def _link_key(link: str) -> str:
@@ -176,15 +229,16 @@ class KnownValues:
 
     def __init__(self, texts: list[str]):
         self.keys: dict[str, set[str]] = {kind: set() for kind in
-                                          ("number", "date", "cve", "ip", "hash", "url", "email", "phone")}
+                                          ("number", "date", "time", "cve", "ip", "hash", "url", "email", "phone")}
         for text in texts:
             for value in find_values(text):
-                self.keys[value.kind] |= value.keys
+                self.keys[value.kind] |= value.keys | set(value.ends)
                 if value.year:
                     self.keys["number"].add(value.year)
 
     def missing(self, value: Value) -> bool:
         """True if this value does not appear anywhere in the source."""
-        if not value.keys & self.keys[value.kind]:
+        known = self.keys[value.kind]
+        if not value.keys & known and not (value.ends and set(value.ends) <= known):
             return True
         return bool(value.kind == "date" and value.year and value.year not in self.keys["number"])
