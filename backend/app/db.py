@@ -1,7 +1,7 @@
 """Database connection and tables: one SQLite file at data/pramaan.db.
 
 Tables so far: jobs, sources, fact_sheets, outputs (Stage 3), output_versions (Stage 5),
-safety_decisions (Stage 6A). Later stages add users (Stage 6), reviews / records / audit_log (Stage 7).
+safety_decisions (Stage 6A), users and account_requests (Stage 6B). Stage 7 adds records (signing).
 `init_db()` creates any missing tables and columns and never deletes data.
 SQLCipher encryption is added in Stage 6, here, behind this same module, so nothing else has
 to change.
@@ -151,6 +151,52 @@ class SafetyDecision(Base):
     created_at: Mapped[datetime] = mapped_column(default=utc_now)
 
     job: Mapped[Job] = relationship(back_populates="safety_decisions")
+
+
+class User(Base):
+    """A person who can sign in (Stage 6B). There are no built-in accounts: the first Admin is made on
+    the First-time setup screen, everyone else by an Admin (or by an approved access request)."""
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(40), unique=True, index=True)  # always lower case
+    full_name: Mapped[str] = mapped_column(String(100))
+    role: Mapped[str] = mapped_column(String(20))              # operator | reviewer | admin
+    password_hash: Mapped[str] = mapped_column(String(200))    # argon2id, never the password itself
+    is_active: Mapped[bool] = mapped_column(default=True)      # False = switched off by an Admin
+    must_change_password: Mapped[bool] = mapped_column(default=False)  # True after an Admin set a temporary one
+    created_at: Mapped[datetime] = mapped_column(default=utc_now)
+    last_login: Mapped[datetime | None] = mapped_column(default=None)
+    failed_attempts: Mapped[int] = mapped_column(default=0)   # wrong passwords in a row
+    locked_until: Mapped[datetime | None] = mapped_column(default=None)
+
+
+class AccountRequest(Base):
+    """Something only an Admin can do for you, asked from the sign-in pages (no email: works offline).
+    kind = access: "Request access" (a new account; the password is chosen now, stored only as a hash)
+    kind = reset:  "Forgot password" (the Admin sets a temporary password)"""
+
+    __tablename__ = "account_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(10))              # access | reset
+    username: Mapped[str] = mapped_column(String(40), index=True)
+    full_name: Mapped[str] = mapped_column(String(100), default="")
+    role: Mapped[str | None] = mapped_column(String(20), default=None)   # access: operator | reviewer
+    reason: Mapped[str] = mapped_column(Text, default="")                # why / message to the Admin
+    password_hash: Mapped[str | None] = mapped_column(String(200), default=None)  # access only
+    status: Mapped[str] = mapped_column(String(10), default="pending")   # pending | approved | rejected | done
+    created_at: Mapped[datetime] = mapped_column(default=utc_now)
+    decided_at: Mapped[datetime | None] = mapped_column(default=None)
+    decided_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), default=None)
+
+
+def as_utc(value: datetime | None) -> datetime | None:
+    """SQLite gives times back without a timezone; they are always stored in UTC."""
+    if value is not None and value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value
 
 
 def init_db() -> None:

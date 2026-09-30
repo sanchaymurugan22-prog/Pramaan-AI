@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import init_db
 from app.pipeline import runner
-from app.routes import jobs, outputs, safety, system
+from app.routes import auth, jobs, outputs, safety, system
 
 
 @asynccontextmanager
@@ -34,6 +34,7 @@ app.add_middleware(
 )
 
 app.include_router(system.router)
+app.include_router(auth.router)
 app.include_router(jobs.router)
 app.include_router(outputs.router)
 app.include_router(safety.router)

@@ -15,5 +15,11 @@ python-pptx==1.0.2
 reportlab==5.0.1
 pillow==12.3.0
 
+# accounts and data protection (Stage 6B)
+argon2-cffi==25.1.0      # password hashing (argon2id)
+# 48.0.1 is the newest release with a ready-made wheel for Intel Macs (newer ones need a Rust + OpenSSL build)
+cryptography==48.0.1     # AES-256-GCM for stored files
+sqlcipher3==0.6.2        # encrypted SQLite database (SQLCipher 4, built in)
+
 # for running tests (backend/tests)
 pytest==9.1.1
