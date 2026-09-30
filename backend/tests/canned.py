@@ -1,12 +1,15 @@
-"""Canned answers for AI_MODE=mock.
+"""Fixed ("canned") answers, used only as test data.
 
-They are written for samples/sample-ransomware-report.txt, so the quotes really appear in that
-file. With any other source the quotes will (correctly) show as "not found in source".
-One LinkedIn paragraph has no fact_ids on purpose, so the UI's "not linked to a fact"
-warning can be seen in mock mode.
+They were the mock AI's answers before the mock became source-aware (app/ai/mock_ai.py). Tests of
+the checks and the exporters use them as a known, stable output to check against, together with
+samples/sample-ransomware-report.txt (the quotes really appear in that file). `canned_ai()` makes
+the AI return them, for tests that need exactly these texts through the whole app.
 """
 
 import copy
+from contextlib import contextmanager
+
+import pytest
 
 MOCK_REPLIES: dict[str, dict] = {
     "factsheet": {
@@ -273,3 +276,17 @@ def reply(kind: str) -> dict:
     if kind not in MOCK_REPLIES:
         raise KeyError(f"No mock answer for '{kind}'")
     return copy.deepcopy(MOCK_REPLIES[kind])
+
+
+def canned_answer(kind: str, messages: list[dict]) -> dict:
+    return reply(kind)
+
+
+@contextmanager
+def canned_ai():
+    """While active, the mock AI gives the fixed answers above instead of building them from the source."""
+    from app.ai import mock_ai
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(mock_ai, "answer", canned_answer)
+        yield

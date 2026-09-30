@@ -2,7 +2,9 @@
 
 A source can try to take control of the AI: "ignore previous instructions and ...". Three defences:
 
-1. Before analysis we look for such text and show it in the Safety check as "Suspicious instructions found":
+1. Before analysis we look for such text and show it in the Safety check as "Suspicious instructions found".
+   For each instruction the operator chooses: "Remove from what the AI reads" (the default: the whole
+   sentence is cut out, see masking.Masker.for_ai) or "Keep (AI told to ignore it)".
      - instructions aimed at the AI ("ignore previous instructions", "you are now", "system prompt",
        "reveal your ...", chat role tags like <|system|> or [INST]) in the visible text;
      - hidden characters (zero-width, bidi controls, invisible "tag" letters). ingest.py removes them
@@ -130,10 +132,11 @@ def find_suspicious(sources) -> list[dict]:
                 lines.setdefault(page.rfind("\n", 0, start), []).append((start, end))
             for spans in lines.values():
                 start, end = spans[0][0], spans[-1][1]
+                cut_start, cut_end = sentence_bounds(page, start, end)
                 add(kind="instruction", label="Instruction aimed at the AI", source_id=source.source_id,
                     page=page_number, start=start, end=end, spans=[list(span) for span in spans],
-                    text=_line_around(page, start, end),
-                    detail="Kept in the text, but the AI is told that source text is data and must not be followed.")
+                    text=page[cut_start:cut_end][:400], remove=[cut_start, cut_end], choice="remove",
+                    detail="Removed from what the AI reads (you can keep it: the AI is told never to follow source text).")
         for note in source.notes:
             if note["kind"] == "hidden_characters":
                 add(kind="hidden_characters", label="Hidden characters", source_id=source.source_id,
@@ -151,15 +154,21 @@ def find_suspicious(sources) -> list[dict]:
     return items
 
 
-def _line_around(text: str, start: int, end: int, limit: int = 220) -> str:
-    """The line holding text[start:end], shortened around it if very long."""
-    line_start = text.rfind("\n", 0, start) + 1
-    line_end = text.find("\n", end)
-    line_end = len(text) if line_end == -1 else line_end
-    if line_end - line_start > limit:
-        line_start = max(line_start, start - limit // 3)
-        line_end = min(line_end, end + limit // 2)
-    return text[line_start:line_end].strip()
+INSTRUCTION_CHOICES = {"remove": "Remove from what the AI reads", "keep": "Keep (AI told to ignore it)"}
+_SENTENCE_STOP = re.compile(r"[.!?][\"'”’)]*(?=\s|$)|\n[ \t]*\n")
+
+
+def sentence_bounds(text: str, start: int, end: int) -> tuple[int, int]:
+    """(start, end) of the whole sentence(s) holding text[start:end]: from the end of the sentence before
+    (or a blank line) to the next . ! ? (or a blank line). This is what "Remove" cuts out."""
+    before = text[:start]
+    cut = max(before.rfind(stop) + len(stop) if before.rfind(stop) >= 0 else 0
+              for stop in (". ", "! ", "? ", ".\n", "!\n", "?\n", "\n\n"))
+    m = _SENTENCE_STOP.search(text, end)
+    finish = len(text) if m is None else (m.start() if m.group().startswith("\n") else m.end())
+    while cut < start and text[cut].isspace():
+        cut += 1
+    return cut, finish
 
 
 # ---- 2. delimiters ----------------------------------------------------------------------------------------

@@ -80,8 +80,14 @@ Then open <http://localhost:5173>. Press **Ctrl+C** in each terminal to stop.
 
 ## Try it quickly with the mock AI (no model needed)
 
-The mock AI answers instantly with ready-made answers written for the sample report. Use it to
-check the screens without waiting for the real model.
+The mock AI answers instantly, with no model: it builds its answers from the source you give it,
+by simple rules (`backend/app/ai/mock_ai.py`). Like the real AI, it only sees the MASKED text
+(`[PHONE-1]` …) and never the instructions you removed, so masking, the leak check and every trust
+check can be tested with it. Facts: up to 8 informative sentences of the source (with numbers,
+dates, names or placeholders), each quoting its own sentence; dates by pattern; actions from a
+"Recommended actions" list (or sentences starting with a verb like "Please", "Apply"); severity
+from keywords. Outputs: simple templates filled with those facts. One LinkedIn paragraph cites no
+fact on purpose, so the yellow "Not linked to a fact" warning can be seen.
 
 1. In `.env`, set `AI_MODE=mock` (optionally `MOCK_DELAY_SECONDS=3` to see the progress display).
 2. Start the app: `./scripts/start.sh` (no need for `start-ai.sh`).
@@ -186,12 +192,15 @@ warnings and the **Quality score**. On a narrow window the Source trace opens at
 | Source trace | Click a sentence or a chip (F3, A1, D2): the fact, its source (S1), page, *Found / Close match / Not found*, and the source page with the quote in **yellow**, scrolled into view | Each fact's quote (and each action and date) is found in the source word by word when the fact sheet is built, and its character positions are saved (`start`, `end`) |
 | Sentence links | Small chips after every sentence show which facts it uses | Each text field is split into sentences; a sentence must share meaning words with the fact the AI cited, otherwise the best matching fact is used ("matched by its words") |
 | Not linked to a fact | **Yellow underline** and a yellow card listing them | No fact fits the sentence (e.g. an opinion the AI added) |
-| Not in source | **Red wavy underline** on the value, red card | Every number, date, CVE id, IP address and file hash in an output must also be in the fact sheet or the source. `1.2 million` = `1,200,000`, `five` = `5`, `22 Sep` = `22 September` |
+| Not in source | **Red wavy underline** on the value, red card | Every number, date, CVE id, IP address, file hash, link, email and phone number in an output must be in the **source text** (the fact sheet does not count: the AI wrote it). `1.2 million` = `1,200,000`, `five` = `5`, `22 Sep` = `22 September` |
+| Fact not found | Fact sheet: the fact in **red**, "Not found in source". Output: sentences that use only such facts get a yellow **Linked fact not verified** | The fact's quote could not be found in the source, so the fact may be made up; those sentences do not count as linked in the score |
+| Fact sheet does not match | Red banner on Results: **"The fact sheet does not match the source. Do not publish."** | Fewer than half of the fact sheet's quotes were found in the source; every output score and the job score are capped at 50 |
+| All clear | The green "Every sentence is linked …" box | Shown only when **every** check passes: no unlinked or unverified sentence, nothing not in the source, all format rules met, no leak, fact sheet matches |
 | Consistency | Panel at the top: "All outputs agree", or each mismatch ("the fact sheet says 42 hospitals, but the X thread says 43 hospitals") with a button that opens that sentence | Numbers are compared with their unit word (42 *hospitals*, 72 *hours*) against the fact each sentence is linked to |
 | Quality score | Badge on each tab and on the job; hover (or Tab to it) for the explanation in plain words; the card shows the parts | 40 points: sentences linked · 25: quotes found in the source (close = half) · 20: values in the source (each missing one costs a third) · 15: length and format rules (X 280 characters, LinkedIn 3,000, slides 15 words a point, narration 40 words a scene, not cut off …). Job score = average. Saved in the database |
 | Edit | **Edit** → a box per text field → **Save and re-check** | Saved as a new version "Edited by human"; all checks run again; empty a box to remove that item; video subtitles are re-timed |
 | Versions | **Versions** → **View** an older one (read only, with its own score) | Table `output_versions`; nothing is ever overwritten |
-| Regenerate | **Regenerate** writes only that output again from the same fact sheet | Uses the AI (local / cloud); mock mode returns the same canned text as a new version. If the AI fails, the previous version stays |
+| Regenerate | **Regenerate** writes only that output again from the same fact sheet | Uses the AI (local / cloud); mock mode writes the same text again (same fact sheet, same answer) as a new version. If the AI fails, the previous version stays |
 
 Downloads and the campaign kit always use the **latest** version.
 
@@ -214,9 +223,9 @@ All rule-based and offline, in `backend/app/safety/`: `scanner.py` (detectors), 
 | Choices | Per row: **Hide in public outputs** (default for personal data), **Hide everywhere** (default for passwords/keys), **Keep** | Saved on the job; every change goes into the `safety_decisions` table |
 | Source view | The source with every finding highlighted (red = high, saffron = medium, yellow = low, blue = indicator, wavy red = aimed at the AI). Click a row to jump to it | Positions from the scanner |
 | TLP label | Right-hand card with the suggestion and why; shown on Results and printed on every exported file | RED / AMBER: LinkedIn, X thread, infographic, video package are switched off with the reason; advisory, executive summary, presentation allowed. GREEN / CLEAR: all allowed. Suggestion: SECRET → RED; other markings, ID numbers, secrets or internal network → AMBER; only contact details or indicators → GREEN; nothing → CLEAR |
-| Masking | "What the AI will see" note; the preview line with `[internal address]` | Before **any** AI call, every hidden value becomes a placeholder (`[PHONE-1]`, `[AADHAAR-1]` …). After the AI writes, code puts the real value back only in internal outputs for "Hide in public outputs"; public outputs and "Hide everywhere" get a label like `[phone number]` |
+| Masking | "What the AI will see" note; the preview line with `[internal address]`; placeholders in the fact sheet | Before **any** AI call, every hidden value becomes a placeholder (`[PHONE-1]`, `[AADHAAR-1]` …). The saved fact sheet keeps them (it shows what the AI saw). After the AI writes, code puts the real value back only in internal outputs for "Hide in public outputs"; public outputs and "Hide everywhere" get a label like `[phone number]` |
 | Leak check | Red **Private data found** box on the output, `!` on its tab, downloads blocked, left out of the kit | After every write and every edit, each hidden value is searched for in the output (any spacing: `9876543210` = `98765 43210`) |
-| Prompt-injection shield | **Suspicious instructions found** (or "No hidden instructions found") | Phrases like "ignore previous instructions", "you are now", "system prompt", "reveal your …", role tags (`<\|system\|>`, `[INST]`); zero-width / bidi / invisible tag characters (removed; kept inside Indian scripts where they are normal); hidden Word text (white, under 4 pt, "Hidden") and PDF text (invisible, white, under 3 pt), left out of what the AI reads. All source text is sent inside `<<<SOURCE … SOURCE>>>` / `<<<FACT SHEET … FACT SHEET>>>` and the prompts say it is data, never instructions |
+| Prompt-injection shield | **Suspicious instructions found** (or "No hidden instructions found") | Phrases like "ignore previous instructions", "you are now", "system prompt", "reveal your …", role tags (`<\|system\|>`, `[INST]`); zero-width / bidi / invisible tag characters (removed; kept inside Indian scripts where they are normal); hidden Word text (white, under 4 pt, "Hidden") and PDF text (invisible, white, under 3 pt), left out of what the AI reads. For each instruction sentence you choose **Remove from what the AI reads** (default, shown struck through) or **Keep (AI told to ignore it)**; the choice is saved in `safety_decisions`. All source text is sent inside `<<<SOURCE … SOURCE>>>` / `<<<FACT SHEET … FACT SHEET>>>` and the prompts say it is data, never instructions |
 | Output check | Red wavy underline "Link / Phone number / Email address" | Any link, phone or email in an output that is not in the source itself is flagged |
 | Safety section | Results page: label, counts, switched-off outputs, **Decisions** (who, when, what) | `safety_decisions`: scan, each choice change, label, confirmation, start. Until login arrives the person is recorded as "Operator"; values are shown only partly in the log |
 
@@ -309,7 +318,7 @@ cd backend && .venv/bin/python -m pytest
 Set `AI_MODE` in `.env`:
 
 - `local` — llama.cpp on this computer (default, offline).
-- `mock` — no model; instant ready-made answers, for testing the screens.
+- `mock` — no model; instant answers built from the source by simple rules, for testing.
 - `cloud` — Sarvam hosted API, for development only. Put your key in `SARVAM_API_KEY` in `.env`
   (never in code or chat). The hosted API no longer offers `sarvam-30b`; it uses `sarvam-105b`.
 
@@ -319,7 +328,7 @@ Restart the app after changing `.env`.
 
 ```
 backend/        FastAPI app (app/main.py), settings (app/config.py), database (app/db.py)
-  app/ai/         llm.py (the only file that talks to the model), prompts/*.md, mock answers
+  app/ai/         llm.py (the only file that talks to the model), prompts/*.md, mock_ai.py (the mock AI)
   app/pipeline/   ingest.py, factsheet.py, generate.py, checks.py, output_types.py, runner.py,
                   trace.py, values.py, segments.py, versions.py (Stage 5 checks and versions)
   app/exporters/  real files: docx.py, pdf.py, pptx.py, infographic.py, srt.py, text.py, kit.py

@@ -2,8 +2,8 @@
 //
 // The backend splits every text field of an output into sentences and links each one to the facts it
 // uses (quality.sentences, see backend/app/pipeline/checks.py). <Traced> shows one text field with
-// its sentences: small fact chips after each sentence, a yellow underline for "Not linked to a fact",
-// a red underline for numbers / dates / codes that are "Not in source". Clicking a sentence or a chip
+// its sentences: small fact chips after each sentence, a yellow underline for "Not linked to a fact" and
+// "Linked fact not verified", a red underline for numbers / dates / codes / links that are "Not in source". Clicking a sentence or a chip
 // selects it, and the "Source trace" panel on the right shows where it comes from.
 import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
 import type { Path, Sentence } from '../api'
@@ -36,7 +36,7 @@ function SentenceSpan({ sentence: s }: { sentence: Sentence }) {
   const trace = useTrace()!
   const ref = useRef<HTMLSpanElement>(null)
   const selected = trace.selection.outputId === trace.outputId && trace.selection.sentenceId === s.id
-  const claim = s.status === 'linked' || s.status === 'unlinked'
+  const claim = s.status === 'linked' || s.status === 'unlinked' || s.status === 'unverified'
   const interactive = claim || s.not_in_source.length > 0
 
   useEffect(() => {
@@ -52,7 +52,8 @@ function SentenceSpan({ sentence: s }: { sentence: Sentence }) {
       open()
     }
   }
-  const classes = ['sent', s.status === 'unlinked' && 'is-unlinked', selected && 'is-selected'].filter(Boolean).join(' ')
+  const warn = s.status === 'unlinked' || s.status === 'unverified'
+  const classes = ['sent', warn && 'is-unlinked', selected && 'is-selected'].filter(Boolean).join(' ')
   return (
     <span
       ref={ref}
@@ -79,7 +80,7 @@ function FlaggedText({ text, flags }: { text: string; flags: string[] }) {
     if (at < 0) continue
     parts.push(text.slice(cursor, at))
     parts.push(
-      <span key={`${at}-${flag}`} className="not-in-source" title="Not in source: this is not in the fact sheet or the source">
+      <span key={`${at}-${flag}`} className="not-in-source" title="Not in source: this does not appear in the source text">
         {flag}
       </span>,
     )
@@ -94,11 +95,12 @@ function SentenceTags({ sentence: s }: { sentence: Sentence }) {
   const trace = useTrace()!
   return (
     <span className="sent-tags">
-      {s.status === 'linked' &&
+      {(s.status === 'linked' || s.status === 'unverified') &&
         s.fact_ids.map((id) => (
           <FactChip key={id} id={id} onClick={() => trace.select({ outputId: trace.outputId, sentenceId: s.id, factId: id })} />
         ))}
       {s.status === 'unlinked' && <span className="tag tag-yellow">Not linked to a fact</span>}
+      {s.status === 'unverified' && <span className="tag tag-yellow">Linked fact not verified</span>}
       {s.not_in_source.length > 0 && <span className="tag tag-red">Not in source</span>}
     </span>
   )

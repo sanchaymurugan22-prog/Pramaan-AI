@@ -9,17 +9,25 @@ from fastapi.testclient import TestClient
 from pptx import Presentation
 from pypdf import PdfReader
 
-from app.ai.mock_responses import reply
 from app.exporters.common import ExportInfo
 from app.exporters.pptx import FOOTER_TEXT_POINTS, footer_text, footer_width, write_pptx
 from app.main import app
 from app.pipeline import checks
 from app.pipeline.factsheet import SourcePages, build_fact_sheet
 from app.pipeline.trace import locate
+from tests.canned import canned_ai, reply
 from tests.helpers import SAMPLE_REPORT
 from tests.test_jobs_api import wait_for
 
 client = TestClient(app)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def fixed_answers():
+    """These tests check scores, edits and files against known texts, so the AI gives fixed answers
+    (tests/canned.py) instead of building them from the source."""
+    with canned_ai():
+        yield
 SAMPLE = SAMPLE_REPORT.read_text(encoding="utf-8")
 SHA256 = "9f2c4b7e1a3d5f60718293a4b5c6d7e8f9012a3b4c5d6e7f8091a2b3c4d5e41a"
 
@@ -31,7 +39,7 @@ def sheet() -> dict:
 
 @pytest.fixture(scope="module")
 def known(sheet):
-    return checks.known_values(sheet, [SAMPLE])
+    return checks.known_values([SAMPLE])
 
 
 def words(text: str) -> list[str]:

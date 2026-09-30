@@ -17,7 +17,8 @@ AUTOMATIC = "Pramaan (automatic)"
 
 def record(db, job, action: str, detail: str, actor: str = OPERATOR, item: str | None = None,
            value: str | None = None) -> SafetyDecision:
-    """Add one decision. action: scan | choice | tlp | start ; item: a finding id (P1, I2) ; value: the new choice or label."""
+    """Add one decision.
+    action: scan | choice | instruction | tlp | confirm | start ; item: P1, I2, X1 ; value: the new choice or label."""
     decision = SafetyDecision(job=job, actor=actor, action=action, item=item, value=value, detail=detail)
     db.add(decision)
     return decision

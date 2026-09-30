@@ -6,14 +6,19 @@ For each output (check_output):
      says which facts a piece of text uses (fact_ids); here we check each sentence really shares
      words with one of them. If not, we look for another fact that fits ("matched by words").
      A sentence with no fact is "Not linked to a fact" (yellow on the page). Never silently dropped.
-  2. "Not in source": every number, date, CVE id, IP address and file hash in the output must also
-     be in the fact sheet or the source (red on the page). Links, emails and phone numbers must be in
-     the source itself (Stage 6A prompt-injection shield: an injected "call this number" shows up here).
+     A sentence linked only to facts whose quotes were NOT found in the source is "Linked fact not
+     verified" (yellow too): the fact itself may be made up.
+  2. "Not in source": every number, date, CVE id, IP address, file hash, link, email and phone number
+     in the output must be in the SOURCE text itself (red on the page). The fact sheet does not count:
+     the AI wrote it, so a made-up number there would otherwise "prove" itself.
   3. Format rules: X posts at most 280 characters, slides at most 15 words a point, ...
   4. A quality score from 0 to 100 (see score_parts), with a plain-words explanation.
 
 For the whole job (check_consistency): the same fact must carry the same number / date in every
 output ("42 hospitals" everywhere); any output that says otherwise is listed.
+
+Does the fact sheet match the source (fact_sheet_check)? If fewer than half of its quotes are found
+in the source, the Results page shows a red "Do not publish" banner and every score is capped at 50.
 
 The leak check (Stage 6A, app/safety/masking.py): a value the operator chose to hide must not be in
 the output. If it is, quality["leaks"] lists it, the page shows a red "Private data found" warning, and
@@ -33,6 +38,8 @@ from app.pipeline.values import KnownValues, find_values
 # Points for each part of the quality score (they add up to 100)
 POINTS = {"linked": 40, "quotes": 25, "values": 20, "format": 15}
 QUOTE_CREDIT = {"exact": 1.0, "close": 0.5, "no": 0.0}
+MISMATCH_CAP = 50        # highest score when the fact sheet does not match the source
+CHECKS_VERSION = 2       # bumped when the checks change, so older results are worked out again
 
 # ---- sentences ---------------------------------------------------------------------------------
 
@@ -139,19 +146,22 @@ def check_output(output_type: str, content: dict, sheet: dict, known: KnownValue
                     sentence["status"] = "plain"  # only hashtags, links or punctuation
                 else:
                     ids, how, closest = _link(words, segment.fact_ids, item_words, len(claims) == 1)
-                    sentence.update(status="linked" if ids else "unlinked", fact_ids=ids, matched_by=how,
-                                    closest=closest)
+                    status = "linked" if ids else "unlinked"
+                    if ids and all(items[i].get("quote_found") == "no" for i in ids):
+                        status = "unverified"  # only facts that could not be found in the source
+                    sentence.update(status=status, fact_ids=ids, matched_by=how, closest=closest)
             sentences.append(sentence)
 
     rules = format_rules(output_type, content, truncated)
     quality = _score(sentences, items, rules)
     quality["unknown_fact_ids"] = sorted(unknown_ids)
     quality["warnings"] = _warnings(quality, rules, unknown_ids)
+    quality["checks_version"] = CHECKS_VERSION
     return quality
 
 
 def _score(sentences: list[dict], items: dict, rules: list[dict]) -> dict:
-    claims = [s for s in sentences if s["status"] in ("linked", "unlinked")]
+    claims = [s for s in sentences if s["status"] in ("linked", "unlinked", "unverified")]
     linked = [s for s in claims if s["status"] == "linked"]
     used = sorted({i for s in linked for i in s["fact_ids"]}, key=_id_order)
     flags = [{"sentence_id": s["id"], **flag} for s in sentences for flag in s["not_in_source"]]
@@ -165,11 +175,11 @@ def _score(sentences: list[dict], items: dict, rules: list[dict]) -> dict:
     format_share = len(rules_ok) / len(rules) if rules else 1.0
 
     parts = {
-        "linked": {"label": "Sentences linked to a fact", "done": len(linked), "total": len(claims),
+        "linked": {"label": "Sentences linked to a verified fact", "done": len(linked), "total": len(claims),
                    "points": round(POINTS["linked"] * linked_share), "max": POINTS["linked"]},
         "quotes": {"label": "Quotes found in the source", "done": found, "close": close, "total": len(used),
                    "points": round(POINTS["quotes"] * quote_share), "max": POINTS["quotes"]},
-        "values": {"label": "Numbers and dates in the source", "problems": len(flags),
+        "values": {"label": "Numbers, dates and links in the source", "problems": len(flags),
                    "points": round(POINTS["values"] * values_share), "max": POINTS["values"]},
         "format": {"label": "Length and format rules", "done": len(rules_ok), "total": len(rules),
                    "points": round(POINTS["format"] * format_share), "max": POINTS["format"]},
@@ -187,6 +197,7 @@ def _score(sentences: list[dict], items: dict, rules: list[dict]) -> dict:
         "parts": len(claims),
         "linked": len(linked),
         "unlinked": [s["text"] for s in claims if s["status"] == "unlinked"],
+        "unverified": [s["text"] for s in claims if s["status"] == "unverified"],
     }
 
 
@@ -194,7 +205,7 @@ def _explain(score: int, parts: dict, rules: list[dict]) -> str:
     """The score in plain words, for the tooltip on the badge."""
     linked, quotes, values, fmt = parts["linked"], parts["quotes"], parts["values"], parts["format"]
     lines = [f"Quality {score} out of 100."]
-    lines.append(f"{linked['done']} of {linked['total']} sentences are linked to a fact "
+    lines.append(f"{linked['done']} of {linked['total']} sentences are linked to a fact found in the source "
                  f"({linked['points']} of {linked['max']} points).")
     if quotes["total"]:
         close = f", {quotes['close']} only closely" if quotes["close"] else ""
@@ -203,7 +214,7 @@ def _explain(score: int, parts: dict, rules: list[dict]) -> str:
     else:
         lines.append(f"No facts are used, so no quotes could be checked (0 of {quotes['max']}).")
     if values["problems"]:
-        lines.append(f"{values['problems']} number(s), date(s) or code(s) are not in the fact sheet or the source "
+        lines.append(f"{values['problems']} number(s), date(s), code(s) or link(s) are not in the source "
                      f"({values['points']} of {values['max']}).")
     else:
         lines.append(f"Every number, date and code is in the source ({values['points']} of {values['max']}).")
@@ -219,6 +230,9 @@ def _warnings(quality: dict, rules: list[dict], unknown_ids: set[str]) -> list[s
     warnings = []
     if quality["unlinked"]:
         warnings.append(f"{len(quality['unlinked'])} of {quality['parts']} sentences are not linked to any fact in the fact sheet.")
+    if quality["unverified"]:
+        warnings.append(f"{len(quality['unverified'])} sentence(s) are linked only to facts whose quotes were not found "
+                        "in the source.")
     if quality["not_in_source"]:
         shown = ", ".join(f"“{f['text']}”" for f in quality["not_in_source"][:4])
         warnings.append(f"Not in the source: {shown}.")
@@ -382,13 +396,18 @@ def _what(value) -> str:
 # ---- saving it all ----------------------------------------------------------------------------------
 
 
-def known_values(sheet: dict, page_texts: list[str]) -> KnownValues:
-    """Everything in the source and the fact sheet, for the "Not in source" check."""
-    texts = list(page_texts) + [sheet.get("summary", "")]
-    texts += [item_text(item) for item in sheet_items(sheet).values()]
-    texts += [e.get("name", "") for e in sheet.get("entities", [])]
-    texts += [value for values in (sheet.get("indicators") or {}).values() for value in values]
-    return KnownValues(texts, source_texts=page_texts)
+def known_values(page_texts: list[str]) -> KnownValues:
+    """Every value in the source text, for the "Not in source" check (the fact sheet does not count)."""
+    return KnownValues(page_texts)
+
+
+def fact_sheet_check(sheet: dict | None) -> dict | None:
+    """How many of the fact sheet's quotes were found in the source. ok = at least half."""
+    if not sheet:
+        return None
+    facts = sheet.get("key_facts", [])
+    found = sum(f.get("quote_found") in ("exact", "close") for f in facts)
+    return {"ok": found * 2 >= len(facts), "found": found, "total": len(facts)}
 
 
 def leak_check(output_type: str, content: dict, masker, public: bool) -> list[dict]:
@@ -424,13 +443,14 @@ def recheck_job(db, job) -> None:
         return
     sources = [SourcePages(s.source_key, s.filename, load_pages(s.text_path)) for s in job.sources]
     sheet = job.fact_sheet.json
+    masker = Masker(job.safety_json)
     if needs_trace(sheet):
         sheet = copy.deepcopy(sheet)
-        verify_quotes(sheet, sources)
+        verify_quotes(sheet, sources, unmask=masker.unmask)
         job.fact_sheet.json = sheet  # a new object, so SQLAlchemy saves the change
-    known = known_values(sheet, [page for s in sources for page in s.pages])
+    known = known_values([page for s in sources for page in s.pages])
+    sheet_ok = fact_sheet_check(sheet)["ok"]
 
-    masker = Masker(job.safety_json)
     finished = [o for o in job.outputs if o.content_json and o.status in ("done", "generating", "queued")]
     for output in finished:
         quality = check_output(output.type, output.content_json, sheet, known, output.truncated)
@@ -438,6 +458,11 @@ def recheck_job(db, job) -> None:
         quality["leaks"] = leak_check(output.type, output.content_json, masker, public)
         if quality["leaks"]:
             quality["warnings"].insert(0, leak_warning(quality["leaks"], public))
+        if not sheet_ok:  # the fact sheet does not match the source: never more than 50
+            quality["score"] = min(quality["score"], MISMATCH_CAP)
+            quality["capped"] = True
+            quality["explanation"] += (f" Capped at {MISMATCH_CAP}: fewer than half of the fact sheet's quotes were "
+                                       "found in the source.")
         output.quality_json, output.quality_score = quality, quality["score"]
         current = next((v for v in output.versions if v.version == output.version), None)
         if current is not None:
@@ -449,4 +474,6 @@ def recheck_job(db, job) -> None:
     ])
     scores = [o.quality_score for o in finished if o.quality_score is not None]
     job.quality_score = round(sum(scores) / len(scores)) if scores else None
+    if job.quality_score is not None and not sheet_ok:
+        job.quality_score = min(job.quality_score, MISMATCH_CAP)
     db.commit()

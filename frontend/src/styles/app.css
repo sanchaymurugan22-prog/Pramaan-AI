@@ -712,3 +712,11 @@ details summary { cursor: pointer; font-weight: 600; color: var(--navy); margin-
   .find-head > :nth-child(4) { display: none; }
   .safety-banner { flex-wrap: wrap; }
 }
+
+/* Stage 6A fixes: facts not found in the source, removed instructions */
+.fact.is-unverified { background: var(--red-light); border-color: var(--red-border); }
+.fact.is-unverified .fact-quote { color: var(--red-dark); }
+.mark-removed { background: var(--red-light); color: var(--muted); text-decoration: line-through; text-decoration-color: var(--red-dark); }
+.struck { text-decoration: line-through; text-decoration-color: var(--red-dark); color: var(--muted); }
+.suspicious-row { display: flex; flex-direction: column; gap: 8px; }
+.suspicious-row .select-sm { align-self: flex-start; max-width: 100%; }

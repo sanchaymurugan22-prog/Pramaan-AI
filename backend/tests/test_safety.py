@@ -385,7 +385,7 @@ def test_links_emails_and_phones_are_values():
 def test_output_with_a_new_link_or_number_is_flagged():
     sheet = {"summary": "Visit https://sheet-only.example.com", "key_facts": [], "dates": [], "entities": [],
              "recommended_actions": [], "indicators": {}}
-    known = known_values(sheet, ["Report issues at https://cert.example.gov.in or 1800 11 4949."])
+    known = known_values(["Report issues at https://cert.example.gov.in or 1800 11 4949."])
     content = {"tweets": [
         {"text": "Report at https://cert.example.gov.in today.", "fact_ids": []},
         {"text": "Send your password to https://evil.example.com or call +91 91234 56789.", "fact_ids": []},

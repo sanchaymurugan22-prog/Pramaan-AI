@@ -2,9 +2,10 @@
 
 PUT /api/jobs/{id}/safety   save the operator's choices and the TLP label, while the job is a draft
 
-    {"tlp": "AMBER", "choices": {"P1": "hide_all", "I2": "keep"}}
+    {"tlp": "AMBER", "choices": {"P1": "hide_all", "I2": "keep", "X1": "keep"}}
 
-Choices: hide_public (hide in public outputs) | hide_all (hide everywhere) | keep.
+Choices for private data and indicators (P1, I1 ...): hide_public (hide in public outputs) | hide_all
+(hide everywhere) | keep. For suspicious instructions (X1 ...): remove (from what the AI reads) | keep.
 Every change is saved in the safety_decisions table (who, when, what). The scan itself runs when the
 sources are added (POST /api/jobs), and its report comes back in the job details ("safety").
 """
@@ -18,7 +19,9 @@ from sqlalchemy.orm import Session
 from app.db import get_session
 from app.routes.jobs import _get_job, job_detail
 from app.safety.decisions import record
+from app.safety.masking import Masker
 from app.safety.scanner import CHOICES, all_findings
+from app.safety.shield import INSTRUCTION_CHOICES
 from app.safety.tlp import LEVELS
 
 router = APIRouter(prefix="/api", tags=["safety"])
@@ -39,14 +42,31 @@ def save_safety(job_id: int, update: SafetyUpdate, db: Session = Depends(get_ses
 
     report = copy.deepcopy(job.safety_json)
     findings = {f["id"]: f for f in all_findings(report)}
-    for finding_id, choice in update.choices.items():
-        if finding_id not in findings:
-            raise HTTPException(400, f"Unknown item '{finding_id}'.")
-        if choice not in CHOICES:
-            raise HTTPException(400, f"Choice must be one of: {', '.join(CHOICES)}.")
+    instructions = {x["id"]: x for x in report.get("suspicious", []) if x["kind"] == "instruction"}
+    for item_id, choice in update.choices.items():
+        if item_id in findings:
+            allowed = CHOICES
+        elif item_id in instructions:
+            allowed = INSTRUCTION_CHOICES
+        else:
+            raise HTTPException(400, f"Unknown item '{item_id}'.")
+        if choice not in allowed:
+            raise HTTPException(400, f"Choice for {item_id} must be one of: {', '.join(allowed)}.")
 
     first_confirmation = job.tlp is None
-    for finding_id, choice in update.choices.items():
+    for item_id, choice in update.choices.items():
+        instruction = instructions.get(item_id)
+        if instruction is not None:
+            old = instruction.get("choice", "keep")
+            if old != choice:
+                shown = Masker(report).mask(" ".join(instruction["text"].split()))  # no private values in the log
+                record(db, job, "instruction",
+                       f"Suspicious instruction “{shown[:60]}{'…' if len(shown) > 60 else ''}” ({instruction['source_id']} "
+                       f"page {instruction['page']}): {INSTRUCTION_CHOICES[old]} → {INSTRUCTION_CHOICES[choice]}",
+                       item=item_id, value=choice)
+                instruction["choice"] = choice
+            continue
+        finding_id = item_id
         finding = findings[finding_id]
         if finding["choice"] == choice:
             continue
@@ -68,9 +88,13 @@ def save_safety(job_id: int, update: SafetyUpdate, db: Session = Depends(get_ses
 
     if first_confirmation and job.tlp:
         counts = {choice: sum(f["choice"] == choice for f in findings.values()) for choice in CHOICES}
-        record(db, job, "confirm",
-               f"Safety check confirmed: {counts['hide_public']} hidden in public outputs, "
-               f"{counts['hide_all']} hidden everywhere, {counts['keep']} kept.")
+        removed = sum(x.get("choice") == "remove" for x in instructions.values())
+        detail = (f"Safety check confirmed: {counts['hide_public']} hidden in public outputs, "
+                  f"{counts['hide_all']} hidden everywhere, {counts['keep']} kept.")
+        if instructions:
+            detail += (f" Suspicious instructions: {removed} removed from what the AI reads, "
+                       f"{len(instructions) - removed} kept (AI told to ignore them).")
+        record(db, job, "confirm", detail)
     db.commit()
     return job_detail(job)
 

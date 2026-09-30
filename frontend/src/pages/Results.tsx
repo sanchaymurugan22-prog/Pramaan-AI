@@ -181,6 +181,19 @@ export function Results({ jobId }: { jobId: number }) {
 
       {error && <div className="alert alert-red">{error}</div>}
       {job.error && <div className={job.status === 'failed' ? 'alert alert-red' : 'alert alert-yellow'}>{job.error}</div>}
+      {job.fact_sheet_check && !job.fact_sheet_check.ok && (
+        <div className="alert alert-red stack gap-4" role="alert">
+          <strong className="row gap-8">
+            <Icon name="warning" size={18} strokeWidth={2.2} />
+            The fact sheet does not match the source. Do not publish.
+          </strong>
+          <span>
+            Only {job.fact_sheet_check.found} of {job.fact_sheet_check.total} fact quotes were found in the source, so the
+            AI may have made facts up. Every quality score is capped at 50. Regenerate, or check each fact marked
+            “Not found in source”.
+          </span>
+        </div>
+      )}
       {job.status === 'draft' && (
         <div className="alert alert-yellow">
           This job has not started yet. <a href={links.safety(job.id)}>Continue with the safety check</a>.
@@ -373,10 +386,16 @@ function FactSheetCard({ sheet, generating, step, selectedFact, onFact }: FactSh
     >
       <p className="lead">{sheet.summary}</p>
       <p className="muted small">Click a fact to see its quote highlighted in the source.</p>
+      {/\[[A-Z]+(?:-[A-Z]+)*-\d+\]/.test(JSON.stringify(sheet.key_facts)) && (
+        <p className="hint">
+          Values like <code className="mono">[PHONE-1]</code> were hidden in the Safety check: this is exactly what the
+          AI saw. Internal outputs show the real value again where you allowed it; public outputs show a label.
+        </p>
+      )}
       {notFound > 0 && (
-        <div className="alert alert-yellow">
-          {notFound} fact{notFound === 1 ? '' : 's'} could not be matched to the exact words in the source. Check
-          them before using.
+        <div className="alert alert-red">
+          {notFound} fact{notFound === 1 ? '' : 's'} not found in the source (in red below). Sentences that use only
+          these facts are marked “Linked fact not verified”. Check them before using.
         </div>
       )}
       {sheet.truncated && <div className="alert alert-yellow">The fact sheet was cut off at the token limit.</div>}
@@ -386,7 +405,7 @@ function FactSheetCard({ sheet, generating, step, selectedFact, onFact }: FactSh
           <button
             type="button"
             key={fact.id}
-            className={['fact', fact.quote_found === 'no' && 'is-unlinked', selectedFact === fact.id && 'is-selected'].filter(Boolean).join(' ')}
+            className={['fact', fact.quote_found === 'no' && 'is-unverified', selectedFact === fact.id && 'is-selected'].filter(Boolean).join(' ')}
             onClick={() => onFact(fact.id)}
           >
             <span className="fact-id">{fact.id}</span>

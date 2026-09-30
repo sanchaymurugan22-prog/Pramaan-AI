@@ -144,7 +144,7 @@ class SafetyDecision(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id"), index=True)
     actor: Mapped[str] = mapped_column(String(100))            # "Operator", "Pramaan (automatic)"
-    action: Mapped[str] = mapped_column(String(20))            # scan | choice | tlp | start
+    action: Mapped[str] = mapped_column(String(20))            # scan | choice | instruction | tlp | confirm | start
     item: Mapped[str | None] = mapped_column(String(20), default=None)   # finding id: P1, I2 ...
     value: Mapped[str | None] = mapped_column(String(40), default=None)  # new choice or label
     detail: Mapped[str] = mapped_column(Text)                  # the decision in plain words

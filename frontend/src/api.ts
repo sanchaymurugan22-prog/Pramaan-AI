@@ -100,7 +100,12 @@ export type Suspicious = {
   spans?: [number, number][]
   text: string
   detail: string
+  // instructions only: cut the sentence out of what the AI reads (default), or keep it
+  choice?: InstructionChoice
+  remove?: [number, number]
 }
+
+export type InstructionChoice = 'remove' | 'keep'
 
 export type SafetyReport = {
   checked: { sources: number; pages: number }
@@ -116,7 +121,7 @@ export type SafetyReport = {
 export type SafetyDecision = {
   id: number
   actor: string
-  action: 'scan' | 'choice' | 'tlp' | 'confirm' | 'start'
+  action: 'scan' | 'choice' | 'instruction' | 'tlp' | 'confirm' | 'start'
   item: string | null
   value: string | null
   detail: string
@@ -131,8 +136,9 @@ export type Sentence = {
   path: Path // which text field it is in, e.g. ["tweets", 1, "text"]
   label: string // e.g. "Post 2"
   text: string
-  // linked / unlinked: a claim; heading: a title (not linked); plain: only hashtags or links
-  status: 'linked' | 'unlinked' | 'heading' | 'plain'
+  // linked / unlinked: a claim; unverified: linked only to facts whose quotes are not in the source;
+  // heading: a title (not linked); plain: only hashtags or links
+  status: 'linked' | 'unlinked' | 'unverified' | 'heading' | 'plain'
   fact_ids: string[]
   matched_by: 'model' | 'words' | null // words = linked by matching words, the AI did not cite it
   closest: string | null // unlinked only: the fact that fits best
@@ -160,6 +166,8 @@ export type Quality = {
   parts: number
   linked: number
   unlinked: string[]
+  unverified?: string[]
+  capped?: boolean // score capped at 50: the fact sheet does not match the source
   unknown_fact_ids: string[]
   warnings: string[]
   leaks?: Leak[] // Stage 6A leak check
@@ -243,6 +251,8 @@ export type JobDetail = JobSummary & {
   consistency: Consistency | null
   sources: { id: string; filename: string; kind: string; pages: number; chars: number; sha256: string }[]
   fact_sheet: FactSheet | null
+  // How many fact sheet quotes were found in the source; ok = false -> "Do not publish" banner
+  fact_sheet_check: { ok: boolean; found: number; total: number } | null
   outputs: JobOutput[]
 }
 
@@ -306,7 +316,7 @@ const sendJson = (method: string, body: unknown): RequestInit => ({
 })
 
 // Step 2: the operator's choice for each finding (only the changed ones need to be sent) and the TLP label
-export const saveSafety = (jobId: number, update: { tlp?: Tlp; choices?: Record<string, SafetyChoice> }) =>
+export const saveSafety = (jobId: number, update: { tlp?: Tlp; choices?: Record<string, SafetyChoice | InstructionChoice> }) =>
   request<JobDetail>(`/api/jobs/${jobId}/safety`, sendJson('PUT', update))
 
 // Step 3: the outputs and settings; starts the AI

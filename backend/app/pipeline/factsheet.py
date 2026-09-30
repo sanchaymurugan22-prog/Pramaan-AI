@@ -14,8 +14,9 @@ are found with exact patterns, not by the model, so they can never be made up. E
 corrected with simple rules after the model answers (see fix_entity_type).
 
 Safety (Stage 6A): the model reads the source with every hidden value replaced by a placeholder
-([PHONE-1], see app/safety/masking.py), inside <<<SOURCE ... SOURCE>>> delimiters. The saved fact
-sheet shows "Hide in public outputs" values again and "Hide everywhere" values as labels.
+([PHONE-1], see app/safety/masking.py) and suspicious instructions the operator chose to remove left
+out, inside <<<SOURCE ... SOURCE>>> delimiters. The saved fact sheet keeps the placeholders: it shows
+exactly what the AI saw. (Quotes are still checked against the real source.)
 """
 
 import re
@@ -58,7 +59,9 @@ def build_fact_sheet(sources: list[SourcePages], on_progress: Callable[[str], No
     """
     readable = sources
     if masker is not None:
-        readable = [SourcePages(s.source_id, s.filename, [masker.mask(page) for page in s.pages]) for s in sources]
+        readable = [SourcePages(s.source_id, s.filename, [masker.for_ai(s.source_id, number, page)
+                                                           for number, page in enumerate(s.pages, start=1)])
+                    for s in sources]
     chunks = make_chunks(readable, settings.factsheet_chunk_chars)
     # With several chunks, ask for fewer facts from each so the merged sheet stays small.
     max_facts = settings.factsheet_max_facts if len(chunks) == 1 else max(3, settings.factsheet_max_facts * 2 // 3)
@@ -90,7 +93,7 @@ def build_fact_sheet(sources: list[SourcePages], on_progress: Callable[[str], No
     verify_quotes(sheet, sources, unmask=masker.unmask if masker is not None else None)
     if masker is not None:
         indicators = masker.indicators_for(sheet["indicators"], public=False)  # without "Hide everywhere" ones
-        sheet = masker.view_json(sheet)
+        sheet = masker.mask_json(sheet)  # quotes of actions and dates come from the real page text
         sheet["indicators"] = indicators
     sheet["parts"] = len(chunks)
     sheet["truncated"] = any(reply.truncated for _, reply in partials)

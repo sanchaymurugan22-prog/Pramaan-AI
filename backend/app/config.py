@@ -22,7 +22,7 @@ def _get(name: str, default: str = "") -> str:
 
 class Settings:
     # "local" = llama.cpp on this computer, "cloud" = Sarvam hosted API (dev fallback),
-    # "mock" = instant canned answers, for testing the UI without any model
+    # "mock" = instant answers built from the source by simple rules, for testing without any model
     ai_mode: str = _get("AI_MODE", "local").lower()
 
     # mock mode only: pretend each answer takes this many seconds (0 = instant)

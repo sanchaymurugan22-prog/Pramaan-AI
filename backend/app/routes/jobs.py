@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session
 from app.db import Job, Output, Source, get_session
 from app.exporters import FORMATS
 from app.pipeline import ingest, runner
-from app.pipeline.checks import recheck_job
+from app.pipeline.checks import CHECKS_VERSION, fact_sheet_check, recheck_job
 from app.pipeline.output_types import DEFAULT_SETTINGS, OUTPUT_ORDER, OUTPUT_TYPES, SETTING_OPTIONS
 from app.pipeline.segments import segments
 from app.pipeline.versions import ORIGIN_LABELS, current_version
@@ -249,12 +249,12 @@ def _get_job(db: Session, job_id: int) -> Job:
 
 
 def _bring_up_to_date(db: Session, job: Job) -> None:
-    """Jobs finished before Stage 5 have no sentence checks or scores yet: work them out once (no AI)."""
+    """Jobs checked by an older version of the checks: work them out again once (no AI)."""
     if job.status == "generating" or job.fact_sheet is None:
         return
     written = [o for o in job.outputs if o.content_json]
     if written and (job.consistency_json is None
-                    or any("score" not in (o.quality_json or {}) or "leaks" not in o.quality_json for o in written)):
+                    or any((o.quality_json or {}).get("checks_version") != CHECKS_VERSION for o in written)):
         recheck_job(db, job)
 
 
@@ -310,6 +310,8 @@ def job_detail(job: Job) -> dict:
             for s in job.sources
         ],
         "fact_sheet": job.fact_sheet.json if job.fact_sheet else None,
+        # how many fact sheet quotes were found in the source; ok = False -> "Do not publish" banner
+        "fact_sheet_check": fact_sheet_check(job.fact_sheet.json if job.fact_sheet else None),
         "outputs": [
             {
                 "id": o.id,

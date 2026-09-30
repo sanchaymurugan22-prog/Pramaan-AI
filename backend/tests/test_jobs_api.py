@@ -5,7 +5,7 @@ import time
 from tests.helpers import SAMPLE_REPORT, make_pdf
 from fastapi.testclient import TestClient
 
-from app.ai import llm
+from app.ai import llm, mock_ai
 from app.main import app
 from app.pipeline import generate, runner
 
@@ -53,7 +53,7 @@ def test_pasted_text_with_two_outputs():
     x_thread, linkedin = job["outputs"]
     assert x_thread["quality"]["unlinked"] == []
     # the mock LinkedIn post has one paragraph with no fact ids: it must be flagged, not dropped
-    assert linkedin["quality"]["unlinked"] == ["Cyber hygiene is a leadership responsibility, not just an IT task."]
+    assert linkedin["quality"]["unlinked"] == [mock_ai.PLANTED]
     assert linkedin["quality"]["warnings"]
 
 

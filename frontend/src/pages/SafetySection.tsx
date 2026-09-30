@@ -16,6 +16,7 @@ export function SafetySection({ job }: { job: JobDetail }) {
   safety.findings.forEach((f) => (counts[f.choice] += 1))
   const off = Object.keys(safety.switched_off)
   const level = TLP_LEVELS.find((l) => l.tlp === job.tlp)
+  const removedCount = safety.suspicious.filter((x) => x.kind === 'instruction' && x.choice === 'remove').length
   const blocked = job.outputs.filter((o) => (o.quality?.leaks ?? []).length > 0)
 
   return (
@@ -35,7 +36,8 @@ export function SafetySection({ job }: { job: JobDetail }) {
         )}
         {safety.suspicious.length > 0 && (
           <span className="chip chip-red chip-xs">
-            {safety.suspicious.length} suspicious instruction{safety.suspicious.length === 1 ? '' : 's'}
+            {safety.suspicious.length} suspicious item{safety.suspicious.length === 1 ? '' : 's'}
+            {removedCount > 0 && ` · ${removedCount} removed from what the AI read`}
           </span>
         )}
         <div className="grow" />

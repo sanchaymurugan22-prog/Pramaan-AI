@@ -4,6 +4,7 @@ import {
   getSource,
   saveSafety,
   type Finding,
+  type InstructionChoice,
   type JobDetail,
   type SafetyChoice,
   type SourceText,
@@ -21,13 +22,14 @@ import { ALWAYS_CHECKED, CHOICES, findingIcon, INDICATOR_CHOICES, TLP_LEVELS, wh
 // "10 · New transformation · 2 Safety check". Everything here was found by rules (no AI):
 //   - What we found: private data, with a choice for each (hide in public outputs / hide everywhere / keep)
 //   - Attack indicators: public attacker addresses, CVE ids, file hashes (not private data)
-//   - Suspicious instructions: text aimed at the AI, hidden characters, hidden text
+//   - Suspicious instructions: text aimed at the AI (remove it from what the AI reads, or keep it),
+//     hidden characters, hidden text
 //   - The source, with all of it highlighted
 //   - Sharing level (TLP), with the suggested one marked
 export function SafetyCheck({ jobId }: { jobId: number }) {
   const [job, setJob] = useState<JobDetail | null>(null)
   const [error, setError] = useState('')
-  const [choices, setChoices] = useState<Record<string, SafetyChoice>>({})
+  const [choices, setChoices] = useState<Choices>({})
   const [tlp, setTlp] = useState<Tlp | null>(null)
   const [focus, setFocus] = useState<string | null>(null) // finding or suspicious item shown in the source
   const [saving, setSaving] = useState(false)
@@ -38,7 +40,8 @@ export function SafetyCheck({ jobId }: { jobId: number }) {
       .then((loaded) => {
         setJob(loaded)
         const all = [...(loaded.safety?.findings ?? []), ...(loaded.safety?.indicators ?? [])]
-        setChoices(Object.fromEntries(all.map((f) => [f.id, f.choice])))
+        const instructions = (loaded.safety?.suspicious ?? []).filter((x) => x.choice)
+        setChoices(Object.fromEntries([...all.map((f) => [f.id, f.choice]), ...instructions.map((x) => [x.id, x.choice!])]))
         setTlp(loaded.tlp ?? loaded.safety?.suggested_tlp ?? null)
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Could not load the job.'))
@@ -65,10 +68,14 @@ export function SafetyCheck({ jobId }: { jobId: number }) {
 
   const all = [...safety.findings, ...safety.indicators]
   const hiddenCount = safety.findings.filter((f) => choices[f.id] !== 'keep').length
+  const saved: Record<string, string | undefined> = Object.fromEntries([
+    ...all.map((f) => [f.id, f.choice]),
+    ...safety.suspicious.map((x) => [x.id, x.choice]),
+  ])
 
   async function next() {
     if (!job || !tlp) return setError('Choose a sharing level (TLP).')
-    const changed = Object.fromEntries(all.filter((f) => choices[f.id] !== f.choice).map((f) => [f.id, choices[f.id]]))
+    const changed = Object.fromEntries(Object.entries(choices).filter(([id, choice]) => saved[id] !== choice))
     setSaving(true)
     setError('')
     try {
@@ -80,7 +87,7 @@ export function SafetyCheck({ jobId }: { jobId: number }) {
     }
   }
 
-  const choose = (id: string, choice: SafetyChoice) => setChoices((c) => ({ ...c, [id]: choice }))
+  const choose = (id: string, choice: SafetyChoice | InstructionChoice) => setChoices((c) => ({ ...c, [id]: choice }))
   const show = (id: string) => setFocus((current) => (current === id ? null : id))
 
   return (
@@ -119,7 +126,7 @@ export function SafetyCheck({ jobId }: { jobId: number }) {
               onShow={show}
               noneRows
             />
-            <Preview findings={safety.findings} choices={choices} sources={sources} />
+            <Preview findings={safety.findings} suspicious={safety.suspicious} choices={choices} sources={sources} />
           </section>
 
           {safety.indicators.length > 0 && (
@@ -142,7 +149,7 @@ export function SafetyCheck({ jobId }: { jobId: number }) {
             </section>
           )}
 
-          <SuspiciousCard items={safety.suspicious} focus={focus} onShow={show} />
+          <SuspiciousCard items={safety.suspicious} choices={choices} focus={focus} onShow={show} onChoose={choose} />
 
           <SourceView sources={sources} findings={all} suspicious={safety.suspicious} choices={choices} focus={focus} />
         </div>
@@ -228,6 +235,14 @@ export function SafetyCheck({ jobId }: { jobId: number }) {
   )
 }
 
+// The operator's choice for each finding (P1, I1 ...) and each suspicious instruction (X1 ...)
+type Choices = Record<string, SafetyChoice | InstructionChoice>
+
+const INSTRUCTION_CHOICES: { value: InstructionChoice; label: string }[] = [
+  { value: 'remove', label: 'Remove from what the AI reads' },
+  { value: 'keep', label: 'Keep (AI told to ignore it)' },
+]
+
 // ---- the source texts (all sources of the job, loaded once) ------------------------------------------
 
 function useSources(job: JobDetail | null): SourceText[] {
@@ -278,7 +293,7 @@ function Banner({ kinds, suggested }: { kinds: number; suggested: Tlp }) {
 
 type TableProps = {
   findings: Finding[]
-  choices: Record<string, SafetyChoice>
+  choices: Choices
   options: { value: SafetyChoice; label: string }[]
   focus: string | null
   onChoose: (id: string, choice: SafetyChoice) => void
@@ -363,10 +378,19 @@ const capital = (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
 
 // ---- "Preview in public outputs" -------------------------------------------------------------------------
 
-function Preview({ findings, choices, sources }: { findings: Finding[]; choices: Record<string, SafetyChoice>; sources: SourceText[] }) {
-  const hidden = findings.find((f) => choices[f.id] !== 'keep')
+function Preview({ findings, suspicious, choices, sources }: {
+  findings: Finding[]
+  suspicious: Suspicious[]
+  choices: Choices
+  sources: SourceText[]
+}) {
+  // a hidden value the AI will read (not one inside an instruction that is removed anyway)
+  const removed = suspicious.filter((x) => x.remove && choices[x.id] === 'remove')
+  const insideRemoved = (o: Finding['occurrences'][number]) =>
+    removed.some((x) => x.source_id === o.source_id && x.page === o.page && o.start >= x.remove![0] && o.end <= x.remove![1])
+  const hidden = findings.find((f) => choices[f.id] !== 'keep' && f.occurrences.some((o) => !insideRemoved(o)))
   if (!hidden) return null
-  const where = hidden.occurrences[0]
+  const where = hidden.occurrences.find((o) => !insideRemoved(o))!
   const page = sources.find((s) => s.id === where.source_id)?.pages[where.page - 1]
   if (!page) return null
   const start = jsIndex(page, where.start)
@@ -384,7 +408,15 @@ function Preview({ findings, choices, sources }: { findings: Finding[]; choices:
 
 // ---- suspicious instructions -------------------------------------------------------------------------------
 
-function SuspiciousCard({ items, focus, onShow }: { items: Suspicious[]; focus: string | null; onShow: (id: string) => void }) {
+type SuspiciousProps = {
+  items: Suspicious[]
+  choices: Choices
+  focus: string | null
+  onShow: (id: string) => void
+  onChoose: (id: string, choice: InstructionChoice) => void
+}
+
+function SuspiciousCard({ items, choices, focus, onShow, onChoose }: SuspiciousProps) {
   if (items.length === 0) {
     return (
       <section className="card card-pad row gap-14 align-start">
@@ -410,32 +442,51 @@ function SuspiciousCard({ items, focus, onShow }: { items: Suspicious[]; focus: 
         <span className="stack gap-4">
           <h3>Suspicious instructions found</h3>
           <p className="muted small">
-            The AI is always told that source text is data and must never be followed as instructions. Hidden
-            characters and hidden text are removed before it reads anything.
+            By default each instruction is cut out of what the AI reads (shown struck through). If you keep one, the
+            AI is still told that source text is data and must never be followed. Hidden characters and hidden text
+            are always removed.
           </p>
         </span>
       </div>
       <ul className="suspicious-list">
-        {items.map((item) => (
-          <li key={item.id}>
-            <button
-              type="button"
-              className={focus === item.id ? 'suspicious-item is-focus' : 'suspicious-item'}
-              onClick={() => onShow(item.id)}
-              disabled={item.start === null}
-              title={item.start === null ? 'Removed from the text, so it cannot be shown there' : 'Show it in the source'}
-            >
-              <span className="row gap-8 wrap">
-                <strong>{item.label}</strong>
-                <span className="muted small">
-                  {item.source_id} · page {item.page}
+        {items.map((item) => {
+          const removed = item.kind === 'instruction' && choices[item.id] === 'remove'
+          return (
+            <li key={item.id} className="suspicious-row">
+              <button
+                type="button"
+                className={focus === item.id ? 'suspicious-item is-focus' : 'suspicious-item'}
+                onClick={() => onShow(item.id)}
+                disabled={item.start === null}
+                title={item.start === null ? 'Removed from the text, so it cannot be shown there' : 'Show it in the source'}
+              >
+                <span className="row gap-8 wrap">
+                  <strong>{item.label}</strong>
+                  <span className="muted small">
+                    {item.source_id} · page {item.page}
+                  </span>
+                  {removed && <span className="chip chip-red chip-xs">Removed from what the AI reads</span>}
                 </span>
-              </span>
-              <span className="suspicious-text">{item.text}</span>
-              <span className="muted small">{item.detail}</span>
-            </button>
-          </li>
-        ))}
+                <span className={removed ? 'suspicious-text struck' : 'suspicious-text'}>{item.text}</span>
+                {item.kind !== 'instruction' && <span className="muted small">{item.detail}</span>}
+              </button>
+              {item.kind === 'instruction' && item.choice && (
+                <select
+                  className="input select-sm"
+                  aria-label={`What to do with instruction ${item.id}`}
+                  value={choices[item.id]}
+                  onChange={(e) => onChoose(item.id, e.target.value as InstructionChoice)}
+                >
+                  {INSTRUCTION_CHOICES.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </li>
+          )
+        })}
       </ul>
     </section>
   )
@@ -449,7 +500,7 @@ function SourceView({ sources, findings, suspicious, choices, focus }: {
   sources: SourceText[]
   findings: Finding[]
   suspicious: Suspicious[]
-  choices: Record<string, SafetyChoice>
+  choices: Choices
   focus: string | null
 }) {
   const [shownId, setShownId] = useState<string | null>(null)
@@ -471,11 +522,17 @@ function SourceView({ sources, findings, suspicious, choices, focus }: {
     }
     suspicious
       .filter((s) => s.source_id === current.id && s.kind === 'instruction')
-      .forEach((s) =>
-        (s.spans ?? [[s.start!, s.end!]]).forEach(([a, b]) =>
-          add(s.page, { start: a, end: b, id: s.id, className: 'scan-mark mark-injection', title: s.label }),
-        ),
-      )
+      .forEach((s) => {
+        if (choices[s.id] === 'remove' && s.remove) {
+          // the whole sentence the AI will not read, struck through
+          const [a, b] = s.remove
+          add(s.page, { start: a, end: b, id: s.id, className: 'scan-mark mark-removed', title: 'Removed from what the AI reads' })
+        } else {
+          ;(s.spans ?? [[s.start!, s.end!]]).forEach(([a, b]) =>
+            add(s.page, { start: a, end: b, id: s.id, className: 'scan-mark mark-injection', title: `${s.label} · kept` }),
+          )
+        }
+      })
     findings.forEach((f) =>
       f.occurrences
         .filter((o) => o.source_id === current.id)
@@ -523,6 +580,7 @@ function SourceView({ sources, findings, suspicious, choices, focus }: {
         <span className="scan-mark mark-low">Low</span>
         <span className="scan-mark mark-indicator">Indicator</span>
         <span className="scan-mark mark-injection">Aimed at the AI</span>
+        <span className="scan-mark mark-removed">Removed</span>
         <span className="muted">Click a row above to find it here.</span>
       </div>
       <div className="source-text is-wide" ref={box}>

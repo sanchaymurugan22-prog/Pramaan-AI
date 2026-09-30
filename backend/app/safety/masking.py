@@ -16,6 +16,9 @@ How it works, for every value the operator chose to hide ("Hide in public output
 
 "Keep" values are left alone. Attack indicators work the same way (kept in the advisory, left out of
 public posts by default).
+
+Suspicious instructions (shield.py) the operator chose to "Remove from what the AI reads" are cut out
+of the source before the AI reads it (for_ai).
 """
 
 import re
@@ -55,6 +58,26 @@ class Masker:
         ordered = sorted(self.hidden, key=lambda f: len(f["text"]), reverse=True)
         self._groups = ordered
         self._pattern = re.compile("|".join(f"({finding_pattern(f)})" for f in ordered)) if ordered else None
+        # (source id, page) -> [(start, end)] of instructions to cut out before the AI reads the page
+        self.removals: dict[tuple[str, int], list[tuple[int, int]]] = {}
+        for item in (report or {}).get("suspicious", []):
+            if item.get("kind") == "instruction" and item.get("choice") == "remove" and item.get("remove"):
+                self.removals.setdefault((item["source_id"], item["page"]), []).append(tuple(item["remove"]))
+
+    # ---- 0. what the AI reads of a source page ----
+
+    def for_ai(self, source_id: str, page_number: int, text: str) -> str:
+        """The page without removed instructions, with every hidden value masked."""
+        spans = sorted(self.removals.get((source_id, page_number), []))
+        merged: list[list[int]] = []
+        for start, end in spans:
+            if merged and start <= merged[-1][1]:
+                merged[-1][1] = max(merged[-1][1], end)
+            else:
+                merged.append([start, end])
+        for start, end in reversed(merged):
+            text = text[:start] + text[end:]
+        return self.mask(text)
 
     # ---- 1. before the AI ----
 
@@ -97,10 +120,6 @@ class Masker:
 
         return PLACEHOLDER.sub(swap, text)
 
-    def internal_view(self, text: str) -> str:
-        """How internal documents show a text: "Hide everywhere" values become labels, the rest stays."""
-        return self.restore(self.mask(text), public=False)
-
     def restore_json(self, value, public: bool):
         """restore() on every text inside an output's JSON (fact ids are left alone)."""
         if isinstance(value, str):
@@ -111,14 +130,14 @@ class Masker:
             return {k: (v if k == "fact_ids" else self.restore_json(v, public)) for k, v in value.items()}
         return value
 
-    def view_json(self, value):
-        """internal_view() on every text inside a JSON value (used for the fact sheet)."""
+    def mask_json(self, value):
+        """mask() on every text inside a JSON value (used for the saved fact sheet)."""
         if isinstance(value, str):
-            return self.internal_view(value)
+            return self.mask(value)
         if isinstance(value, list):
-            return [self.view_json(item) for item in value]
+            return [self.mask_json(item) for item in value]
         if isinstance(value, dict):
-            return {k: (v if k in ("id", "fact_ids", "source_id") else self.view_json(v)) for k, v in value.items()}
+            return {k: (v if k in ("id", "fact_ids", "source_id", "quote_found") else self.mask_json(v)) for k, v in value.items()}
         return value
 
     def indicators_for(self, indicators: dict, public: bool) -> dict:

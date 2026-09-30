@@ -1,7 +1,7 @@
 // The trust panels of the Results page (Stage 5), laid out like the design
 // "13 · Results · Advisory with source trace":
 //   SourcePanel       the source text, with the quote of the selected fact highlighted in yellow
-//   CheckWarnings     sentences not linked to a fact, and values not in the source
+//   CheckWarnings     sentences not linked to a (verified) fact, and values not in the source
 //   QualityCard       the 0-100 score and what it is made of
 //   ScoreBadge        a small score with a tooltip that explains it in plain words
 //   ConsistencyPanel  does every output use the same numbers and dates for the same fact?
@@ -80,7 +80,7 @@ export function SourcePanel({ jobId, facts, selection, sentence, where, select, 
         <div className="stack gap-8">
           <span className="section-label">{where}</span>
           <blockquote className="trace-sentence">{sentence.text}</blockquote>
-          {sentence.status === 'linked' && (
+          {(sentence.status === 'linked' || sentence.status === 'unverified') && (
             <div className="row gap-6 wrap small">
               <span className="muted">Uses</span>
               {sentence.fact_ids.map((id) => (
@@ -114,10 +114,16 @@ export function SourcePanel({ jobId, facts, selection, sentence, where, select, 
               )}
             </div>
           )}
+          {sentence.status === 'unverified' && (
+            <div className="trace-alert trace-alert-yellow">
+              <strong>Linked fact not verified.</strong> The fact this sentence uses could not be found in the source,
+              so it may be made up. Check it against the source before using it.
+            </div>
+          )}
           {sentence.not_in_source.length > 0 && (
             <div className="trace-alert trace-alert-red">
               <strong>Not in source:</strong> {sentence.not_in_source.map((f) => `${f.text} (${f.label.toLowerCase()})`).join(', ')}.
-              This does not appear in the fact sheet or the source.
+              This does not appear in the source text.
             </div>
           )}
         </div>
@@ -217,13 +223,23 @@ function reflow(text: string): string {
 export function CheckWarnings({ outputId, quality, select }: { outputId: number; quality: Quality; select: (s: Selection) => void }) {
   const sentences = quality.sentences ?? []
   const unlinked = sentences.filter((s) => s.status === 'unlinked')
+  const unverified = sentences.filter((s) => s.status === 'unverified')
   const flagged = sentences.filter((s) => s.not_in_source.length > 0)
   if (!quality.sentences) return null
-  if (unlinked.length === 0 && flagged.length === 0) {
+  // Green only when EVERY check passes (also format rules, fact ids, the leak check and the fact sheet match)
+  const allPass =
+    unlinked.length === 0 &&
+    unverified.length === 0 &&
+    flagged.length === 0 &&
+    (quality.format_rules ?? []).every((r) => r.ok) &&
+    quality.unknown_fact_ids.length === 0 &&
+    (quality.leaks ?? []).length === 0 &&
+    !quality.capped
+  if (allPass) {
     return (
       <section className="side-card side-ok">
         <Icon name="shieldCheck" size={20} />
-        <span>Every sentence is linked to a fact, and every number, date and code is in the source.</span>
+        <span>Every sentence is linked to a fact found in the source, and every number, date and code is in the source.</span>
       </section>
     )
   }
@@ -246,6 +262,21 @@ export function CheckWarnings({ outputId, quality, select }: { outputId: number;
           <p className="small warn-hint">Use Edit to change or remove them, or check them yourself.</p>
         </section>
       )}
+      {unverified.length > 0 && (
+        <section className="side-card side-warn">
+          <div className="row gap-8">
+            <Icon name="warning" size={20} />
+            <strong>
+              {unverified.length} sentence{unverified.length === 1 ? '' : 's'}: linked fact not verified
+            </strong>
+          </div>
+          {unverified.map((s) => (
+            <button key={s.id} type="button" className="warn-item" onClick={() => jump(s)}>
+              “{s.text}”<span className="warn-where">{s.label} · its fact's quote is not in the source</span>
+            </button>
+          ))}
+        </section>
+      )}
       {flagged.length > 0 && (
         <section className="side-card side-bad">
           <div className="row gap-8">
@@ -256,7 +287,7 @@ export function CheckWarnings({ outputId, quality, select }: { outputId: number;
             <button key={s.id} type="button" className="warn-item" onClick={() => jump(s)}>
               {s.not_in_source.map((f) => f.text).join(', ')}
               <span className="warn-where">
-                {s.label} · not in the fact sheet or the source
+                {s.label} · not in the source
               </span>
             </button>
           ))}
@@ -290,6 +321,11 @@ export function QualityCard({ quality, versionNote }: { quality: Quality; versio
         <span className={`score-big score-${scoreTone(quality.score)}`}>{quality.score}</span>
       </div>
       <span className="small muted">{versionNote}</span>
+      {quality.capped && (
+        <span className="small" style={{ color: 'var(--red-dark)' }}>
+          Capped at 50: the fact sheet does not match the source.
+        </span>
+      )}
       {rows.map(([label, value, points, max]) => (
         <div key={label} className="stack gap-4">
           <div className="row gap-8 small">

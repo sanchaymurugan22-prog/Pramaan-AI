@@ -5,8 +5,8 @@ Three modes, set by AI_MODE in .env:
   - cloud -> Sarvam AI hosted API (development fallback only)
     Docs: https://docs.sarvam.ai/api-reference/chat/chat-completions-v1
     POST {SARVAM_BASE_URL}/chat/completions, header `api-subscription-key`.
-  - mock  -> no model at all: instant canned answers (app/ai/mock_responses.py),
-    for testing the UI and for the automated tests.
+  - mock  -> no model at all: instant answers built from the (masked) text it is sent
+    (app/ai/mock_ai.py), for testing the UI and for the automated tests.
 
 Local and cloud both speak the OpenAI-style "chat completions" API.
 
@@ -22,7 +22,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from app.ai import mock_responses
+from app.ai import mock_ai
 from app.config import settings
 
 
@@ -37,7 +37,7 @@ class _BadRequest(LLMError):
 def _provider() -> tuple[str, str, dict[str, str]]:
     """Return (base_url, model, headers) for the configured AI_MODE."""
     if settings.ai_mode == "mock":
-        return "mock", "mock (canned answers)", {}
+        return "mock", "mock (answers built from the source)", {}
 
     if settings.ai_mode == "cloud":
         if not settings.sarvam_api_key:
@@ -225,7 +225,7 @@ def chat_json(
     """Ask the LLM for a JSON object shaped like `schema` and return it parsed.
 
     kind: what we are asking for ("factsheet", "x_thread", ...). Only mock mode uses it,
-          to pick the matching canned answer.
+          to know which answer to build from the messages.
     on_progress: called with short notes like "57 tokens written" (local mode streams the answer).
 
     How we make sure we get valid JSON:
@@ -238,7 +238,7 @@ def chat_json(
     if settings.ai_mode == "mock":
         started = time.monotonic()
         _mock_wait()
-        return JsonReply(mock_responses.reply(kind), False, round(time.monotonic() - started, 2), None)
+        return JsonReply(mock_ai.answer(kind, messages), False, round(time.monotonic() - started, 2), None)
 
     started = time.monotonic()
     data, truncated, tokens = _ask_json(messages, schema, max_tokens, temperature, on_progress)

@@ -4,15 +4,15 @@ and (Stage 6A) links, email addresses and phone numbers.
 These are the things an AI most often gets subtly wrong (43 instead of 42, 23 September instead of
 22), so they are checked by exact rules, never by the AI:
 
-  - "Not in source": every value in an output must also appear in the fact sheet or the source.
+  - "Not in source": every value in an output must also appear in the source text.
   - Consistency: the same fact must carry the same number / date in every output.
 
 Each number also remembers the word after it (its "unit"), so "42 hospitals" and "42 hours" are
 different things, and "1.2 million records" matches "1,200,000 records".
 
-Links, emails and phone numbers must be in the SOURCE itself (not only the fact sheet): a link or
-number that an injected instruction slipped into an output is flagged (prompt-injection shield).
-Placeholders like [PHONE-1] are skipped.
+Every value must be in the SOURCE itself (the fact sheet does not count). A link or phone number that
+an injected instruction slipped into an output is flagged too (prompt-injection shield). Placeholders
+like [PHONE-1] are skipped.
 """
 
 import re
@@ -25,7 +25,6 @@ from app.safety.scanner import EMAIL, PHONE
 URL = re.compile(r"(?i)\b(?:https?://|www\.)[^\s<>\"'()\[\]]+")
 PHONE_INTERNATIONAL = re.compile(r"(?<![\w+])\+\d{1,3}[ -]?\d(?:[ -]?\d){6,12}(?!\w)")
 PLACEHOLDER = re.compile(r"\[[A-Z]+(?:-[A-Z]+)*-\d+\]")
-CONTACT_KINDS = ("url", "email", "phone")
 
 NUMBER_WORDS = {
     "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
@@ -173,28 +172,19 @@ def _clean(amount: float) -> str:
 
 
 class KnownValues:
-    """Every value found in the fact sheet and the source text, for "is this in the source?".
+    """Every value found in the source text, for "is this in the source?"."""
 
-    source_texts: when given, links, emails and phone numbers count as known only if they are in these
-    texts (the source), not in the fact sheet the model wrote."""
-
-    def __init__(self, texts: list[str], source_texts: list[str] | None = None):
+    def __init__(self, texts: list[str]):
         self.keys: dict[str, set[str]] = {kind: set() for kind in
                                           ("number", "date", "cve", "ip", "hash", "url", "email", "phone")}
         for text in texts:
             for value in find_values(text):
-                if source_texts is not None and value.kind in CONTACT_KINDS:
-                    continue
                 self.keys[value.kind] |= value.keys
                 if value.year:
                     self.keys["number"].add(value.year)
-        for text in source_texts or []:
-            for value in find_values(text):
-                if value.kind in CONTACT_KINDS:
-                    self.keys[value.kind] |= value.keys
 
     def missing(self, value: Value) -> bool:
-        """True if this value does not appear anywhere in the fact sheet or the source."""
+        """True if this value does not appear anywhere in the source."""
         if not value.keys & self.keys[value.kind]:
             return True
         return bool(value.kind == "date" and value.year and value.year not in self.keys["number"])

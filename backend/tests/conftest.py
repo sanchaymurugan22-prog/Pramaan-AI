@@ -1,6 +1,6 @@
 """Test setup: runs before any test file is imported.
 
-Tests always use the mock AI (instant canned answers, no model needed) and a temporary data
+Tests always use the mock AI (instant answers built from the source, no model needed) and a temporary data
 folder, so they never touch the real data/ folder or database.
 """
 

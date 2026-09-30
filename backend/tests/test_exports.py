@@ -16,17 +16,25 @@ from PIL import Image
 from pptx import Presentation
 from pypdf import PdfReader
 
-from app.ai.mock_responses import reply
 from app.config import settings
 from app.db import Job, Output, SessionLocal
 from app.exporters import FORMATS
 from app.exporters.common import FOOTER, ExportInfo
 from app.exporters.infographic import HEIGHT, WIDTH, write_png
 from app.main import app
+from tests.canned import canned_ai, reply
 from tests.helpers import SAMPLE_REPORT
 from tests.test_jobs_api import wait_for
 
 client = TestClient(app)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def fixed_answers():
+    """These tests check scores, edits and files against known texts, so the AI gives fixed answers
+    (tests/canned.py) instead of building them from the source."""
+    with canned_ai():
+        yield
 TITLE = "Hospital ransomware"
 FACT_ID = re.compile(r"\b[FA]\d{1,2}\b")  # fact ids must stay in the JSON only
 
