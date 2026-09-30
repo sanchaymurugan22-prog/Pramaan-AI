@@ -9,7 +9,8 @@ GET /api/jobs/{id}/outputs/{output_id}/download?format=pdf   one file (docx | pd
     add &inline=true to show it in the browser instead of saving it (used for the infographic preview)
 GET /api/jobs/{id}/kit.zip                                     every finished output of the job in one .zip
 
-Files are made from the LATEST version, saved under data/jobs/<id>/exports/ and made again on each download.
+Files are made from the LATEST version, in memory, on each download; an encrypted copy is kept under
+data/jobs/<id>/exports/.
 
 Stage 6B: editing and regenerating are for Operators, and only while the job is not with a reviewer
 or approved. Operators and Reviewers may read versions and download files.
@@ -18,14 +19,14 @@ or approved. Operators and Reviewers may read versions and download files.
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app import audit
 from app.auth.deps import allow
 from app.db import Job, Output, User, get_session
-from app.exporters import MEDIA_TYPES, ExportError, export_output
+from app.exporters import MEDIA_TYPES, ExportedFile, ExportError, export_output
 from app.exporters.kit import build_kit
 from app.pipeline import runner
 from app.pipeline.checks import recheck_job
@@ -146,14 +147,13 @@ def download_output(
         raise HTTPException(404, f"Output {output_id} of job {job_id} not found.")
     fmt = fmt.lower().lstrip(".")
     try:
-        path = export_output(job, output, fmt)
+        exported = export_output(job, output, fmt)
     except ExportError as exc:
         raise HTTPException(409 if output.status != "done" else 400, str(exc))
     how = "Opened" if inline else "Downloaded"
     audit.log("content", "download", f"{how} the {_label(output)} of job #{job.id} as {fmt.upper()}",
               actor=user, target=f"job {job.id}")
-    return FileResponse(path, media_type=MEDIA_TYPES[fmt], filename=path.name,
-                        content_disposition_type="inline" if inline else "attachment")
+    return _file_response(exported, MEDIA_TYPES[fmt], inline)
 
 
 @router.get("/jobs/{job_id}/kit.zip")
@@ -162,9 +162,17 @@ def download_kit(job_id: int, db: Session = Depends(get_session), user: User = D
     if job is None:
         raise HTTPException(404, f"Job {job_id} not found.")
     try:
-        path = build_kit(job)
+        kit = build_kit(job)
     except ExportError as exc:
         raise HTTPException(409, str(exc))
     audit.log("content", "download", f"Downloaded the campaign kit (.zip) of job #{job.id}", actor=user,
               target=f"job {job.id}")
-    return FileResponse(path, media_type=MEDIA_TYPES["zip"], filename=path.name)
+    return _file_response(kit, MEDIA_TYPES["zip"])
+
+
+def _file_response(exported: ExportedFile, media_type: str, inline: bool = False) -> Response:
+    """Send the file's bytes. File names are made by us (job12-advisory.pdf), so they are safe in the header."""
+    disposition = "inline" if inline else "attachment"
+    return Response(exported.data, media_type=media_type,
+                    headers={"Content-Disposition": f'{disposition}; filename="{exported.name}"',
+                             "Cache-Control": "no-store"})

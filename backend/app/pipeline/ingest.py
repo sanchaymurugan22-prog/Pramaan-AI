@@ -10,7 +10,8 @@ every page, and hidden text in Word files (white, tiny or "Hidden" text) and PDF
 tiny text) is left out of the page text. What was removed is kept in `notes`, and the Safety check
 shows it (see app/safety/shield.py).
 
-The original file and the extracted pages are saved under data/jobs/<job id>/sources/.
+The original file and the extracted pages are saved under data/jobs/<job id>/sources/, encrypted
+(AES-256-GCM, see app/crypto.py).
 """
 
 import hashlib
@@ -21,6 +22,7 @@ from dataclasses import dataclass, field
 from math import hypot
 from pathlib import Path
 
+from app import crypto
 from app.config import settings
 from app.safety.shield import strip_hidden_chars
 
@@ -86,21 +88,18 @@ def from_file(filename: str, data: bytes) -> ExtractedSource:
 
 
 def save_source(job_id: int, source_id: str, source: ExtractedSource) -> Path:
-    """Save the original file and its extracted pages. Returns the path of the pages file."""
+    """Save the original file and its extracted pages (both encrypted). Returns the path of the pages file."""
     folder = settings.data_dir / "jobs" / str(job_id) / "sources"
-    folder.mkdir(parents=True, exist_ok=True)
-    (folder / f"{source_id}-{_safe_name(source.filename)}").write_bytes(source.original)
+    crypto.write_file(folder / f"{source_id}-{_safe_name(source.filename)}", source.original)
     pages_path = folder / f"{source_id}.pages.json"
-    pages_path.write_text(
-        json.dumps({"filename": source.filename, "pages": source.pages}, ensure_ascii=False, indent=1),
-        encoding="utf-8",
-    )
+    pages = json.dumps({"filename": source.filename, "pages": source.pages}, ensure_ascii=False, indent=1)
+    crypto.write_file(pages_path, pages.encode("utf-8"))
     return pages_path
 
 
 def load_pages(pages_path: str | Path) -> list[str]:
     """Read back the pages saved by save_source."""
-    return json.loads(Path(pages_path).read_text(encoding="utf-8"))["pages"]
+    return json.loads(crypto.read_file(pages_path).decode("utf-8"))["pages"]
 
 
 # ---- readers ------------------------------------------------------------------------------

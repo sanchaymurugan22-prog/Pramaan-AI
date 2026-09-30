@@ -1,8 +1,9 @@
 """Exporters: turn a finished output (already saved in the database) into real files.
 
-No AI call is needed: every file is made from the output's JSON. Files are written to
-data/jobs/<job id>/exports/ and made again on every download, so they always match the
-latest output.
+No AI call is needed: every file is made from the output's JSON, in memory, and made again on every
+download, so it always matches the latest output. A copy is kept in data/jobs/<job id>/exports/,
+ENCRYPTED (Stage 6B, app/crypto.py): the unencrypted file is never written to disk, it only goes
+to the browser.
 
     advisory, executive_summary  -> .docx and .pdf
     presentation                 -> .pptx
@@ -11,9 +12,11 @@ latest output.
     linkedin_post, x_thread      -> .txt
 """
 
-import os
+import io
+from dataclasses import dataclass
 from pathlib import Path
 
+from app import crypto
 from app.config import settings
 from app.exporters.common import ExportInfo, format_date
 from app.pipeline.output_types import OUTPUT_TYPES
@@ -44,6 +47,12 @@ class ExportError(Exception):
     """The file cannot be made (for example, the output is not finished yet)."""
 
 
+@dataclass
+class ExportedFile:
+    name: str   # e.g. job12-advisory.pdf
+    data: bytes  # the file itself (not encrypted: this is what the person downloads)
+
+
 def exports_dir(job_id: int) -> Path:
     folder = settings.data_dir / "jobs" / str(job_id) / "exports"
     folder.mkdir(parents=True, exist_ok=True)
@@ -68,8 +77,8 @@ def file_name(job, output, fmt: str) -> str:
     return f"job{job.id}-{output.type.replace('_', '-')}{language}.{fmt}"
 
 
-def export_output(job, output, fmt: str) -> Path:
-    """Make one file for one output and return its path."""
+def export_output(job, output, fmt: str) -> ExportedFile:
+    """Make one file for one output. An encrypted copy is saved under exports/."""
     if output.status != "done" or not output.content_json:
         raise ExportError("This output is not finished yet.")
     if is_blocked(output):
@@ -80,12 +89,11 @@ def export_output(job, output, fmt: str) -> Path:
         raise ExportError(f"A {OUTPUT_TYPES[output.type]['label']} can be downloaded as: {allowed}.")
 
     writer = _writer(output.type, fmt)
-    path = exports_dir(job.id) / file_name(job, output, fmt)
-    # Write to a temporary name first, so a half-written file is never served.
-    temporary = path.with_name(f".{path.name}.part")
-    writer(export_info(job, output), output.content_json, temporary)
-    os.replace(temporary, path)
-    return path
+    buffer = io.BytesIO()
+    writer(export_info(job, output), output.content_json, buffer)
+    exported = ExportedFile(file_name(job, output, fmt), buffer.getvalue())
+    crypto.write_file(exports_dir(job.id) / exported.name, exported.data)
+    return exported
 
 
 def is_blocked(output) -> bool:

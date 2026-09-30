@@ -6,15 +6,15 @@ Outputs blocked by the leak check ("Private data found") are left out, and READM
 """
 
 import hashlib
-import os
+import io
 import zipfile
-from pathlib import Path
 
-from app.exporters import FORMATS, ExportError, export_info, export_output, exports_dir, is_blocked
+from app import crypto
+from app.exporters import FORMATS, ExportedFile, ExportError, export_info, export_output, exports_dir, is_blocked
 from app.exporters.common import FOOTER
 
 
-def build_kit(job) -> Path:
+def build_kit(job) -> ExportedFile:
     done = [o for o in job.outputs if o.status == "done" and o.content_json]
     finished = [o for o in done if not is_blocked(o)]
     blocked = [o for o in done if is_blocked(o)]
@@ -34,20 +34,16 @@ def build_kit(job) -> Path:
     if info.tlp_label:
         lines.append(f"Sharing label: {info.tlp_label}")
     lines += [FOOTER, "QR codes are added when a reviewer signs the files.", "", "Files (size, SHA-256 fingerprint):"]
-    lines += [f"  {path.name}  {path.stat().st_size:,} bytes  {_sha256(path)}" for path in files]
+    lines += [f"  {file.name}  {len(file.data):,} bytes  {hashlib.sha256(file.data).hexdigest()}" for file in files]
     if blocked:
         lines += ["", "Left out because private data was found in them:"]
         lines += [f"  {output.type.replace('_', ' ')}" for output in blocked]
 
-    path = exports_dir(job.id) / f"job{job.id}-campaign-kit.zip"
-    temporary = path.with_name(f".{path.name}.part")
-    with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("README.txt", "\n".join(lines) + "\n")
         for file in files:
-            archive.write(file, arcname=file.name)
-    os.replace(temporary, path)
-    return path
-
-
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+            archive.writestr(file.name, file.data)
+    kit = ExportedFile(f"job{job.id}-campaign-kit.zip", buffer.getvalue())
+    crypto.write_file(exports_dir(job.id) / kit.name, kit.data)  # encrypted copy
+    return kit

@@ -1,24 +1,46 @@
-"""Database connection and tables: one SQLite file at data/pramaan.db.
+"""Database connection and tables: one ENCRYPTED SQLite file at data/pramaan.db (SQLCipher, Stage 6B).
 
 Tables so far: jobs, sources, fact_sheets, outputs (Stage 3), output_versions (Stage 5),
-safety_decisions (Stage 6A), users and account_requests (Stage 6B). Stage 7 adds records (signing).
-`init_db()` creates any missing tables and columns and never deletes data.
-SQLCipher encryption is added in Stage 6, here, behind this same module, so nothing else has
-to change.
+safety_decisions (Stage 6A), users, account_requests, sessions, reviews, audit_log (Stage 6B).
+Stage 7 adds records (signing).
+`init_db()` first encrypts a database left from before Stage 6B (keeping the old plain file as
+data/pramaan.db.plain-backup), then creates any missing tables and columns. It never deletes data.
+The rest of the app only uses `engine` / `SessionLocal` and does not know about the encryption.
 """
 
+import logging
+import os
 from datetime import datetime, timezone
+from pathlib import Path
 
+import sqlcipher3
 from sqlalchemy import JSON, ForeignKey, String, Text, create_engine, inspect, text
+from sqlalchemy.engine import URL
+from sqlalchemy.exc import DatabaseError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
+from sqlalchemy.pool import QueuePool
 
+from app import crypto
 from app.config import settings
 
-settings.data_dir.mkdir(parents=True, exist_ok=True)
-DATABASE_URL = f"sqlite:///{settings.data_dir / 'pramaan.db'}"
+log = logging.getLogger("pramaan.db")
 
-# check_same_thread=False lets FastAPI and the background worker use connections from other threads
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+settings.data_dir.mkdir(parents=True, exist_ok=True)
+DATABASE_PATH = settings.data_dir / "pramaan.db"
+PLAIN_HEADER = b"SQLite format 3\x00"  # the first 16 bytes of every UNencrypted SQLite file
+
+
+def make_engine(path: Path, key_hex: str):
+    """An SQLAlchemy engine for an SQLCipher file. The key is sent as the first statement on every new
+    connection ("PRAGMA key"); SQLAlchemy never prints it (it shows the password in a URL as ***).
+    A raw 256-bit key (x'...') is used, so no slow passphrase stretching is needed on each connection."""
+    url = URL.create("sqlite+pysqlcipher", password=f"x'{key_hex}'", database=str(path))
+    # check_same_thread=False lets FastAPI and the background worker use connections from other threads.
+    # QueuePool (as for plain SQLite files) instead of the SQLCipher default of one connection per thread.
+    return create_engine(url, connect_args={"check_same_thread": False}, poolclass=QueuePool)
+
+
+engine = make_engine(DATABASE_PATH, crypto.database_key_hex())
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
@@ -258,10 +280,64 @@ def as_utc(value: datetime | None) -> datetime | None:
 
 
 def init_db() -> None:
-    """Create any tables and columns that don't exist yet (safe to call every time the app starts)."""
-    Base.metadata.create_all(engine)
+    """Encrypt anything left from before Stage 6B, then create any tables and columns that don't exist yet
+    (safe to call every time the app starts)."""
+    encrypt_plain_database(DATABASE_PATH, crypto.database_key_hex())
+    crypto.encrypt_existing_files(settings.data_dir / "jobs")
+    try:
+        Base.metadata.create_all(engine)
+    except DatabaseError as exc:
+        if "file is not a database" in str(exc):
+            raise RuntimeError(
+                f"{DATABASE_PATH} cannot be opened with DB_KEY from .env: the key is wrong, or the file is "
+                "damaged. Put back the .env that belongs to this data folder."
+            ) from None
+        raise
     _add_missing_columns()
     protect_audit_log()
+
+
+def encrypt_plain_database(path: Path, key_hex: str) -> Path | None:
+    """If `path` is a plain (unencrypted) SQLite file, make an encrypted copy with SQLCipher, check that
+    every table has the same number of rows, then swap them. The plain file is kept next to it as
+    <name>.plain-backup (delete it yourself after checking). Returns the backup's path, or None if there
+    was nothing to do."""
+    if not path.exists():
+        return None
+    with path.open("rb") as file:
+        if file.read(16) != PLAIN_HEADER:
+            return None  # already encrypted
+
+    encrypted = path.with_name(path.name + ".encrypting")
+    encrypted.unlink(missing_ok=True)  # left over from a start that stopped half-way
+    plain = sqlcipher3.connect(str(path))  # no key given: SQLCipher reads it as a normal SQLite file
+    try:
+        plain.execute(f"ATTACH DATABASE ? AS encrypted KEY \"x'{key_hex}'\"", (str(encrypted),))
+        plain.execute("SELECT sqlcipher_export('encrypted')")  # copies every table, index, trigger and row
+        plain.execute("DETACH DATABASE encrypted")
+        tables = [row[0] for row in plain.execute("SELECT name FROM sqlite_master WHERE type = 'table'")]
+        counts = {t: plain.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0] for t in tables}
+    finally:
+        plain.close()
+
+    check = sqlcipher3.connect(str(encrypted))
+    try:
+        check.execute(f"PRAGMA key = \"x'{key_hex}'\"")
+        copied = {t: check.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0] for t in tables}
+    finally:
+        check.close()
+    if copied != counts:
+        encrypted.unlink()
+        raise RuntimeError("Encrypting the database did not copy every row; nothing was changed.")
+
+    backup = path.with_name(path.name + ".plain-backup")
+    if backup.exists():  # never overwrite an older backup
+        backup = path.with_name(f"{path.name}.plain-backup-{datetime.now():%Y%m%d-%H%M%S}")
+    os.replace(path, backup)
+    os.replace(encrypted, path)
+    log.warning("Encrypted the database (%d tables, %d rows). The old UNENCRYPTED copy is %s: delete it after "
+                "checking that the app works.", len(tables), sum(counts.values()), backup)
+    return backup
 
 
 def protect_audit_log() -> None:

@@ -18,6 +18,7 @@ from PIL import Image
 from pptx import Presentation
 from pypdf import PdfReader
 
+from app import crypto
 from app.config import settings
 from app.db import Job, Output, SessionLocal
 from app.exporters import FORMATS
@@ -198,6 +199,10 @@ def test_files_are_saved_under_data_exports(job):
     names = {p.name for p in folder.iterdir()}
     assert f"job{job['id']}-campaign-kit.zip" in names and f"job{job['id']}-advisory.pdf" in names
     assert not any(name.endswith(".part") for name in names)  # no half-written files left
+    # stored encrypted (Stage 6B); the download itself is the normal file
+    stored = (folder / f"job{job['id']}-campaign-kit.zip").read_bytes()
+    assert stored.startswith(crypto.MAGIC) and not stored.startswith(b"PK")
+    assert client.get(f"/api/jobs/{job['id']}/kit.zip").content.startswith(b"PK")
 
 
 def test_download_errors(job):

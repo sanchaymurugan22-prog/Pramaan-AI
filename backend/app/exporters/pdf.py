@@ -44,7 +44,7 @@ def write_pdf(info: ExportInfo, content: dict, path: Path) -> Path:
         _page_decoration(canvas, doc, info, fonts)
 
     document = SimpleDocTemplate(
-        str(path), pagesize=A4, leftMargin=MARGIN, rightMargin=MARGIN, topMargin=22 * mm, bottomMargin=20 * mm,
+        str(path) if isinstance(path, Path) else path, pagesize=A4, leftMargin=MARGIN, rightMargin=MARGIN, topMargin=22 * mm, bottomMargin=20 * mm,
         title=title, author="Pramaan AI", subject=info.job_title, creator="Pramaan AI", keywords=FOOTER,
     )
     document.build(story, onFirstPage=decorate, onLaterPages=decorate)

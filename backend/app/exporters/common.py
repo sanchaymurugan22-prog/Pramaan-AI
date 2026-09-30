@@ -6,6 +6,8 @@ returns just the sentence, so fact ids never appear in a file.
 """
 
 from dataclasses import dataclass
+from pathlib import Path
+from typing import BinaryIO
 from datetime import datetime, timezone
 
 # Printed on every exported file until a reviewer approves and signs it (Stage 7).
@@ -80,3 +82,11 @@ def seconds_label(seconds: float) -> str:
     """12.5 -> '0:12' (for storyboard times)."""
     whole = int(round(seconds or 0))
     return f"{whole // 60}:{whole % 60:02d}"
+
+
+def save_text(target: Path | BinaryIO, text: str) -> None:
+    """Write UTF-8 text to a file path, or to an in-memory file (how exports are made, see __init__.py)."""
+    if isinstance(target, Path):
+        target.write_text(text, encoding="utf-8")
+    else:
+        target.write(text.encode("utf-8"))

@@ -6,6 +6,7 @@ import docx
 import pytest
 from tests.helpers import SAMPLE_REPORT, make_pdf
 
+from app import crypto
 from app.pipeline import ingest
 
 
@@ -67,4 +68,7 @@ def test_save_and_load_pages(tmp_path, monkeypatch):
     source = ingest.from_text("a\fb")
     path = ingest.save_source(7, "S1", source)
     assert ingest.load_pages(path) == ["a", "b"]
-    assert (tmp_path / "jobs" / "7" / "sources" / "S1-pasted-text.txt").read_bytes() == b"a\fb"
+    saved = (tmp_path / "jobs" / "7" / "sources" / "S1-pasted-text.txt").read_bytes()
+    assert saved.startswith(crypto.MAGIC) and b"a\fb" not in saved  # encrypted on disk (Stage 6B)
+    assert crypto.read_file(tmp_path / "jobs" / "7" / "sources" / "S1-pasted-text.txt") == b"a\fb"
+    assert b'"pages"' not in path.read_bytes()

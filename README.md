@@ -238,6 +238,47 @@ that only look private; the operator sees everything and decides. White PDF text
 can be a false alarm (paste such text in the box instead). A PDF piece that mixes visible and hidden
 text is treated as visible.
 
+## Encryption at rest (Stage 6B)
+
+Everything the app stores is encrypted, so a copied `data/` folder (or a stolen laptop disk) is
+unreadable without the key.
+
+| What | How | Code |
+|---|---|---|
+| The database `data/pramaan.db` | **SQLCipher 4** (AES-256, every page of the file) via the `sqlcipher3` package, which ships its own SQLCipher build for Intel Macs | `backend/app/db.py` |
+| Files under `data/jobs/` (uploaded sources, extracted text, exports) | **AES-256-GCM** (`cryptography`): each file starts with `PRMNENC1`, then a fresh 12-byte nonce, then the encrypted bytes and a tag that detects any change | `backend/app/crypto.py` |
+| Downloads | Made in memory and sent to the browser; only the encrypted copy is saved | `backend/app/exporters/` |
+
+**The key:** `DB_KEY` in `.env` (64 hex characters = 256 bits). If it is empty, a random one is
+made on the first start and written to `.env`; it is never printed or logged. Two separate keys are
+derived from it (HKDF-SHA256): one for the database, one for the files.
+
+> **Back up `.env` together with `data/`.** Without `DB_KEY` the data cannot be read by anyone,
+> including you. Never change `DB_KEY` on an existing install.
+
+**Upgrading from Stage 6A:** on the first start, the old unencrypted database is copied into an
+encrypted one (every table's row count is checked), and the old file is kept as
+`data/pramaan.db.plain-backup`. Existing files under `data/jobs/` are encrypted in place (each one
+is decrypted again and compared before moving on). After checking that the app works and your jobs
+are there, **delete the plain backup** — it is not encrypted:
+
+```bash
+rm data/pramaan.db.plain-backup
+```
+
+To see for yourself that the database is encrypted (this should fail with "file is not a
+database"):
+
+```bash
+sqlite3 data/pramaan.db "select count(*) from jobs"
+```
+
+**In production** the key would not sit in a file next to the data. It would be given at start-up:
+typed by an Admin as a passphrase (stretched with a slow KDF such as Argon2id or PBKDF2 into the
+key), or unwrapped by a hardware token (the organisation's HSM / smart card / DSC token via
+PKCS#11, or the Mac's Secure Enclave / TPM), and kept only in memory while the app runs. The code
+already reads the key in one place (`crypto._master_key`), so only that function would change.
+
 ## API (see <http://localhost:8000/docs> for all details)
 
 | Call | What it does |

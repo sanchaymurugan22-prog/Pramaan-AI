@@ -7,13 +7,15 @@ placeholder line for the verification link / QR code (added in Stage 7).
 
 from pathlib import Path
 
-from app.exporters.common import FOOTER, ExportInfo, text_of, texts
+from typing import BinaryIO
+
+from app.exporters.common import FOOTER, ExportInfo, save_text, text_of, texts
 
 RULE = "-" * 60
 
 
-def write_txt(info: ExportInfo, content: dict, path: Path) -> Path:
-    path.write_text(post_text(info, content), encoding="utf-8")
+def write_txt(info: ExportInfo, content: dict, path: Path | BinaryIO) -> Path | BinaryIO:
+    save_text(path, post_text(info, content))
     return path
 
 

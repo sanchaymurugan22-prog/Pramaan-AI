@@ -9,14 +9,16 @@ narration ends (nothing earlier moves). The QR code placeholder is in the script
 import copy
 from pathlib import Path
 
-from app.exporters.common import FOOTER, ExportInfo
+from typing import BinaryIO
+
+from app.exporters.common import FOOTER, ExportInfo, save_text
 from app.pipeline.generate import add_timings
 
 CLOSING_SECONDS = 4.0
 
 
-def write_srt(info: ExportInfo, content: dict, path: Path) -> Path:
-    path.write_text(srt_text(info, content), encoding="utf-8")
+def write_srt(info: ExportInfo, content: dict, path: Path | BinaryIO) -> Path | BinaryIO:
+    save_text(path, srt_text(info, content))
     return path
 
 
