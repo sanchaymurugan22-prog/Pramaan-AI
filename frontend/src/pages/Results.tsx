@@ -13,12 +13,14 @@ import {
   type VersionDetail,
   type VersionSummary,
 } from '../api'
+import { useAuth } from '../auth'
 import { Icon } from '../components/Icon'
 import { StatusChip } from '../components/StatusChip'
 import { TlpLabel } from '../components/TlpLabel'
 import { links } from '../router'
 import { duration, factLookup, FOUND_LABELS, shortTime } from './format'
 import { OutputEditor } from './OutputEditor'
+import { ReviewPanel } from './ReviewPanel'
 import { LeakAlert, SafetySection } from './SafetySection'
 import { IndicatorTable, OutputBody, SeverityChip } from './OutputViews'
 import { CheckWarnings, ConsistencyPanel, QualityCard, ScoreBadge, SourcePanel } from './TracePanels'
@@ -34,6 +36,7 @@ type Tab = 'facts' | number // the fact sheet, or an output id
 // Layout as in the design "13 · Results · Advisory with source trace": a tab per output, the
 // output on the left, and on the right the source trace, the warnings and the quality score.
 export function Results({ jobId }: { jobId: number }) {
+  const { user } = useAuth()
   const [job, setJob] = useState<JobDetail | null>(null)
   const [error, setError] = useState('')
   const [pollRound, setPollRound] = useState(0) // bump to start polling again (after "Try again" or "Regenerate")
@@ -125,7 +128,10 @@ export function Results({ jobId }: { jobId: number }) {
       ? (shownQuality?.sentences?.find((s) => s.id === selection.sentenceId) ?? null)
       : null
   const done = job.outputs.filter((o) => o.status === 'done')
-  const canRetry = job.status !== 'generating' && (job.status === 'failed' || job.outputs.some((o) => o.status === 'failed'))
+  // Only Operators change jobs, and not while a job is with a reviewer or approved (the backend refuses too).
+  const canChange = user.role === 'operator' && job.status !== 'in_review' && job.status !== 'approved'
+  const canRetry =
+    canChange && job.status !== 'generating' && (job.status === 'failed' || job.outputs.some((o) => o.status === 'failed'))
   const scored = done.filter((o) => o.quality_score !== null)
   const lowest = scored.reduce<JobOutput | null>((low, o) => (!low || o.quality_score! < low.quality_score! ? o : low), null)
   const jobExplanation =
@@ -140,7 +146,9 @@ export function Results({ jobId }: { jobId: number }) {
       <div className="page-head">
         <div className="stack gap-6">
           <div className="eyebrow">
-            Job #{job.id} · {job.sources.length} source{job.sources.length === 1 ? '' : 's'} · English
+            Job #{job.id}
+            {job.version > 1 && ` · v${job.version}`} · {job.sources.length} source{job.sources.length === 1 ? '' : 's'} · English
+            {job.owner && ` · by ${job.owner.full_name}`}
           </div>
           <h1>{job.title}</h1>
           <div className="row gap-10 wrap">
@@ -196,9 +204,11 @@ export function Results({ jobId }: { jobId: number }) {
       )}
       {job.status === 'draft' && (
         <div className="alert alert-yellow">
-          This job has not started yet. <a href={links.safety(job.id)}>Continue with the safety check</a>.
+          This job has not started yet.{' '}
+          {user.role === 'operator' && <a href={links.safety(job.id)}>Continue with the safety check</a>}
         </div>
       )}
+      <ReviewPanel job={job} onChange={setJob} />
 
       <Sources job={job} />
       <SafetySection job={job} />
@@ -264,6 +274,7 @@ export function Results({ jobId }: { jobId: number }) {
                   setSelection(NO_SELECTION)
                 }}
                 onRegenerate={() => regenerate(active)}
+                canChange={canChange}
               />
             )}
           </div>
@@ -474,9 +485,10 @@ type OutputCardProps = {
   viewed: VersionDetail | undefined
   onView: (version: VersionDetail | undefined) => void
   onRegenerate: () => void
+  canChange: boolean // Operator, and the job is not with a reviewer or approved
 }
 
-function OutputCard({ job, output, now, editing, onEdit, onSaved, viewed, onView, onRegenerate }: OutputCardProps) {
+function OutputCard({ job, output, now, editing, onEdit, onSaved, viewed, onView, onRegenerate, canChange }: OutputCardProps) {
   const [showVersions, setShowVersions] = useState(false)
   const busy = job.status === 'generating'
   const hasText = Boolean(output.content)
@@ -514,26 +526,30 @@ function OutputCard({ job, output, now, editing, onEdit, onSaved, viewed, onView
         <Icon name="history" size={16} />
         Versions
       </button>
-      <button
-        type="button"
-        className="btn btn-saffron-outline btn-xs"
-        onClick={onRegenerate}
-        disabled={busy || editing}
-        title={busy ? 'Wait until the AI has finished' : 'Write this output again from the same fact sheet'}
-      >
-        <Icon name="refresh" size={16} strokeWidth={2} />
-        Regenerate
-      </button>
-      <button
-        type="button"
-        className="btn btn-outline btn-xs"
-        onClick={() => onEdit(!editing)}
-        disabled={busy || output.status !== 'done'}
-        title={busy ? 'Wait until the AI has finished' : 'Change the text yourself'}
-      >
-        <Icon name="pencil" size={16} strokeWidth={2} />
-        {editing ? 'Stop editing' : 'Edit'}
-      </button>
+      {canChange && (
+        <>
+          <button
+            type="button"
+            className="btn btn-saffron-outline btn-xs"
+            onClick={onRegenerate}
+            disabled={busy || editing}
+            title={busy ? 'Wait until the AI has finished' : 'Write this output again from the same fact sheet'}
+          >
+            <Icon name="refresh" size={16} strokeWidth={2} />
+            Regenerate
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline btn-xs"
+            onClick={() => onEdit(!editing)}
+            disabled={busy || output.status !== 'done'}
+            title={busy ? 'Wait until the AI has finished' : 'Change the text yourself'}
+          >
+            <Icon name="pencil" size={16} strokeWidth={2} />
+            {editing ? 'Stop editing' : 'Edit'}
+          </button>
+        </>
+      )}
     </>
   )
 

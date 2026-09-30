@@ -1,5 +1,20 @@
 // Small helpers for calling the FastAPI backend.
 // In development, Vite forwards /api/... to http://localhost:8000 (see vite.config.ts).
+// Signing in sets an HttpOnly session cookie: the browser sends it with every request by itself,
+// and this code never sees it (so page scripts cannot steal it).
+
+// ---- accounts (Stage 6B) ------------------------------------------------------------------
+
+export type Role = 'operator' | 'reviewer' | 'admin'
+
+export type User = {
+  id: number
+  username: string
+  full_name: string
+  role: Role
+  role_label: string
+  must_change_password: boolean
+}
 
 export type Health = { status: string; ai_mode: 'local' | 'cloud' | 'mock' }
 
@@ -121,6 +136,7 @@ export type SafetyReport = {
 export type SafetyDecision = {
   id: number
   actor: string
+  user_id: number | null
   action: 'scan' | 'choice' | 'instruction' | 'tlp' | 'confirm' | 'start'
   item: string | null
   value: string | null
@@ -230,6 +246,7 @@ export type JobOutput = {
 export type JobSummary = {
   id: number
   title: string
+  owner: { id: number; full_name: string } | null // the Operator who created it
   status: JobStatus
   step: string
   error: string | null
@@ -240,8 +257,18 @@ export type JobSummary = {
   updated_at: string
 }
 
+export type ReviewEvent = {
+  decision: 'submitted' | 'approved' | 'sent_back'
+  by: string | null
+  user_id: number
+  notes: string
+  version: number
+  created_at: string
+}
+
 export type JobDetail = JobSummary & {
   tlp: Tlp | null
+  reviews: ReviewEvent[] // oldest first
   safety: SafetyReport | null // null for jobs made before Stage 6A
   safety_decisions: SafetyDecision[]
   switched_off: Record<string, string> // output type -> why the TLP label does not allow it
@@ -258,8 +285,24 @@ export type JobDetail = JobSummary & {
 
 // ---- requests ---------------------------------------------------------------------------
 
+// Called when the backend says "not signed in" (401): the session ended (8 hours, 30 idle minutes,
+// signed out elsewhere). App.tsx shows the Sign in page with the message.
+let onSignedOut: (message: string) => void = () => {}
+export function setSignedOutHandler(handler: (message: string) => void) {
+  onSignedOut = handler
+}
+
+// An error from the backend, with its HTTP status (401 not signed in, 403 not allowed, 409 not now ...)
+export class ApiError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.status = status
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, init)
+  const response = await fetch(path, { credentials: 'same-origin', ...init })
   if (!response.ok) {
     // FastAPI sends errors as {"detail": "..."}; show that message if there is one.
     let message = `${path} returned ${response.status}`
@@ -269,7 +312,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // not JSON; keep the default message
     }
-    throw new Error(message)
+    // A wrong password on the Sign in page is also a 401, but that is not "signed out".
+    if (response.status === 401 && !path.startsWith('/api/auth/')) onSignedOut(message)
+    throw new ApiError(message, response.status)
   }
   return response.json() as Promise<T>
 }
@@ -330,3 +375,123 @@ export const downloadUrl = (jobId: number, outputId: number, format: string, inl
   `/api/jobs/${jobId}/outputs/${outputId}/download?format=${format}${inline ? '&inline=true' : ''}`
 
 export const kitUrl = (jobId: number) => `/api/jobs/${jobId}/kit.zip`
+
+// ---- sign-in pages (Stage 6B, backend/app/routes/auth.py) --------------------------------------
+
+export type AuthStatus = { needs_setup: boolean; user: User | null }
+
+export const getAuthStatus = () => request<AuthStatus>('/api/auth/status')
+export const signIn = (username: string, password: string) =>
+  request<{ user: User }>('/api/auth/login', sendJson('POST', { username, password }))
+export const signOut = () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' })
+export const firstTimeSetup = (form: { username: string; full_name: string; password: string }) =>
+  request<{ user: User }>('/api/auth/setup', sendJson('POST', form))
+export const changePassword = (current_password: string, new_password: string) =>
+  request<{ user: User }>('/api/auth/change-password', sendJson('POST', { current_password, new_password }))
+
+export type AccessRequestForm = { username: string; full_name: string; role: 'operator' | 'reviewer'; reason: string; password: string }
+export type AccessRequestSent = { username: string; full_name: string; role: Role; role_label: string; created_at: string }
+export const requestAccess = (form: AccessRequestForm) =>
+  request<AccessRequestSent>('/api/auth/request-access', sendJson('POST', form))
+export const forgotPassword = (username: string, message: string) =>
+  request<{ ok: true; message: string }>('/api/auth/forgot', sendJson('POST', { username, message }))
+
+// ---- review (Stage 6B, backend/app/routes/review.py) -------------------------------------------
+
+export type QueueItem = {
+  id: number
+  title: string
+  tlp: Tlp | null
+  version: number
+  owner: string | null
+  submitted_by: string | null
+  submitted_at: string | null
+  submit_notes: string
+  outputs: string[]
+  quality_score: number | null
+  warnings: number
+  numbers_match: boolean
+  fact_sheet_ok: boolean
+  can_review: boolean
+  why_not: string | null
+}
+
+export type ReviewQueue = {
+  waiting: QueueItem[]
+  recent: (ReviewEvent & { job_id: number; job_title: string })[]
+}
+
+export const getReviewQueue = () => request<ReviewQueue>('/api/review/queue')
+export const submitForReview = (jobId: number, notes: string) =>
+  request<JobDetail>(`/api/jobs/${jobId}/submit`, sendJson('POST', { notes }))
+export const reviewJob = (jobId: number, decision: 'approve' | 'send_back', notes: string) =>
+  request<JobDetail>(`/api/jobs/${jobId}/review`, sendJson('POST', { decision, notes }))
+
+// ---- admin (Stage 6B, backend/app/routes/admin.py) ---------------------------------------------
+
+export type AdminUser = {
+  id: number
+  username: string
+  full_name: string
+  role: Role
+  role_label: string
+  is_active: boolean
+  locked: boolean
+  must_change_password: boolean
+  failed_attempts: number
+  created_at: string
+  last_login: string | null
+}
+
+export type AccountRequest = {
+  id: number
+  kind: 'access' | 'reset'
+  username: string
+  full_name: string
+  role: Role | null
+  role_label: string
+  reason: string
+  status: 'pending' | 'approved' | 'rejected' | 'done'
+  user_exists: boolean
+  created_at: string
+  decided_at: string | null
+  decided_by: string | null
+}
+
+export const listUsers = () => request<AdminUser[]>('/api/admin/users')
+export const addUser = (form: { username: string; full_name: string; role: Role }) =>
+  request<{ user: AdminUser; temporary_password: string }>('/api/admin/users', sendJson('POST', form))
+export const changeUser = (id: number, change: { full_name?: string; role?: Role; is_active?: boolean; unlock?: boolean }) =>
+  request<AdminUser>(`/api/admin/users/${id}`, sendJson('PUT', change))
+export const resetUserPassword = (id: number) =>
+  request<{ user: AdminUser; temporary_password: string }>(`/api/admin/users/${id}/reset-password`, { method: 'POST' })
+export const listAccountRequests = () => request<AccountRequest[]>('/api/admin/requests')
+export const approveAccountRequest = (id: number, role?: Role) =>
+  request<{ request: AccountRequest; user: AdminUser }>(`/api/admin/requests/${id}/approve`, sendJson('POST', { role }))
+export const rejectAccountRequest = (id: number) =>
+  request<{ request: AccountRequest }>(`/api/admin/requests/${id}/reject`, { method: 'POST' })
+
+export type AuditCategory = 'security' | 'users' | 'content' | 'review' | 'system'
+export type AuditEntry = {
+  seq: number
+  created_at: string
+  actor: string
+  actor_id: number | null
+  category: AuditCategory
+  action: string
+  target: string
+  detail: string
+  prev_hash: string
+  entry_hash: string
+}
+export type AuditPage = { entries: AuditEntry[]; total: number; actors: string[] }
+export type ChainCheck =
+  | { ok: true; checked: number; last_hash: string }
+  | { ok: false; checked: number; broken: { seq: number; reason: string; entry: AuditEntry } }
+
+export const getAudit = (filters: { category?: string; q?: string; actor?: string; days?: number; offset?: number; limit?: number }) => {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(filters)) if (value !== undefined && value !== '') params.set(key, String(value))
+  return request<AuditPage>(`/api/admin/audit?${params}`)
+}
+export const verifyAuditChain = () => request<ChainCheck>('/api/admin/audit/verify', { method: 'POST' })

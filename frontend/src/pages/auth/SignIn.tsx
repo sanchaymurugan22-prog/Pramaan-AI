@@ -1,0 +1,87 @@
+// Design 03 · Sign in. Username + password; the backend sets an HttpOnly session cookie.
+// (DSC token sign-in comes with signing in Stage 7.)
+import { useState, type FormEvent } from 'react'
+import { signIn, type User } from '../../api'
+import { Icon } from '../../components/Icon'
+import { links } from '../../router'
+import { FormError, PasswordInput, SplitLayout } from './AuthLayout'
+
+export function SignIn({ notice, onSignedIn }: { notice: string; onSignedIn: (user: User) => void }) {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      const { user } = await signIn(username, password)
+      setPassword('')
+      onSignedIn(user)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not sign in.')
+      setPassword('')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <SplitLayout tone="saffron">
+      <form className="auth-form" onSubmit={submit}>
+        <div className="stack gap-6">
+          <h1 className="auth-title">Welcome back</h1>
+          <p className="muted">Sign in with the account your Admin created for you.</p>
+        </div>
+        {notice && !error && (
+          <div className="hint" role="status">
+            {notice}
+          </div>
+        )}
+        <FormError message={error} />
+        <label className="field">
+          <span className="field-label">Username</span>
+          <span className="input-with-icon">
+            <Icon name="user" size={18} color="var(--icon)" />
+            <input
+              className="input"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              placeholder="e.g. priya.sharma"
+              required
+              autoFocus
+            />
+          </span>
+        </label>
+        <div className="field">
+          <div className="row">
+            <label className="field-label" htmlFor="password">
+              Password
+            </label>
+            <div className="grow" />
+            <a href={links.forgot} className="small">
+              Forgot password?
+            </a>
+          </div>
+          <PasswordInput id="password" value={password} onChange={setPassword} autoComplete="current-password" />
+        </div>
+        <button type="submit" className="btn btn-lg btn-navy" disabled={busy}>
+          {busy ? 'Signing in…' : 'Sign in'}
+          <Icon name="arrowRight" size={18} strokeWidth={2} />
+        </button>
+        <p className="muted center">
+          New to Pramaan AI? <a href={links.requestAccess} className="link-saffron">Request access</a>
+        </p>
+        <p className="row gap-8 secure-note">
+          <Icon name="lock" size={16} color="var(--green-dark)" />
+          Accounts are stored and encrypted on this computer.
+        </p>
+      </form>
+    </SplitLayout>
+  )
+}

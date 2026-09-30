@@ -108,7 +108,8 @@ def create_first_admin(db: Session, username: str, full_name: str, password: str
     with _setup_lock:  # two setup forms sent at the same moment must not both succeed
         if not needs_setup(db):
             raise AccountError("Setup is already done. Sign in, or ask your Admin for an account.")
-        user = User(username=username, full_name=full_name, role="admin", password_hash=hash_password(password))
+        user = User(username=username, full_name=full_name, role="admin", password_hash=hash_password(password),
+                    last_login=utc_now())  # setup signs the new Admin in
         db.add(user)
         db.commit()
     return user

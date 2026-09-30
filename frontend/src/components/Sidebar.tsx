@@ -1,3 +1,5 @@
+import type { Role } from '../api'
+import { initials, useAuth } from '../auth'
 import type { Route } from '../router'
 import { links } from '../router'
 import { Icon, type IconName } from './Icon'
@@ -7,19 +9,35 @@ import { TricolourStrip } from './TricolourStrip'
 // href = a page that exists; items without one are built in later stages and do nothing yet.
 type NavItem = { label: string; icon: IconName; badge?: number; href?: string; pages?: Route['page'][] }
 
-const MAIN_NAV: NavItem[] = [
-  { label: 'Dashboard', icon: 'home', href: links.dashboard, pages: ['dashboard'] },
-  { label: 'New transformation', icon: 'plus', href: links.newJob, pages: ['new', 'safety', 'outputs'] },
-  { label: 'My jobs', icon: 'history', href: links.jobs, pages: ['jobs', 'job'] },
-  { label: 'Emergency alert', icon: 'siren' },
-  { label: 'Watch folder', icon: 'folder', badge: 2 },
-  { label: 'Is this real?', icon: 'scan' },
-]
+// Each role sees its own menu (the backend refuses the other roles' pages anyway).
+const MAIN_NAV: Record<Role, NavItem[]> = {
+  operator: [
+    { label: 'Dashboard', icon: 'home', href: links.dashboard, pages: ['dashboard'] },
+    { label: 'New transformation', icon: 'plus', href: links.newJob, pages: ['new', 'safety', 'outputs'] },
+    { label: 'My jobs', icon: 'history', href: links.jobs, pages: ['jobs', 'job'] },
+    { label: 'Emergency alert', icon: 'siren' },
+    { label: 'Watch folder', icon: 'folder' },
+    { label: 'Is this real?', icon: 'scan' },
+  ],
+  reviewer: [
+    { label: 'Review queue', icon: 'history', href: links.review, pages: ['review', 'job'] },
+    { label: 'Signed records', icon: 'shieldCheck' },
+    { label: 'Is this real?', icon: 'scan' },
+  ],
+  admin: [
+    { label: 'Users & access', icon: 'user', href: links.users, pages: ['users'] },
+    { label: 'Audit trail', icon: 'hash', href: links.audit, pages: ['audit'] },
+    { label: 'AI models', icon: 'chip' },
+    { label: 'Security & policies', icon: 'shield' },
+    { label: 'Record book', icon: 'box' },
+  ],
+}
 
-const ACCOUNT_NAV: NavItem[] = [
-  { label: 'Notifications', icon: 'bell', badge: 3 },
-  { label: 'Profile & settings', icon: 'sliders' },
-]
+const WORKSPACE: Record<Role, string> = {
+  operator: 'Operator workspace',
+  reviewer: 'Reviewer workspace',
+  admin: 'Admin workspace',
+}
 
 function NavLink({ item, route }: { item: NavItem; route: Route }) {
   const current = item.pages?.includes(route.page) ?? false
@@ -32,7 +50,7 @@ function NavLink({ item, route }: { item: NavItem; route: Route }) {
       onClick={item.href ? undefined : (e) => e.preventDefault()}
     >
       {current && <span className="nav-marker" />}
-      <Icon name={item.icon} color={current ? 'var(--saffron)' : 'var(--icon)'} />
+      <Icon name={item.icon} color={current ? 'var(--role)' : 'var(--icon)'} />
       {item.label}
       {item.badge !== undefined && <span className="nav-badge">{item.badge}</span>}
     </a>
@@ -40,6 +58,8 @@ function NavLink({ item, route }: { item: NavItem; route: Route }) {
 }
 
 export function Sidebar({ route }: { route: Route }) {
+  const { user, signOut } = useAuth()
+  const account: NavItem[] = [{ label: 'Change password', icon: 'key', href: links.password, pages: ['password'] }]
   return (
     <nav className="sidebar" aria-label="Main">
       <TricolourStrip />
@@ -48,11 +68,11 @@ export function Sidebar({ route }: { route: Route }) {
 
         <div className="workspace-pill">
           <span className="dot" />
-          Operator workspace
+          {WORKSPACE[user.role]}
         </div>
 
         <div className="nav-group">
-          {MAIN_NAV.map((item) => (
+          {MAIN_NAV[user.role].map((item) => (
             <NavLink key={item.label} item={item} route={route} />
           ))}
         </div>
@@ -60,7 +80,7 @@ export function Sidebar({ route }: { route: Route }) {
         <div className="divider" />
 
         <div className="nav-group">
-          {ACCOUNT_NAV.map((item) => (
+          {account.map((item) => (
             <NavLink key={item.label} item={item} route={route} />
           ))}
         </div>
@@ -75,16 +95,15 @@ export function Sidebar({ route }: { route: Route }) {
           </span>
         </div>
 
-        {/* Placeholder user until login is built in Stage 6 */}
         <div className="user-row">
-          <div className="avatar">PS</div>
+          <div className="avatar">{initials(user.full_name)}</div>
           <div className="stack grow">
-            <span className="user-name">Priya Sharma</span>
-            <span className="user-role">Operator</span>
+            <span className="user-name">{user.full_name}</span>
+            <span className="user-role">{user.role_label}</span>
           </div>
-          <a href="#" className="icon-link" aria-label="Sign out" onClick={(e) => e.preventDefault()}>
+          <button type="button" className="icon-link" aria-label="Sign out" title="Sign out" onClick={() => signOut()}>
             <Icon name="signOut" size={19} strokeWidth={1.8} />
-          </a>
+          </button>
         </div>
       </div>
     </nav>

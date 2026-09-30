@@ -1,18 +1,15 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { listJobs, pingAi, type AiPing, type Health, type JobSummary } from '../api'
+import { firstName, useAuth } from '../auth'
 import { Icon, type IconName } from '../components/Icon'
 import { Mandala } from '../components/Mandala'
 import { JobsTable } from '../components/JobsTable'
 import { links } from '../router'
-import { aiLabel } from './format'
+import { aiLabel, todayLabel } from './format'
 import { SAMPLE_ATTENTION, SAMPLE_STATS } from './sampleData'
 
-// e.g. "Wednesday, 30 September"
-function todayLabel() {
-  return new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })
-}
-
 function Hero() {
+  const { user } = useAuth()
   return (
     <section className="hero">
       <div className="hero-mandala-big">
@@ -23,7 +20,7 @@ function Hero() {
       </div>
       <div className="hero-body">
         <div className="eyebrow">{todayLabel()}</div>
-        <h1>Namaste, Priya</h1>
+        <h1>Namaste, {firstName(user.full_name)}</h1>
         <p>2 items need your attention. Your ransomware advisory kit was approved at 10:21.</p>
         <div className="row gap-10 mt-8">
           <a href={links.newJob} className="btn btn-lg btn-saffron">

@@ -1,11 +1,16 @@
 // A very small router: the page is chosen by the part of the address after "#".
-//   #/          dashboard
+//   #/          dashboard (Operator)
 //   #/new       new transformation, step 1: add sources
 //   #/new/12/safety    step 2: safety check of draft job 12
 //   #/new/12/outputs   step 3: outputs and settings
 //   #/jobs      my jobs
-//   #/jobs/12   results of job 12
+//   #/jobs/12   results of job 12 (Operators and Reviewers)
+//   #/review    review queue (Reviewer)
+//   #/admin/users, #/admin/audit   users & access requests, audit trail (Admin)
+//   #/password  change my password (everyone)
+// Before signing in: #/login, #/request-access, #/forgot, #/pending
 // Using "#" means the backend never has to know about these pages (works offline as plain files).
+// Which role may open which page is decided in App.tsx; the backend checks every request anyway.
 import { useEffect, useState } from 'react'
 
 export type Route =
@@ -15,6 +20,14 @@ export type Route =
   | { page: 'outputs'; id: number }
   | { page: 'jobs' }
   | { page: 'job'; id: number }
+  | { page: 'review' }
+  | { page: 'users' }
+  | { page: 'audit' }
+  | { page: 'password' }
+  | { page: 'login' }
+  | { page: 'request-access' }
+  | { page: 'forgot' }
+  | { page: 'pending' }
 
 export const links = {
   dashboard: '#/',
@@ -23,12 +36,32 @@ export const links = {
   outputs: (id: number) => `#/new/${id}/outputs`,
   jobs: '#/jobs',
   job: (id: number) => `#/jobs/${id}`,
+  review: '#/review',
+  users: '#/admin/users',
+  audit: '#/admin/audit',
+  password: '#/password',
+  login: '#/login',
+  requestAccess: '#/request-access',
+  forgot: '#/forgot',
+  pending: '#/pending',
+}
+
+const SIMPLE: Record<string, Route> = {
+  '/new': { page: 'new' },
+  '/jobs': { page: 'jobs' },
+  '/review': { page: 'review' },
+  '/admin/users': { page: 'users' },
+  '/admin/audit': { page: 'audit' },
+  '/password': { page: 'password' },
+  '/login': { page: 'login' },
+  '/request-access': { page: 'request-access' },
+  '/forgot': { page: 'forgot' },
+  '/pending': { page: 'pending' },
 }
 
 function parse(hash: string): Route {
   const path = hash.replace(/^#/, '') || '/'
-  if (path === '/new') return { page: 'new' }
-  if (path === '/jobs') return { page: 'jobs' }
+  if (SIMPLE[path]) return SIMPLE[path]
   const step = path.match(/^\/new\/(\d+)\/(safety|outputs)$/)
   if (step) return { page: step[2] as 'safety' | 'outputs', id: Number(step[1]) }
   const match = path.match(/^\/jobs\/(\d+)$/)

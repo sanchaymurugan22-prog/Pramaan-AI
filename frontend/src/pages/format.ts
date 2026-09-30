@@ -89,3 +89,8 @@ export function jsIndex(text: string, pythonIndex: number): number {
   }
   return js
 }
+
+// e.g. "Wednesday, 30 September"
+export function todayLabel(): string {
+  return new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })
+}
