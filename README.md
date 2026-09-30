@@ -6,7 +6,14 @@ and every document signed and verifiable.
 
 Smart India Hackathon · Problem Statement 26154 · NTRO.
 
-**Current stage: 6A — Safety.** A new transformation now has 3 steps: *Add sources → Safety
+**Current stage: 6B — Accounts and data protection.** People now sign in. There are three roles,
+checked by the backend on every request: **Operator** (makes and changes jobs, submits them for
+review), **Reviewer** (approves or sends back with notes, never their own job) and **Admin** (users,
+access requests, audit trail). Every action goes into a hash-chained audit trail, and the database
+and every stored file are encrypted. See "Accounts and roles (Stage 6B)" and "Encryption at rest
+(Stage 6B)" below.
+
+Stage 6A — Safety: a new transformation has 3 steps: *Add sources → Safety
 check → Outputs & settings*. Before any AI reads a source, a rule-based scanner (no AI, offline)
 finds private data (Aadhaar, PAN, phones, emails, bank details, passports, vehicles, GPS, internal
 IPs and host names, passwords and keys, classification markings), attack indicators, and text that
@@ -33,9 +40,10 @@ subtitles, text), or all together as one campaign kit (.zip). See `CLAUDE.md` fo
 ## First-time setup
 
 (If you set up an earlier stage, run the `pip install` line again: Stage 4 added python-pptx,
-ReportLab and Pillow. Stage 5 adds no new packages. Its new database columns and the
-`output_versions` table are added to your existing `data/pramaan.db` automatically when the
-backend starts; nothing is deleted.)
+ReportLab and Pillow; Stage 6B adds argon2-cffi, cryptography and sqlcipher3, all with ready-made
+builds for Intel Macs. New tables and columns are added to your existing database automatically
+when the backend starts; nothing is deleted. On the first Stage 6B start the database and files are
+encrypted — see "Encryption at rest" — and `APP_SECRET_KEY` and `DB_KEY` are made and saved in `.env`.)
 
 Run these from the project folder (`cd ~/Documents/"Pramaan AI"`):
 
@@ -71,6 +79,9 @@ Wait until it prints that the server is listening (loading the model can take a 
 
 Then open <http://localhost:5173>. Press **Ctrl+C** in each terminal to stop.
 
+The very first time, the app shows **First-time setup**: create the first Admin account there (there
+are no built-in or default accounts). Everyone else gets an account from that Admin.
+
 If an old Pramaan AI is still running on port 8000 or 5173 (for example a terminal closed without
 Ctrl+C), `start.sh` stops it first and says so. If another program uses one of those ports, it
 tells you which one and does not start.
@@ -95,7 +106,8 @@ fact on purpose, so the yellow "Not linked to a fact" warning can be seen.
 
 1. In `.env`, set `AI_MODE=mock` (optionally `MOCK_DELAY_SECONDS=3` to see the progress display).
 2. Start the app: `./scripts/start.sh` (no need for `start-ai.sh`).
-3. Open <http://localhost:5173>, click **New transformation**.
+3. Open <http://localhost:5173> and sign in as an **Operator** (see "Accounts and roles"), click
+   **New transformation**.
 4. Click **Choose files** and pick `samples/sample-ransomware-report.txt` (or paste its text),
    then **Next: safety check**.
 5. The Safety check shows what was found (for this report: only attack indicators) and suggests
@@ -139,6 +151,7 @@ source (text / .txt / .pdf / .docx)
                   the same numbers in every output; a 0-100 quality score (Stage 5)
   → leak check    (no AI) a hidden value in an output blocks its download (Stage 6A)
   → edit / regenerate one output → checks again; every version kept
+  → review        the Operator submits; a Reviewer approves or sends back with notes (Stage 6B)
 ```
 
 - `backend/app/ai/llm.py` is the only file that talks to the model. In local mode it sends the
@@ -231,12 +244,64 @@ All rule-based and offline, in `backend/app/safety/`: `scanner.py` (detectors), 
 | Leak check | Red **Private data found** box on the output, `!` on its tab, downloads blocked, left out of the kit | After every write and every edit, each hidden value is searched for in the output (any spacing: `9876543210` = `98765 43210`) |
 | Prompt-injection shield | **Suspicious instructions found** (or "No hidden instructions found") | Phrases like "ignore previous instructions", "you are now", "system prompt", "reveal your …", role tags (`<\|system\|>`, `[INST]`); zero-width / bidi / invisible tag characters (removed; kept inside Indian scripts where they are normal); hidden Word text (white, under 4 pt, "Hidden") and PDF text (invisible, white, under 3 pt), left out of what the AI reads. For each instruction sentence you choose **Remove from what the AI reads** (default, shown struck through) or **Keep (AI told to ignore it)**; the choice is saved in `safety_decisions`. All source text is sent inside `<<<SOURCE … SOURCE>>>` / `<<<FACT SHEET … FACT SHEET>>>` and the prompts say it is data, never instructions |
 | Output check | Red wavy underline "Link / Phone number / Email address" | Any link, phone or email in an output that is not in the source itself is flagged |
-| Safety section | Results page: label, counts, switched-off outputs, **Decisions** (who, when, what) | `safety_decisions`: scan, each choice change, label, confirmation, start. Until login arrives the person is recorded as "Operator"; values are shown only partly in the log |
+| Safety section | Results page: label, counts, switched-off outputs, **Decisions** (who, when, what) | `safety_decisions`: scan, each choice change, label, confirmation, start, with the signed-in user's name (Stage 6B; older rows say "Operator"); values are shown only partly in the log |
 
 Limits: rules can miss unusual formats (e.g. a phone number written in words) and can flag things
 that only look private; the operator sees everything and decides. White PDF text on a coloured box
 can be a false alarm (paste such text in the box instead). A PDF piece that mixes visible and hidden
 text is treated as visible.
+
+## Accounts and roles (Stage 6B)
+
+Code: `backend/app/auth/` (`passwords.py`, `accounts.py`, `sessions.py`, `deps.py`),
+`backend/app/routes/auth.py`, `review.py`, `admin.py`, `backend/app/audit.py`.
+
+| Role | Can | Cannot |
+|---|---|---|
+| **Operator** (saffron) | create jobs, safety check, edit, regenerate, retry, download, **Submit for review** | approve; see users or the audit trail |
+| **Reviewer** (green) | review queue, open any job, download, **Approve** or **Send back** with notes | change a job; review a job they worked on (created, edited, safety choices, submitted) — *separation of duties* |
+| **Admin** (navy) | users, access requests, forgot-password requests, audit trail | see or approve job content |
+
+The roles are checked **in the backend on every request** (`Depends(allow("operator"))` on each
+route): **401** = not signed in, **403** = this role may not. Hiding buttons in the web page is only
+for convenience. `backend/tests/test_permissions.py` tries every endpoint with every role.
+
+Job states: `ready` → **Submit for review** → `in_review` (locked: nobody can edit) → **Approve**
+→ `approved` (locked for good; signing comes in Stage 7), or **Send back** (notes required) →
+`sent_back` → the Operator changes it and submits again as **v2**.
+
+**Accounts**
+- *First-time setup*: only while there are no users; makes the first Admin. Then it is closed.
+- *Request access* (sign-in page): name, username, Operator or Reviewer, reason, and a password
+  (stored only as a hash). An Admin approves (can change the role) or rejects it. Admin accounts are
+  made only by an Admin.
+- *Forgot password* (offline, no email): sends a request to the Admin. The Admin checks who you are in
+  person and clicks **Reset password**: a temporary password (like `tulsi-river-7429-kamal`) is shown
+  **once**; you must choose your own at the next sign-in (until then every other request is refused).
+- *Passwords*: at least 12 characters, not a very common one, not containing your username or name;
+  hashed with **argon2id** (argon2-cffi). **5 wrong passwords lock the account for 15 minutes** (an
+  Admin can unlock it sooner). A wrong username takes as long as a wrong password, and the message is
+  the same.
+- The last active Admin cannot be switched off or demoted.
+
+**Sessions**: a random 256-bit token in a cookie that is `HttpOnly` (page scripts cannot read it),
+`SameSite=Strict` (other websites cannot make the browser send it) and `Secure` when served over
+HTTPS. The server stores only an HMAC-SHA256 of it (keyed with `APP_SECRET_KEY`). A session ends
+after **8 hours**, or **30 minutes** without any request; signing out deletes it; switching a user
+off or resetting their password ends all their sessions, and changing your password signs out your
+other computers. Every POST/PUT/DELETE must come from one of our own pages (the `Origin` header,
+checked against `ALLOWED_ORIGINS`), which stops other websites from sending requests as you.
+`APP_SECRET_KEY` is made on first run if empty and saved in `.env`; it is never printed.
+
+**Audit trail** (`audit_log` table, Admin → Audit trail): sign-in, sign-out, failed sign-in,
+lockouts, sessions that ended, password changes and resets, user changes, access requests, job
+created, every safety decision, edits, regenerate, retry, submit, approve, send back, downloads,
+generation finished, and each chain check. Each row stores the SHA-256 of the row before it, and its
+own SHA-256 over that plus its content. The database refuses UPDATE and DELETE on the table
+(triggers). **Verify chain** works every hash out again and shows the first row that was changed,
+removed or added. Limits: someone with the key who deletes the *newest* rows cannot be caught by the
+chain alone (Stage 7's signed record book will anchor it); passwords, keys and tokens are never
+written to it (a test checks this). Filters: category, search, who, last 24 hours / 7 / 30 days.
 
 ## Encryption at rest (Stage 6B)
 
@@ -281,6 +346,25 @@ already reads the key in one place (`crypto._master_key`), so only that function
 
 ## API (see <http://localhost:8000/docs> for all details)
 
+Every call except `/api/health` and the sign-in calls needs a session cookie, and every
+POST/PUT/DELETE needs an `Origin` header from `ALLOWED_ORIGINS` (browsers send it by themselves).
+
+| Call | Who | What it does |
+|---|---|---|
+| `GET /api/auth/status` | anyone | does the app need First-time setup? who is signed in? |
+| `POST /api/auth/setup` | anyone, only while there are no users | `{"username", "full_name", "password"}`: the first Admin, signed in |
+| `POST /api/auth/login` · `/logout` | anyone | `{"username", "password"}` → session cookie; 401 wrong, 423 locked |
+| `POST /api/auth/request-access` · `/forgot` | anyone | ask an Admin for an account / a new password |
+| `GET /api/auth/me` · `POST /api/auth/change-password` | signed in | `{"current_password", "new_password"}` |
+| `POST /api/jobs/{id}/submit` | Operator | `{"notes": ""}`: ready / sent back → in review (refused while an output has private data) |
+| `GET /api/review/queue` | Reviewer | jobs waiting (oldest first) and the latest decisions |
+| `POST /api/jobs/{id}/review` | Reviewer | `{"decision": "approve" \| "send_back", "notes": "..."}` |
+| `GET/POST /api/admin/users`, `PUT /api/admin/users/{id}`, `POST .../reset-password` | Admin | list, add (temporary password shown once), change role / switch off / unlock, reset |
+| `GET /api/admin/requests`, `POST .../{id}/approve` · `/reject` | Admin | access and forgot-password requests |
+| `GET /api/admin/audit?category=&q=&actor=&days=&offset=` · `POST /api/admin/audit/verify` | Admin | the audit trail; check the hash chain |
+
+Job calls (Operators change jobs; Reviewers may read them and download):
+
 | Call | What it does |
 |---|---|
 | `GET /api/options` | the 7 output types and the setting choices |
@@ -297,22 +381,32 @@ already reads the key in one place (`crypto._master_key`), so only that function
 | `GET /api/jobs/{id}/outputs/{output_id}/download?format=pdf` | one file: `docx`, `pdf`, `pptx`, `png`, `srt` or `txt` (each output lists its `formats`); add `&inline=true` to view instead of save |
 | `GET /api/jobs/{id}/kit.zip` | the campaign kit: every finished output in one .zip |
 
-Example with curl (from the project folder):
+Example with curl (from the project folder). First sign in as an Operator; curl keeps the session
+cookie in a file (`-c` saves it, `-b` sends it), and `-H Origin` says which page the request is from.
+Type the password at the hidden prompt (so it is not saved in your shell history):
 
 ```bash
-curl -F files=@samples/sample-ransomware-report.txt -F outputs=x_thread -F outputs=linkedin_post http://localhost:8000/api/jobs
+printf "Password: "; read -s PRAMAAN_PW; echo
 ```
 
-Only scan a file (no AI), and see what was found:
+```bash
+curl -c /tmp/pramaan-cookies -H "Origin: http://localhost:8000" -H "Content-Type: application/json" -d "{\"username\": \"priya.sharma\", \"password\": \"$PRAMAAN_PW\"}" http://localhost:8000/api/auth/login; unset PRAMAAN_PW
+```
 
 ```bash
-curl -s -F files=@samples/sample-private-data.txt http://localhost:8000/api/jobs | python3 -m json.tool | less
+curl -b /tmp/pramaan-cookies -H "Origin: http://localhost:8000" -F files=@samples/sample-ransomware-report.txt -F outputs=x_thread -F outputs=linkedin_post http://localhost:8000/api/jobs
 ```
 
 Download job 1's campaign kit into the current folder:
 
 ```bash
-curl -OJ http://localhost:8000/api/jobs/1/kit.zip
+curl -b /tmp/pramaan-cookies -OJ http://localhost:8000/api/jobs/1/kit.zip
+```
+
+Sign out (deletes the session on the server) and remove the cookie file:
+
+```bash
+curl -b /tmp/pramaan-cookies -H "Origin: http://localhost:8000" -X POST http://localhost:8000/api/auth/logout && rm /tmp/pramaan-cookies
 ```
 
 ## About the AI model
@@ -344,15 +438,14 @@ curl http://localhost:8000/api/health
 
 Expected: `{"status":"ok","ai_mode":"local"}`
 
-```bash
-curl http://localhost:8000/api/ai/ping
-```
+`/api/ai/ping` now needs a sign-in: use the dashboard's **Test AI** button. Without signing in it
+answers `401 {"detail":"Please sign in."}`.
 
-Expected with the model running: `{"ok":true,"reply":"Namaste.",...}`; without it:
-`{"ok":false,"error":"Could not reach the local AI server ..."}`
-
-Backend tests (they always use the mock AI and a temporary folder, so no model is needed and
-your `data/` folder is not touched):
+Backend tests (they always use the mock AI, a temporary folder and test keys, so no model is needed
+and your `data/` folder and `.env` are not touched). Stage 6B adds `test_accounts.py`,
+`test_sessions.py`, `test_review.py`, `test_permissions.py` (every role × every endpoint),
+`test_audit.py` (including changing and deleting rows to prove "Verify chain" finds them),
+`test_encryption.py` and `test_no_secrets_in_logs.py`:
 
 ```bash
 cd backend && .venv/bin/python -m pytest
@@ -372,7 +465,9 @@ Restart the app after changing `.env`.
 ## Folder map
 
 ```
-backend/        FastAPI app (app/main.py), settings (app/config.py), database (app/db.py)
+backend/        FastAPI app (app/main.py), settings (app/config.py), database (app/db.py, SQLCipher),
+                encryption of stored files (app/crypto.py), audit trail (app/audit.py)
+  app/auth/       passwords.py (argon2id, rules), accounts.py, sessions.py, deps.py (role checks) (Stage 6B)
   app/ai/         llm.py (the only file that talks to the model), prompts/*.md, mock_ai.py (the mock AI)
   app/pipeline/   ingest.py, factsheet.py, generate.py, checks.py, output_types.py, runner.py,
                   trace.py, values.py, segments.py, versions.py (Stage 5 checks and versions)
@@ -380,8 +475,10 @@ backend/        FastAPI app (app/main.py), settings (app/config.py), database (a
   app/assets/fonts/  Poppins, Hind, IBM Plex Mono (TTF, OFL)
   app/safety/     scanner.py, shield.py, masking.py, tlp.py, decisions.py (Stage 6A, no AI)
   app/routes/     system.py (health, AI ping), jobs.py (jobs API), outputs.py (edit, regenerate, versions, downloads),
-                  safety.py (the Safety check)
-frontend/       React + TypeScript + Vite app; design tokens in src/styles/tokens.css
+                  safety.py (the Safety check), auth.py (sign-in pages), review.py (submit / approve /
+                  send back), admin.py (users, requests, audit trail)
+frontend/       React + TypeScript + Vite app; design tokens in src/styles/tokens.css;
+                sign-in pages in src/pages/auth/, Admin pages in src/pages/admin/
 verify-page/    public "Is this real?" page (Stage 7)
 scripts/        start.sh (app), start-ai.sh (AI model)
 samples/        fictional test files: sample-ransomware-report.txt, sample-private-data.txt (fake
