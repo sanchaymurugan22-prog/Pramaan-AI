@@ -5,10 +5,13 @@ Run (from the backend/ folder):
 """
 
 from contextlib import asynccontextmanager
+from urllib.parse import urlsplit
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
+from app.config import settings
 from app.db import init_db
 from app.pipeline import runner
 from app.routes import auth, jobs, outputs, safety, system
@@ -32,6 +35,32 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+CHANGING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+def _origin_of(url: str | None) -> str | None:
+    """"http://localhost:5173/some/page" -> "http://localhost:5173"."""
+    if not url:
+        return None
+    parts = urlsplit(url)
+    return f"{parts.scheme}://{parts.netloc}" if parts.scheme and parts.netloc else None
+
+
+@app.middleware("http")
+async def check_origin(request: Request, call_next):
+    """Every request that changes something must come from one of our own pages (ALLOWED_ORIGINS).
+    Browsers always say which page sent a POST/PUT/DELETE (the Origin header, or at least Referer),
+    and another website cannot fake it. Together with the SameSite=Strict cookie this stops
+    "cross-site request forgery": a web page in another tab making the app do things as you."""
+    if request.method in CHANGING_METHODS and request.url.path.startswith("/api/"):
+        origin = request.headers.get("origin") or _origin_of(request.headers.get("referer"))
+        if origin is None or origin.rstrip("/") not in settings.allowed_origins:
+            return JSONResponse({"detail": "Refused: this request did not come from a Pramaan AI page."},
+                                status_code=403)
+    return await call_next(request)
+
 
 app.include_router(system.router)
 app.include_router(auth.router)

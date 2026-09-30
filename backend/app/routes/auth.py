@@ -1,17 +1,25 @@
-"""Sign-in page routes (Stage 6B). These work WITHOUT being signed in:
+"""Sign-in routes (Stage 6B).
 
+These work WITHOUT being signed in:
 GET  /api/auth/status          does the app need First-time setup? who is signed in (if anyone)?
-POST /api/auth/setup           First-time setup: make the first Admin (only while there are no users)
+POST /api/auth/setup           First-time setup: make the first Admin (only while there are no users), signed in
+POST /api/auth/login           sign in: sets the session cookie
 POST /api/auth/request-access  "Request access": ask an Admin for an Operator or Reviewer account
 POST /api/auth/forgot          "Forgot password": ask an Admin to set a temporary password
+
+These need a session (also while the password is a temporary one):
+GET  /api/auth/me              the signed-in user
+POST /api/auth/logout          sign out: deletes the session
+POST /api/auth/change-password
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.auth import accounts
-from app.auth.accounts import ROLE_LABELS, AccountError
+from app.auth import accounts, sessions
+from app.auth.accounts import ROLE_LABELS, AccountError, SignInError
+from app.auth.deps import SignedIn, current_session
 from app.db import User, get_session
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -29,9 +37,74 @@ def user_json(user: User) -> dict:
     }
 
 
+def _set_cookie(request: Request, response: Response, token: str) -> None:
+    """HttpOnly: page scripts cannot read it. SameSite=Strict: other websites cannot make the browser
+    send it. Secure (HTTPS only) when the app is served over HTTPS. No expiry date: the browser forgets
+    it when closed, and the server ends it after 8 hours anyway."""
+    response.set_cookie(sessions.COOKIE_NAME, token, httponly=True, samesite="strict",
+                        secure=request.url.scheme == "https", path="/")
+
+
+def _clear_cookie(request: Request, response: Response) -> None:
+    response.delete_cookie(sessions.COOKIE_NAME, httponly=True, samesite="strict",
+                           secure=request.url.scheme == "https", path="/")
+
+
 @router.get("/status")
-def status(db: Session = Depends(get_session)):
-    return {"needs_setup": accounts.needs_setup(db), "user": None}
+def status(request: Request, db: Session = Depends(get_session)):
+    """Called when the app opens: which screen to show (setup, sign in, or the app itself)."""
+    user = None
+    try:
+        _, user = sessions.check(db, request.cookies.get(sessions.COOKIE_NAME))
+    except sessions.SessionEnded:
+        pass
+    return {"needs_setup": accounts.needs_setup(db), "user": user_json(user) if user else None}
+
+
+class LoginForm(BaseModel):
+    username: str
+    password: str
+
+
+@router.post("/login")
+def login(form: LoginForm, request: Request, response: Response, db: Session = Depends(get_session)):
+    try:
+        user = accounts.sign_in(db, form.username, form.password)
+    except SignInError as refused:
+        # 423 Locked tells the page to show the "locked" message; everything else is 401
+        raise HTTPException(423 if refused.event in ("locked", "locked_now") else 401, str(refused))
+    _set_cookie(request, response, sessions.start(db, user))
+    return {"user": user_json(user)}
+
+
+@router.post("/logout")
+def logout(request: Request, response: Response, db: Session = Depends(get_session)):
+    """Always works, even if the session has already ended."""
+    sessions.end(db, request.cookies.get(sessions.COOKIE_NAME))
+    _clear_cookie(request, response)
+    return {"ok": True}
+
+
+@router.get("/me")
+def me(current: SignedIn = Depends(current_session)):
+    return {"user": user_json(current.user)}
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.post("/change-password")
+def change_password(form: PasswordChange, db: Session = Depends(get_session),
+                    current: SignedIn = Depends(current_session)):
+    """Also signs out every OTHER session of this user (e.g. on another computer)."""
+    try:
+        accounts.change_password(db, current.user, form.current_password, form.new_password)
+    except AccountError as exc:
+        raise HTTPException(400, str(exc))
+    sessions.end_all(db, current.user.id, keep=current.session)
+    return {"user": user_json(current.user)}
 
 
 class SetupForm(BaseModel):
@@ -41,14 +114,15 @@ class SetupForm(BaseModel):
 
 
 @router.post("/setup", status_code=201)
-def setup(form: SetupForm, db: Session = Depends(get_session)):
-    """Only works while there are no users at all. Afterwards: 409."""
+def setup(form: SetupForm, request: Request, response: Response, db: Session = Depends(get_session)):
+    """Only works while there are no users at all. Afterwards: 409. The new Admin is signed in."""
     if not accounts.needs_setup(db):
         raise HTTPException(409, "Setup is already done. Sign in, or ask your Admin for an account.")
     try:
         user = accounts.create_first_admin(db, form.username, form.full_name, form.password)
     except AccountError as exc:
         raise HTTPException(409 if "already done" in str(exc) else 400, str(exc))
+    _set_cookie(request, response, sessions.start(db, user))
     return {"user": user_json(user)}
 
 

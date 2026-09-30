@@ -11,9 +11,9 @@ from app.auth.accounts import AccountError, SignInError
 from app.auth.passwords import check_rules, PasswordRuleError, hash_password, temporary_password, verify_password
 from app.db import AccountRequest, SessionLocal, User, utc_now
 from app.main import app
-from tests.auth_helpers import TEST_PASSWORD, empty_accounts, make_user
+from tests.auth_helpers import ORIGIN, TEST_PASSWORD, empty_accounts, make_user
 
-client = TestClient(app, headers={"Origin": "http://testserver"})
+client = TestClient(app, headers=ORIGIN)
 
 
 # ---- passwords -----------------------------------------------------------------------------------

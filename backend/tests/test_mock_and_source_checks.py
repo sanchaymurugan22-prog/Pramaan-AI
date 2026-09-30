@@ -6,6 +6,8 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.auth_helpers import ORIGIN
+
 from app.ai import llm, mock_ai
 from app.main import app
 from app.pipeline import checks, ingest
@@ -14,7 +16,7 @@ from app.pipeline.values import KnownValues
 from tests.helpers import SAMPLE_REPORT
 from tests.test_jobs_api import wait_for
 
-client = TestClient(app)
+client = TestClient(app, headers=ORIGIN)
 SAMPLES = SAMPLE_REPORT.parent
 PRIVATE = (SAMPLES / "sample-private-data.txt").read_bytes()
 INJECTION = (SAMPLES / "sample-injection.txt").read_bytes()

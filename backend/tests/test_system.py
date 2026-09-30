@@ -5,10 +5,12 @@ Run (from the backend/ folder):  .venv/bin/python -m pytest
 
 from fastapi.testclient import TestClient
 
+from tests.auth_helpers import ORIGIN
+
 from app.ai import llm
 from app.main import app
 
-client = TestClient(app)
+client = TestClient(app, headers=ORIGIN)
 
 
 def test_health():

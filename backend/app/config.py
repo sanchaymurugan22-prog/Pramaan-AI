@@ -4,20 +4,51 @@ Every other module imports `settings` from here instead of reading
 environment variables itself, so there is one place to look.
 """
 
+import logging
 import os
+import secrets
 from pathlib import Path
 
 from dotenv import load_dotenv
 
 # backend/app/config.py -> project root is two folders up from backend/
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+ENV_FILE = PROJECT_ROOT / ".env"
 
 # Load .env from the project root. Real environment variables win over .env.
-load_dotenv(PROJECT_ROOT / ".env")
+load_dotenv(ENV_FILE)
+
+log = logging.getLogger("pramaan.config")
 
 
 def _get(name: str, default: str = "") -> str:
     return os.getenv(name, default).strip()
+
+
+def ensure_secret(name: str, env_file: Path = ENV_FILE) -> str:
+    """The value of a secret setting (APP_SECRET_KEY, DB_KEY). If it is empty, make a new random one
+    (256 bits) and save it in .env, so it stays the same after a restart. The value is never printed
+    or logged, only the fact that a new one was made."""
+    value = _get(name)
+    if value:
+        return value
+    value = secrets.token_hex(32)
+    lines = env_file.read_text(encoding="utf-8").splitlines() if env_file.exists() else []
+    for number, line in enumerate(lines):
+        if line.split("=", 1)[0].strip() == name:
+            lines[number] = f"{name}={value}"
+            break
+    else:
+        lines.append(f"{name}={value}")
+    # Write a new file (readable by this user only), then swap it in, so .env is never half-written.
+    temporary = env_file.with_name(env_file.name + ".tmp")
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as file:
+        file.write("\n".join(lines) + "\n")
+    os.replace(temporary, env_file)
+    os.environ[name] = value
+    log.warning("%s was empty, so a new random one was made and saved in .env", name)
+    return value
 
 
 class Settings:
@@ -49,6 +80,18 @@ class Settings:
 
     # where the database, uploads and outputs live
     data_dir: Path = (PROJECT_ROOT / _get("DATA_DIR", "./data")).resolve()
+
+    # --- sign-in (Stage 6B) ---
+    # Key for the sign-in session fingerprints. Made on first run if empty (see ensure_secret).
+    app_secret_key: str = ensure_secret("APP_SECRET_KEY")
+    # Web pages allowed to send changes (POST/PUT/DELETE) to the API: the Vite dev server and the
+    # backend itself. Anything else (another website open in the same browser) is refused.
+    allowed_origins: frozenset[str] = frozenset(
+        o.strip().rstrip("/") for o in _get(
+            "ALLOWED_ORIGINS",
+            "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000",
+        ).split(",") if o.strip()
+    )
 
 
 settings = Settings()

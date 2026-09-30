@@ -6,6 +6,8 @@ import re
 
 import pytest
 from fastapi.testclient import TestClient
+
+from tests.auth_helpers import ORIGIN
 from pptx import Presentation
 from pypdf import PdfReader
 
@@ -19,7 +21,7 @@ from tests.canned import canned_ai, reply
 from tests.helpers import SAMPLE_REPORT
 from tests.test_jobs_api import wait_for
 
-client = TestClient(app)
+client = TestClient(app, headers=ORIGIN)
 
 
 @pytest.fixture(scope="module", autouse=True)

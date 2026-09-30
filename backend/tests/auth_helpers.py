@@ -10,7 +10,10 @@ from app.db import Base, SessionLocal, User
 from app.auth.passwords import hash_password
 
 # Tables emptied by empty_accounts(), children first (later parts add more, e.g. sessions).
-ACCOUNT_TABLES = ["account_requests", "users"]
+ACCOUNT_TABLES = ["sessions", "account_requests", "users"]
+
+# Sent with every test request: the TestClient's address is one of "our pages" (see conftest.py)
+ORIGIN = {"Origin": "http://testserver"}
 
 # A password that follows the rules, used for test accounts (test value only).
 TEST_PASSWORD = "correct horse battery staple"

@@ -192,6 +192,21 @@ class AccountRequest(Base):
     decided_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), default=None)
 
 
+class UserSession(Base):
+    """One sign-in (Stage 6B). The browser holds a random token in a cookie; only an HMAC fingerprint of
+    it is stored here, so a copy of the database cannot be used to sign in. Signing out deletes the row."""
+
+    __tablename__ = "sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now)
+    last_seen: Mapped[datetime] = mapped_column(default=utc_now)
+
+    user: Mapped[User] = relationship()
+
+
 def as_utc(value: datetime | None) -> datetime | None:
     """SQLite gives times back without a timezone; they are always stored in UTC."""
     if value is not None and value.tzinfo is None:
