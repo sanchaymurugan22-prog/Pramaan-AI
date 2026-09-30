@@ -92,3 +92,34 @@ def test_key_facts_are_capped_at_8(monkeypatch):
     monkeypatch.setattr(llm, "chat_json", lambda *args, **kwargs: llm.JsonReply(many, False, 0.1, 10))
     sheet = factsheet.build_fact_sheet(sample_sources())
     assert [f["id"] for f in sheet["key_facts"]] == [f"F{i}" for i in range(1, 9)]
+
+
+def test_entity_types_are_corrected_by_rules():
+    """The local model called a CVE id and a file name "malware"; simple rules fix that."""
+    chunk = Chunk("S1", "report.txt", 1, 1, "[Page 1]\ntext")
+    data = {"summary": "S.", "severity": "high", "key_facts": [], "dates": [], "recommended_actions": [],
+            "entities": [
+                {"name": "NightLedger", "type": "malware"},                 # real malware/group name: kept
+                {"name": "CVE-2026-XXXXX", "type": "malware"},
+                {"name": "CVE-2024-3400 (sample)", "type": "product"},
+                {"name": "READ_ME_NIGHTLEDGER.txt", "type": "malware"},
+                {"name": "invoice_update.exe", "type": "malware"},
+                {"name": "203.0.113.45", "type": "malware"},
+                {"name": "198.51.100[.]23", "type": "other"},              # "defanged" address
+                {"name": "a" * 64, "type": "malware"},                     # a file's SHA-256 fingerprint
+                {"name": "example.com", "type": "organisation"},           # a web address is not a file
+                {"name": "Regional Cyber Coordination Cell", "type": "organisation"},
+                {"name": "Something", "type": "spaceship"},                # unknown type from the model
+            ]}
+    sheet = factsheet.merge_partials([(chunk, data)])
+    assert [e["type"] for e in sheet["entities"]] == [
+        "malware", "vulnerability", "vulnerability", "file", "file", "ip address", "ip address", "file",
+        "organisation", "organisation", "other",
+    ]
+
+
+def test_entity_types_are_allowed_by_the_schema():
+    from app.pipeline.output_types import FACTSHEET_SCHEMA
+
+    allowed = FACTSHEET_SCHEMA["properties"]["entities"]["items"]["properties"]["type"]["enum"]
+    assert {"vulnerability", "file", "ip address", "malware"} <= set(allowed)

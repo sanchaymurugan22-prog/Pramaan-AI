@@ -28,6 +28,10 @@ SEVERITY = {"type": "string", "enum": ["low", "medium", "high", "critical", "unk
 # ---- the fact sheet ------------------------------------------------------------------------
 
 MAX_KEY_FACTS = 8  # per model answer (per chunk when a long source is split)
+ENTITY_TYPES = [
+    "organisation", "place", "person", "group", "product", "malware",
+    "vulnerability", "file", "ip address", "other",
+]
 
 FACTSHEET_SCHEMA = obj(
     {
@@ -45,7 +49,7 @@ FACTSHEET_SCHEMA = obj(
                     "name": STR,
                     "type": {
                         "type": "string",
-                        "enum": ["organisation", "place", "person", "group", "product", "malware", "other"],
+                        "enum": ENTITY_TYPES,
                     },
                 }
             ),

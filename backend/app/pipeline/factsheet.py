@@ -8,7 +8,8 @@ model for facts from each chunk, then merge the answers in code (no extra model 
 
 Grounding: each fact comes with a quote. We check the quote really is in the source and
 record where ("quote_found": exact / close / no). Indicators (CVEs, IP addresses, file hashes)
-are found with exact patterns, not by the model, so they can never be made up.
+are found with exact patterns, not by the model, so they can never be made up. Entity types are
+corrected with simple rules after the model answers (see fix_entity_type).
 """
 
 import re
@@ -18,7 +19,7 @@ from dataclasses import dataclass
 from app.ai import llm
 from app.ai.prompt_files import render_prompt
 from app.config import max_tokens_for, settings
-from app.pipeline.output_types import FACTSHEET_SCHEMA
+from app.pipeline.output_types import ENTITY_TYPES, FACTSHEET_SCHEMA
 
 MAX_FACTS_TOTAL = 15  # the merged fact sheet is sent with every output prompt, so keep it small
 SEVERITY_RANK = {"unknown": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
@@ -176,7 +177,7 @@ def merge_partials(partials: list[tuple[Chunk, dict]]) -> dict:
             key = _key(item.get("name", ""))
             if key and key not in seen_entities:
                 seen_entities.add(key)
-                entities.append({"name": item.get("name", ""), "type": item.get("type", "other")})
+                entities.append({"name": item.get("name", ""), "type": fix_entity_type(item.get("name", ""), item.get("type", ""))})
 
         for action in data.get("recommended_actions", []):
             key = _key(action)
@@ -218,6 +219,31 @@ def find_indicators(text: str) -> dict:
         "ips": unique(ips),
         "hashes": unique(m.lower() for m in HASH_PATTERN.findall(text)),
     }
+
+
+# ---- entity types --------------------------------------------------------------------------
+
+# Common file endings, so "READ_ME_NIGHTLEDGER.txt" is a file but "example.com" is not.
+FILE_PATTERN = re.compile(
+    r"[\w\-. ]+\.(?:exe|dll|sys|bat|cmd|ps1|vbs|js|jar|msi|scr|lnk|iso|zip|rar|7z|txt|pdf|docx?|xlsx?|pptx?|html?|sh|py|bin|dat|log|tmp)",
+    re.IGNORECASE,
+)
+
+
+def fix_entity_type(name: str, entity_type: str) -> str:
+    """Correct the model's entity type with simple rules (it often calls CVE ids and file names "malware").
+
+    CVE id -> vulnerability, IP address -> ip address, file name or file hash -> file.
+    Anything else keeps the model's type (or "other" if the type is unknown).
+    """
+    name = name.strip().strip("'\"`")
+    if CVE_PATTERN.search(name):
+        return "vulnerability"
+    if IP_PATTERN.fullmatch(name):
+        return "ip address"
+    if FILE_PATTERN.fullmatch(name) or HASH_PATTERN.fullmatch(name):
+        return "file"
+    return entity_type if entity_type in ENTITY_TYPES else "other"
 
 
 # ---- quote checking -----------------------------------------------------------------------

@@ -12,7 +12,9 @@ Write one JSON object:
   - quote: the exact words from the source that prove the fact, copied letter for letter, at most 15 words.
 - recommended_actions: up to 6 actions the source recommends, at most 12 words each, in the source's order.
 - dates: up to 5 important dates, each with what happened on it in a few words.
-- entities: up to 6 organisations, places, groups, products or malware named in the source.
+- entities: up to 6 things named in the source, each with a type:
+  organisation, place, person, group, product, malware (only the name of real malware or an attacker group),
+  vulnerability (CVE ids like CVE-2024-1234), file (file names like invoice.exe), ip address, or other.
 
 Use only what the source says. Never guess or add outside knowledge. Leave out anything not in the source.
 Write compact JSON on one line.
