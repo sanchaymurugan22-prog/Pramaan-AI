@@ -8,6 +8,9 @@ POST /api/admin/users/{id}/reset-password    a new temporary password, shown onc
 GET  /api/admin/requests                     access requests and "forgot password" requests
 POST /api/admin/requests/{id}/approve        make the account (optionally with another role: {"role": "reviewer"})
 POST /api/admin/requests/{id}/reject
+
+GET  /api/admin/audit                        the audit trail, newest first: ?category=&q=&actor=&days=&offset=
+POST /api/admin/audit/verify                 check the whole hash chain; shows the first broken row
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,6 +18,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import audit
 from app.auth import accounts, sessions
 from app.auth.accounts import ROLE_LABELS, AccountError
 from app.auth.deps import allow
@@ -84,6 +88,8 @@ def add_user(form: NewUser, db: Session = Depends(get_session), admin: User = De
         user, temporary = accounts.create_user(db, admin, form.username, form.full_name, form.role)
     except AccountError as exc:
         raise HTTPException(400, str(exc))
+    audit.log("users", "user_created", f"Added {user.full_name} ({user.username}) as {ROLE_LABELS[user.role]}, "
+                                       "with a temporary password", actor=admin, target=f"user {user.username}")
     # The only time this password is ever shown. It is not stored anywhere (only its hash).
     return {"user": admin_user_json(user), "temporary_password": temporary}
 
@@ -99,10 +105,13 @@ class UserChange(BaseModel):
 def change_user(user_id: int, form: UserChange, db: Session = Depends(get_session), admin: User = Depends(admin_only)):
     user = _get_user(db, user_id)
     try:
-        accounts.update_user(db, admin, user, full_name=form.full_name, role=form.role,
-                             is_active=form.is_active, unlock=form.unlock)
+        changes = accounts.update_user(db, admin, user, full_name=form.full_name, role=form.role,
+                                       is_active=form.is_active, unlock=form.unlock)
     except AccountError as exc:
         raise HTTPException(400, str(exc))
+    if changes:
+        audit.log("users", "user_changed", f"Changed {user.full_name} ({user.username}): {', '.join(changes)}",
+                  actor=admin, target=f"user {user.username}")
     if not user.is_active:
         sessions.end_all(db, user.id)  # signed out everywhere, straight away
     return admin_user_json(user)
@@ -115,6 +124,8 @@ def reset_password(user_id: int, db: Session = Depends(get_session), admin: User
         raise HTTPException(400, "Change your own password from your profile instead.")
     temporary = accounts.reset_password(db, admin, user)
     sessions.end_all(db, user.id)
+    audit.log("users", "password_reset", f"Set a temporary password for {user.full_name} ({user.username}); "
+                                         "signed out everywhere and unlocked", actor=admin, target=f"user {user.username}")
     return {"user": admin_user_json(user), "temporary_password": temporary}
 
 
@@ -145,6 +156,8 @@ def approve_request(request_id: int, form: Approval, db: Session = Depends(get_s
         user = accounts.approve_access(db, request, admin, form.role)
     except AccountError as exc:
         raise HTTPException(409, str(exc))
+    audit.log("users", "access_approved", f"Approved the access request of {user.full_name} ({user.username}) "
+                                          f"as {ROLE_LABELS[user.role]}", actor=admin, target=f"user {user.username}")
     return {"request": request_json(db, request), "user": admin_user_json(user)}
 
 
@@ -155,4 +168,26 @@ def reject_request(request_id: int, db: Session = Depends(get_session), admin: U
         accounts.reject_request(db, request, admin)
     except AccountError as exc:
         raise HTTPException(409, str(exc))
+    what = "access request" if request.kind == "access" else "forgot-password request"
+    audit.log("users", f"{request.kind}_rejected", f"Rejected the {what} of {request.full_name or request.username} "
+                                                   f"({request.username})", actor=admin, target=f"user {request.username}")
     return {"request": request_json(db, request)}
+
+
+@router.get("/audit")
+def audit_trail(category: str = "", q: str = "", actor: str = "", days: int = 0, offset: int = 0, limit: int = 50,
+                db: Session = Depends(get_session), admin: User = Depends(admin_only)):
+    return audit.search(db, category=category, text=q, actor=actor, days=days, offset=max(offset, 0),
+                        limit=max(1, limit))
+
+
+@router.post("/audit/verify")
+def verify_audit_trail(db: Session = Depends(get_session), admin: User = Depends(admin_only)):
+    """Checks every row, then adds a row saying so (that row is part of the chain too)."""
+    result = audit.verify(db)
+    if result["ok"]:
+        detail = f"Audit chain checked · {result['checked']} of {result['checked']} rows intact"
+    else:
+        detail = f"Audit chain checked · BROKEN at row {result['broken']['seq']}: {result['broken']['reason']}"
+    audit.log("security", "audit_verified", detail, actor=admin)
+    return result

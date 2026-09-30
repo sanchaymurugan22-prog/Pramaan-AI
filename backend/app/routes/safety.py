@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app import audit
 from app.auth.deps import allow
 from app.db import User, get_session
 from app.routes.jobs import _get_job, job_detail
@@ -55,6 +56,7 @@ def save_safety(job_id: int, update: SafetyUpdate, db: Session = Depends(get_ses
         if choice not in allowed:
             raise HTTPException(400, f"Choice for {item_id} must be one of: {', '.join(allowed)}.")
 
+    before = len(job.safety_decisions)
     first_confirmation = job.tlp is None
     for item_id, choice in update.choices.items():
         instruction = instructions.get(item_id)
@@ -98,6 +100,7 @@ def save_safety(job_id: int, update: SafetyUpdate, db: Session = Depends(get_ses
                        f"{len(instructions) - removed} kept (AI told to ignore them).")
         record(db, job, "confirm", detail, by=user)
     db.commit()
+    audit.log_decisions(user, job, job.safety_decisions[before:])
     return job_detail(job)
 
 

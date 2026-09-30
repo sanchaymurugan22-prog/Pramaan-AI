@@ -231,6 +231,25 @@ class UserSession(Base):
     user: Mapped[User] = relationship()
 
 
+class AuditEntry(Base):
+    """One line of the audit trail (Stage 6B): who did what, and when. Append-only and hash-chained
+    (see app/audit.py): each row stores the SHA-256 of the row before it, and its own SHA-256 over that
+    plus its content, so changing or deleting any row breaks the chain from that row on."""
+
+    __tablename__ = "audit_log"
+
+    seq: Mapped[int] = mapped_column(primary_key=True, autoincrement=False)  # 1, 2, 3 ... no gaps
+    created_at: Mapped[str] = mapped_column(String(40))       # ISO text in UTC, hashed exactly as stored
+    actor_id: Mapped[int | None] = mapped_column(default=None)  # None = the system, or someone not signed in
+    actor: Mapped[str] = mapped_column(String(100))           # name at the time: "Priya Sharma", "System"
+    category: Mapped[str] = mapped_column(String(20), index=True)  # security | users | content | review | system
+    action: Mapped[str] = mapped_column(String(40))           # short code, e.g. sign_in, job_created, approved
+    target: Mapped[str] = mapped_column(String(100), default="")   # e.g. "job 12", "user priya.sharma"
+    detail: Mapped[str] = mapped_column(Text, default="")     # plain words; never a password or key
+    prev_hash: Mapped[str] = mapped_column(String(64))
+    entry_hash: Mapped[str] = mapped_column(String(64))
+
+
 def as_utc(value: datetime | None) -> datetime | None:
     """SQLite gives times back without a timezone; they are always stored in UTC."""
     if value is not None and value.tzinfo is None:
@@ -242,6 +261,18 @@ def init_db() -> None:
     """Create any tables and columns that don't exist yet (safe to call every time the app starts)."""
     Base.metadata.create_all(engine)
     _add_missing_columns()
+    protect_audit_log()
+
+
+def protect_audit_log() -> None:
+    """The database itself refuses to change or delete audit rows (defence in depth: someone with the
+    key could still drop these rules, and then the hash chain shows what they changed)."""
+    with engine.begin() as connection:
+        for change in ("UPDATE", "DELETE"):
+            connection.execute(text(
+                f"CREATE TRIGGER IF NOT EXISTS audit_log_no_{change.lower()} BEFORE {change} ON audit_log "
+                "BEGIN SELECT RAISE(ABORT, 'The audit trail is append-only'); END"
+            ))
 
 
 def _add_missing_columns() -> None:

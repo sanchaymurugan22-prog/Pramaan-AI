@@ -22,6 +22,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app import audit
 from app.auth.deps import allow
 from app.db import Job, Output, User, get_session
 from app.exporters import MEDIA_TYPES, ExportError, export_output
@@ -29,6 +30,7 @@ from app.exporters.kit import build_kit
 from app.pipeline import runner
 from app.pipeline.checks import recheck_job
 from app.pipeline.generate import add_timings
+from app.pipeline.output_types import OUTPUT_TYPES
 from app.pipeline.segments import EditError, apply_edits
 from app.pipeline.versions import ORIGIN_LABELS, save_version, version_summary
 from app.routes.jobs import _time, job_detail, must_be_changeable
@@ -51,6 +53,10 @@ def _get_output(db: Session, job_id: int, output_id: int) -> tuple[Job, Output]:
     if job is None or output is None or output.job_id != job_id:
         raise HTTPException(404, f"Output {output_id} of job {job_id} not found.")
     return job, output
+
+
+def _label(output: Output) -> str:
+    return OUTPUT_TYPES[output.type]["label"]
 
 
 def _must_be_editable(job: Job, output: Output) -> None:
@@ -81,6 +87,8 @@ def edit_output(job_id: int, output_id: int, edit: OutputEdit, db: Session = Dep
     output.truncated = False  # a person has now read and fixed the text
     output.error = None
     db.commit()
+    audit.log("content", "output_edited", f"Edited the {_label(output)} of job #{job.id} (now version {output.version})",
+              actor=user, target=f"job {job.id}")
     recheck_job(db, job)
     return job_detail(job)
 
@@ -95,6 +103,8 @@ def regenerate_output(job_id: int, output_id: int, db: Session = Depends(get_ses
     output.status, output.error, output.started_at = "queued", None, None
     job.status, job.step, job.error = "generating", "Waiting in the queue", None
     db.commit()
+    audit.log("content", "output_regenerate", f"Asked the AI to write the {_label(output)} of job #{job.id} again",
+              actor=user, target=f"job {job.id}")
     runner.submit(job.id)
     return job_detail(job)
 
@@ -139,6 +149,9 @@ def download_output(
         path = export_output(job, output, fmt)
     except ExportError as exc:
         raise HTTPException(409 if output.status != "done" else 400, str(exc))
+    how = "Opened" if inline else "Downloaded"
+    audit.log("content", "download", f"{how} the {_label(output)} of job #{job.id} as {fmt.upper()}",
+              actor=user, target=f"job {job.id}")
     return FileResponse(path, media_type=MEDIA_TYPES[fmt], filename=path.name,
                         content_disposition_type="inline" if inline else "attachment")
 
@@ -152,4 +165,6 @@ def download_kit(job_id: int, db: Session = Depends(get_session), user: User = D
         path = build_kit(job)
     except ExportError as exc:
         raise HTTPException(409, str(exc))
+    audit.log("content", "download", f"Downloaded the campaign kit (.zip) of job #{job.id}", actor=user,
+              target=f"job {job.id}")
     return FileResponse(path, media_type=MEDIA_TYPES["zip"], filename=path.name)

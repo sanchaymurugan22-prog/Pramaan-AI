@@ -19,6 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy import select
 
+from app import audit
 from app.ai import llm
 from app.db import FactSheet, Job, SessionLocal, utc_now
 from app.pipeline.factsheet import SourcePages, build_fact_sheet
@@ -114,6 +115,10 @@ def _run(db, job: Job) -> None:
         job.error = f"{len(failed)} output(s) failed. Use 'Try again' to retry them." if failed else None
     db.commit()
     recheck_job(db, job)
+    done = len(job.outputs) - len(failed)
+    audit.log("system", "generated", f"Wrote {done} of {len(job.outputs)} output{'s' if len(job.outputs) != 1 else ''} "
+                                     f"for job #{job.id}" + (f" ({len(failed)} failed)" if failed else ""),
+              target=f"job {job.id}")
 
 
 class _StepReporter:

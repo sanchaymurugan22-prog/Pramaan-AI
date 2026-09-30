@@ -17,8 +17,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app import audit
 from app.auth import accounts, sessions
-from app.auth.accounts import ROLE_LABELS, AccountError, SignInError
+from app.auth.accounts import LOCK_AFTER_WRONG, LOCK_MINUTES, ROLE_LABELS, AccountError, SignInError
 from app.auth.deps import SignedIn, current_session
 from app.db import User, get_session
 
@@ -71,16 +72,45 @@ def login(form: LoginForm, request: Request, response: Response, db: Session = D
     try:
         user = accounts.sign_in(db, form.username, form.password)
     except SignInError as refused:
+        _log_refused(refused, form.username)
         # 423 Locked tells the page to show the "locked" message; everything else is 401
         raise HTTPException(423 if refused.event in ("locked", "locked_now") else 401, str(refused))
     _set_cookie(request, response, sessions.start(db, user))
+    audit.log("security", "sign_in", "Signed in", actor=user, target=f"user {user.username}")
     return {"user": user_json(user)}
+
+
+def _log_refused(refused: SignInError, typed_username: str) -> None:
+    """A refused sign-in, for the audit trail. What was typed as the username is only written down when
+    it is a real account (people sometimes type their password into the username box by mistake)."""
+    user = refused.user
+    if user is None:
+        if refused.event == "pending":
+            audit.log("security", "sign_in_refused", "Tried to sign in; the access request is still waiting",
+                      actor_name=typed_username.strip().lower()[:40])
+        else:
+            audit.log("security", "sign_in_failed", "Failed sign-in: unknown username", actor_name="Unknown")
+        return
+    detail = {
+        "wrong_password": f"Failed sign-in: wrong password ({user.failed_attempts} of {LOCK_AFTER_WRONG})",
+        "locked_now": f"Account locked for {LOCK_MINUTES} minutes after {LOCK_AFTER_WRONG} wrong passwords",
+        "locked": "Sign-in refused: the account is locked",
+        "inactive": "Sign-in refused: the account is switched off",
+    }[refused.event]
+    action = "locked" if refused.event == "locked_now" else "sign_in_failed"
+    audit.log("security", action, detail, actor_name=user.username, target=f"user {user.username}")
 
 
 @router.post("/logout")
 def logout(request: Request, response: Response, db: Session = Depends(get_session)):
     """Always works, even if the session has already ended."""
-    sessions.end(db, request.cookies.get(sessions.COOKIE_NAME))
+    token = request.cookies.get(sessions.COOKIE_NAME)
+    try:
+        _, user = sessions.check(db, token)
+        audit.log("security", "sign_out", "Signed out", actor=user, target=f"user {user.username}")
+    except sessions.SessionEnded:
+        pass
+    sessions.end(db, token)
     _clear_cookie(request, response)
     return {"ok": True}
 
@@ -104,6 +134,8 @@ def change_password(form: PasswordChange, db: Session = Depends(get_session),
     except AccountError as exc:
         raise HTTPException(400, str(exc))
     sessions.end_all(db, current.user.id, keep=current.session)
+    audit.log("security", "password_changed", "Changed their password (other sessions signed out)",
+              actor=current.user, target=f"user {current.user.username}")
     return {"user": user_json(current.user)}
 
 
@@ -123,6 +155,8 @@ def setup(form: SetupForm, request: Request, response: Response, db: Session = D
     except AccountError as exc:
         raise HTTPException(409 if "already done" in str(exc) else 400, str(exc))
     _set_cookie(request, response, sessions.start(db, user))
+    audit.log("users", "first_admin", f"First-time setup: made the first Admin account ({user.username}) and signed in",
+              actor=user, target=f"user {user.username}")
     return {"user": user_json(user)}
 
 
@@ -142,6 +176,9 @@ def request_access(form: AccessForm, db: Session = Depends(get_session)):
         request = accounts.request_access(db, form.username, form.full_name, form.role, form.reason, form.password)
     except AccountError as exc:
         raise HTTPException(400, str(exc))
+    audit.log("users", "access_requested", f"Asked for a {ROLE_LABELS[request.role]} account ({request.username}): "
+                                           f"“{request.reason}”", actor_name=request.full_name,
+              target=f"user {request.username}")
     return {"username": request.username, "full_name": request.full_name, "role": request.role,
             "role_label": ROLE_LABELS[request.role], "created_at": request.created_at.isoformat()}
 
@@ -155,7 +192,13 @@ class ForgotForm(BaseModel):
 def forgot(form: ForgotForm, db: Session = Depends(get_session)):
     """Always the same answer, so it cannot be used to find out which usernames exist."""
     try:
-        accounts.request_reset(db, form.username, form.message)
+        request = accounts.request_reset(db, form.username, form.message)
     except AccountError as exc:
         raise HTTPException(400, str(exc))
+    user = accounts.find_user(db, form.username)
+    if request is not None and user is not None:
+        audit.log("users", "reset_requested", "Asked the Admin for a new password (forgot password)",
+                  actor_name=user.username, target=f"user {user.username}")
+    elif request is not None:
+        audit.log("users", "reset_requested", "Forgot-password request for an unknown username", actor_name="Unknown")
     return {"ok": True, "message": "Request sent. Your Admin will check who you are and give you a temporary password."}

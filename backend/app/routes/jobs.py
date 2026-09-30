@@ -32,6 +32,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import audit
 from app.auth.deps import allow, signed_in
 from app.db import Job, Output, Source, User, as_utc, get_session
 from app.exporters import FORMATS
@@ -119,6 +120,11 @@ async def create_job(
         start_outputs(db, job, selected, job_settings, user)
     db.commit()
 
+    names = ", ".join(s.filename for s in job.sources)
+    audit.log("content", "job_created", f"Created job #{job.id} “{job.title}” from {len(job.sources)} "
+                                        f"source{'s' if len(job.sources) != 1 else ''} ({names})",
+              actor=user, target=f"job {job.id}")
+    audit.log_decisions(user, job, job.safety_decisions)
     if selected:
         runner.submit(job.id)
     return job_detail(job)
@@ -140,8 +146,10 @@ def start_job(job_id: int, body: StartRequest, db: Session = Depends(get_session
         raise HTTPException(400, "Choose a sharing label (TLP) in the Safety check first.")
     selected = _selected_outputs(body.outputs, required=True)
     job_settings = _clean_settings(DEFAULT_SETTINGS | body.settings)
+    before = len(job.safety_decisions)
     start_outputs(db, job, selected, job_settings, user)
     db.commit()
+    audit.log_decisions(user, job, job.safety_decisions[before:])
     runner.submit(job.id)
     return job_detail(job)
 
@@ -205,6 +213,7 @@ def retry_job(job_id: int, db: Session = Depends(get_session), user: User = Depe
         if output.status == "failed":
             output.status, output.error = "queued", None
     db.commit()
+    audit.log("content", "retry", f"Tried job #{job.id} again (outputs that had failed)", actor=user, target=f"job {job.id}")
     runner.submit(job.id)
     return job_detail(job)
 

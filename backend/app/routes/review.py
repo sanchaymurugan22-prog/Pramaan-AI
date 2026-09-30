@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import audit
 from app.auth.deps import allow
 from app.db import Job, OutputVersion, Review, User, get_session
 from app.exporters import is_blocked
@@ -53,6 +54,8 @@ def submit_for_review(job_id: int, body: SubmitRequest, db: Session = Depends(ge
     db.add(Review(job=job, user_id=user.id, decision="submitted", notes=body.notes.strip()[:2000],
                   job_version=job.version))
     db.commit()
+    audit.log("review", "submitted", f"Submitted job #{job.id} v{job.version} for review", actor=user,
+              target=f"job {job.id}")
     return job_detail(job)
 
 
@@ -83,6 +86,8 @@ def review_job(job_id: int, body: ReviewDecision, db: Session = Depends(get_sess
     if job.status != "in_review":
         raise HTTPException(409, "This job is not waiting for review.")
     if user.id in worked_on_by(db, job):
+        audit.log("security", "review_refused", f"Tried to review job #{job.id}, which they worked on "
+                                                "(refused: separation of duties)", actor=user, target=f"job {job.id}")
         raise HTTPException(403, SEPARATION)
     notes = body.notes.strip()[:4000]
     if body.decision == "send_back" and len(notes) < 5:
@@ -92,6 +97,12 @@ def review_job(job_id: int, body: ReviewDecision, db: Session = Depends(get_sess
     job.status = decision
     db.add(Review(job=job, user_id=user.id, decision=decision, notes=notes, job_version=job.version))
     db.commit()
+    if decision == "approved":
+        audit.log("review", "approved", f"Approved job #{job.id} v{job.version}" + (f": “{notes}”" if notes else ""),
+                  actor=user, target=f"job {job.id}")
+    else:
+        audit.log("review", "sent_back", f"Sent back job #{job.id} v{job.version} with notes: “{notes}”",
+                  actor=user, target=f"job {job.id}")
     return job_detail(job)
 
 

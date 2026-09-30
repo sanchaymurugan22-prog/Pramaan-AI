@@ -17,6 +17,7 @@ from datetime import timedelta
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app import audit
 from app.config import settings
 from app.db import User, UserSession, as_utc, utc_now
 
@@ -74,6 +75,9 @@ def check(db: Session, token: str | None) -> tuple[UserSession, User]:
     if reason:
         db.delete(row)
         db.commit()
+        if user is not None:
+            audit.log("security", "session_ended", SessionEnded(reason).message.split(".")[0],
+                      actor=user, target=f"user {user.username}")
         raise SessionEnded(reason, user)
     if now - as_utc(row.last_seen) > TOUCH_EVERY:
         row.last_seen = now
