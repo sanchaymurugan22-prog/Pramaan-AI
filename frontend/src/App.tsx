@@ -17,6 +17,7 @@ import { JobsList } from './pages/JobsList'
 import { Notifications } from './pages/Notifications'
 import { WatchFolder } from './pages/WatchFolder'
 import { EmergencyAlert } from './pages/EmergencyAlert'
+import { Progress } from './pages/Progress'
 import { NewTransformation } from './pages/NewTransformation'
 import { OperatorDashboard } from './pages/OperatorDashboard'
 import { OutputsStep } from './pages/OutputsStep'
@@ -28,7 +29,7 @@ import { links, navigate, useRoute, type Route } from './router'
 // The pages each role may open. Anything else sends them to their home page.
 // (Only for convenience: the backend refuses other roles' requests with 403.)
 const ROLE_PAGES: Record<Role, Route['page'][]> = {
-  operator: ['dashboard', 'new', 'safety', 'outputs', 'jobs', 'job', 'check', 'password', 'notifications', 'watch', 'emergency'],
+  operator: ['dashboard', 'new', 'safety', 'outputs', 'jobs', 'job', 'check', 'password', 'notifications', 'watch', 'emergency', 'progress'],
   reviewer: ['review', 'job', 'records', 'check', 'password', 'notifications'],
   admin: ['users', 'audit', 'record-book', 'check', 'password', 'notifications'],
 }
@@ -152,6 +153,7 @@ export default function App() {
           {page?.page === 'password' && <ChangePasswordPage onDone={setUser} />}
           {page?.page === 'check' && <IsThisReal />}
           {page?.page === 'notifications' && <Notifications />}
+          {page?.page === 'progress' && <Progress key={page.id} jobId={page.id} />}
           {page?.page === 'watch' && <WatchFolder />}
           {page?.page === 'emergency' && <EmergencyAlert />}
           </div>
