@@ -18,6 +18,8 @@ import { Notifications } from './pages/Notifications'
 import { WatchFolder } from './pages/WatchFolder'
 import { EmergencyAlert } from './pages/EmergencyAlert'
 import { Progress } from './pages/Progress'
+import { CampaignKit } from './pages/CampaignKit'
+import { VersionCompare } from './pages/VersionCompare'
 import { NewTransformation } from './pages/NewTransformation'
 import { OperatorDashboard } from './pages/OperatorDashboard'
 import { OutputsStep } from './pages/OutputsStep'
@@ -29,8 +31,8 @@ import { links, navigate, useRoute, type Route } from './router'
 // The pages each role may open. Anything else sends them to their home page.
 // (Only for convenience: the backend refuses other roles' requests with 403.)
 const ROLE_PAGES: Record<Role, Route['page'][]> = {
-  operator: ['dashboard', 'new', 'safety', 'outputs', 'jobs', 'job', 'check', 'password', 'notifications', 'watch', 'emergency', 'progress'],
-  reviewer: ['review', 'job', 'records', 'check', 'password', 'notifications'],
+  operator: ['dashboard', 'new', 'safety', 'outputs', 'jobs', 'job', 'check', 'password', 'notifications', 'watch', 'emergency', 'progress', 'kit', 'compare'],
+  reviewer: ['review', 'job', 'records', 'check', 'password', 'notifications', 'kit', 'compare'],
   admin: ['users', 'audit', 'record-book', 'check', 'password', 'notifications'],
 }
 const HOME: Record<Role, string> = { operator: links.dashboard, reviewer: links.review, admin: links.users }
@@ -154,6 +156,8 @@ export default function App() {
           {page?.page === 'check' && <IsThisReal />}
           {page?.page === 'notifications' && <Notifications />}
           {page?.page === 'progress' && <Progress key={page.id} jobId={page.id} />}
+          {page?.page === 'kit' && <CampaignKit key={page.id} jobId={page.id} />}
+          {page?.page === 'compare' && <VersionCompare key={page.id} jobId={page.id} />}
           {page?.page === 'watch' && <WatchFolder />}
           {page?.page === 'emergency' && <EmergencyAlert />}
           </div>

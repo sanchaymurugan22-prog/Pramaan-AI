@@ -1329,3 +1329,34 @@ button.number-tile { border: 1px solid var(--line); text-align: left; font-famil
   .slide-body { padding: 18px; }
   .slide-heading { font-size: 22px; }
 }
+
+/* Campaign kit (design 19) */
+.kit-banner { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 18px 22px; border-radius: var(--radius-card); }
+.kit-banner-green { background: var(--green-light); border: 1px solid var(--green-mid); color: var(--green-text); }
+.kit-banner-yellow { background: var(--yellow-light); border: 1px solid var(--yellow-border); color: var(--yellow-text); }
+.kit-banner-icon { width: 48px; height: 48px; border-radius: 12px; background: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.kit-banner-green .kit-banner-icon { color: var(--green-dark); }
+.kit-banner-yellow .kit-banner-icon { color: var(--yellow-dark); }
+.kit-banner-title { font-family: var(--font-heading); font-size: 18px; color: var(--ink); }
+.kit-grid { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.kit-check { width: 20px; height: 20px; accent-color: var(--green-dark); }
+.kit-count { margin: 0; font-size: 17px; color: var(--muted); }
+.kit-count .kit-number { color: var(--green-dark); margin-right: 6px; }
+.save-option { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 14px; border: 2px solid var(--navy); background: var(--navy-light); }
+
+/* Version compare (design 21) */
+.change-card { border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--line); }
+.change-card.tone-saffron { background: var(--saffron-light); }
+.change-card.tone-green { background: var(--green-light); }
+.change-card.tone-red { background: var(--red-light); }
+.change-value { font-family: var(--font-heading); font-size: 26px; font-weight: 700; color: var(--ink); }
+.diff-add { background: var(--green-light); color: var(--green-dark); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; border-radius: 4px; padding: 0 2px; }
+.diff-del { background: var(--red-light); color: var(--red-dark); text-decoration: line-through; border-radius: 4px; padding: 0 2px; }
+.tab-changed { background: var(--saffron-light); color: var(--saffron-dark); }
+.compare-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
+.compare-head { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.compare-field { display: flex; flex-direction: column; gap: 4px; }
+.compare-text { margin: 0; font-size: 15.5px; line-height: 1.75; }
+@media (max-width: 1100px) {
+  .kit-grid, .compare-grid { grid-template-columns: minmax(0, 1fr); }
+}
