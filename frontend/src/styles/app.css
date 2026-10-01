@@ -1127,3 +1127,75 @@ a.icon-btn { color: var(--ink); text-decoration: none; }
   .note { flex-wrap: wrap; }
   .note-text { flex-basis: calc(100% - 80px); }
 }
+
+/* ---------- Stage 9A: forms bits shared by the new pages ---------- */
+.page-lead { font-size: 16px; margin-top: 4px; }
+.field-help { font-size: 13px; color: var(--muted); }
+.fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.fieldset legend { padding: 0; margin-bottom: 8px; }
+.eyebrow-red { color: var(--red-dark); }
+.count-ok { color: var(--green-dark); font-weight: 600; }
+.btn-red { background: var(--red-dark); color: #fff; border-color: var(--red-dark); }
+.btn-red:hover:not(:disabled) { background: #8A1F16; }
+.btn-saffron-outline:hover { color: var(--saffron-dark); background: var(--saffron-light); }
+
+/* Pills: choices that look like chips (radio buttons and labels) */
+.pill {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px; border-radius: 999px;
+  border: 1px solid var(--line-2); background: var(--card); color: var(--ink); font-size: 15px; cursor: pointer;
+}
+.pill.is-on { background: var(--saffron-dark); border-color: var(--saffron-dark); color: #fff; font-weight: 600; }
+.pill.pill-red.is-on { background: var(--red-dark); border-color: var(--red-dark); }
+.pill:focus-within { outline: 3px solid var(--navy); outline-offset: 2px; }
+.check-pill {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 12px;
+  border: 1px solid var(--line-2); background: var(--card); font-size: 15px; cursor: pointer;
+}
+.check-pill input { width: 18px; height: 18px; accent-color: var(--saffron-dark); }
+.segment { min-height: 40px; padding: 0 18px; border-radius: 10px; display: inline-flex; align-items: center; cursor: pointer; font-size: 15px; color: var(--muted); }
+.segment.is-on { background: var(--card); color: var(--saffron-dark); font-weight: 600; box-shadow: var(--shadow-card); }
+.segment.is-on.is-red { color: var(--red-dark); }
+.segment:focus-within { outline: 3px solid var(--navy); outline-offset: 2px; }
+
+/* On/off switches (role="switch"); the words On / Off are shown too */
+.toggle-row { display: flex; align-items: center; gap: 14px; }
+.toggle-row.is-disabled .toggle-label { color: var(--muted); }
+.toggle-label { font-size: 15.5px; color: var(--ink); }
+.toggle-detail { font-size: 13px; color: var(--muted); }
+.switch {
+  position: relative; width: 74px; height: 34px; border-radius: 999px; border: 1px solid var(--muted); flex-shrink: 0;
+  background: var(--neutral-chip); cursor: pointer; display: flex; align-items: center; padding: 0 10px 0 38px;
+}
+.switch-knob { position: absolute; left: 3px; top: 3px; width: 26px; height: 26px; border-radius: 50%; background: #fff; border: 1px solid var(--muted); transition: left 0.15s; }
+.switch-text { font-size: 12.5px; font-weight: 700; color: var(--ink-2); }
+.switch.is-on { background: var(--green-dark); border-color: var(--green-dark); padding: 0 38px 0 12px; }
+.switch.is-on .switch-knob { left: 43px; border-color: #fff; }
+.switch.is-on .switch-text { color: #fff; }
+
+/* Watch folder (design 23) */
+.watch-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 20px; align-items: start; }
+.activity-list { display: flex; flex-direction: column; }
+.activity-row { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.activity-row:last-child { border-bottom: none; }
+.activity-icon { width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.activity-icon.tone-saffron { background: var(--saffron-light); color: var(--saffron-dark); }
+.activity-icon.tone-neutral { background: var(--neutral-chip); color: var(--muted); }
+.activity-text { min-width: 180px; flex-basis: 200px; }
+.activity-name { font-family: var(--font-heading); font-weight: 600; font-size: 15px; overflow-wrap: anywhere; }
+.activity-detail { font-size: 14px; color: var(--muted); }
+
+/* Emergency alert (design 22) */
+.alert-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 20px; align-items: start; }
+.alert-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
+.preview-card { background: var(--saffron-light); border-color: var(--saffron-mid); }
+.lang-card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.lang-name { font-family: var(--font-heading); font-size: 17px; }
+.lang-text { margin: 0; font-size: 16px; line-height: 1.6; white-space: pre-wrap; }
+.send-bar {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 20px 24px; border-radius: var(--radius-card);
+  background: var(--red-light); border: 1px solid var(--red-border); font-size: 16px; color: var(--ink);
+}
+
+@media (max-width: 1100px) {
+  .watch-grid, .alert-grid { grid-template-columns: minmax(0, 1fr); }
+}

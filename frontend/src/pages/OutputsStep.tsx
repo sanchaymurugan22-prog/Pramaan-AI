@@ -4,6 +4,8 @@ import { Icon } from '../components/Icon'
 import { Stepper } from '../components/Stepper'
 import { TlpLabel } from '../components/TlpLabel'
 import { links, navigate } from '../router'
+import { OriginBadge } from '../components/JobsTable'
+import { jobNo } from './format'
 
 // Labels for the setting dropdowns, in the order they are shown
 const SETTING_FIELDS: { key: keyof JobSettings; label: string }[] = [
@@ -39,8 +41,10 @@ export function OutputsStep({ jobId, health }: { jobId: number; health: Health |
         setOptions(loadedOptions)
         setSettings(loadedOptions.default_settings)
         const allowed = loadedOptions.output_types.map((o) => o.key).filter((k) => !loadedJob.switched_off[k])
+        // A watch-folder draft comes with its kit ticked in advance (Watch folder settings)
+        const suggested = (loadedJob.suggested_outputs ?? []).filter((k) => allowed.includes(k))
         const quick = QUICK_OUTPUTS.filter((k) => allowed.includes(k))
-        setSelected(quick.length > 0 ? quick : allowed.slice(0, 2))
+        setSelected(suggested.length > 0 ? suggested : quick.length > 0 ? quick : allowed.slice(0, 2))
       })
       .catch(() => setError('Could not reach the backend. Is it running? (scripts/start.sh)'))
   }, [jobId])
@@ -88,7 +92,7 @@ export function OutputsStep({ jobId, health }: { jobId: number; health: Health |
     setError('')
     try {
       await startJob(job.id, selected, settings)
-      navigate(links.job(job.id))
+      navigate(links.progress(job.id)) // step 4: watch the AI write (design 12)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong.')
       setSubmitting(false)
@@ -99,8 +103,11 @@ export function OutputsStep({ jobId, health }: { jobId: number; health: Health |
     <main className="page">
       <div className="page-head">
         <div className="stack gap-2">
-          <div className="eyebrow">New transformation · {job.title}</div>
+          <div className="eyebrow">
+            New transformation · Job {jobNo(job.id)} · {job.title}
+          </div>
           <h1>Outputs and settings</h1>
+          <OriginBadge job={job} />
         </div>
         <div className="grow" />
         <a className="btn btn-outline" href={links.dashboard}>

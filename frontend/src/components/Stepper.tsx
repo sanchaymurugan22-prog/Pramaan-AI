@@ -16,7 +16,10 @@ export function Stepper({ current }: { current: number }) {
             {index > 0 && <span className={number <= current ? 'step-line is-done' : 'step-line'} />}
             <span className={`step step-${state}`} aria-current={state === 'current' ? 'step' : undefined}>
               <span className="step-dot">{state === 'done' ? <Icon name="check" size={16} strokeWidth={2.6} /> : number}</span>
-              <span className="step-label">{label}</span>
+              <span className="step-label">
+                {label}
+                {state === 'done' && <span className="sr-only"> (done)</span>}
+              </span>
             </span>
           </Fragment>
         )

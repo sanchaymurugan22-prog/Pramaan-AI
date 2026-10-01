@@ -15,7 +15,8 @@ import { Icon } from '../components/Icon'
 import { Stepper } from '../components/Stepper'
 import { TlpLabel } from '../components/TlpLabel'
 import { links, navigate } from '../router'
-import { jsIndex } from './format'
+import { OriginBadge } from '../components/JobsTable'
+import { jobNo, jsIndex } from './format'
 import { ALWAYS_CHECKED, CHOICES, findingIcon, INDICATOR_CHOICES, TLP_LEVELS, whereFound } from './safety'
 
 // New transformation, step 2 of 3: the Safety check. Layout from the design
@@ -94,8 +95,16 @@ export function SafetyCheck({ jobId }: { jobId: number }) {
     <main className="page">
       <div className="page-head">
         <div className="stack gap-2">
-          <div className="eyebrow">New transformation · {job.title}</div>
+          <div className="eyebrow">
+            New transformation · Job {jobNo(job.id)} · {job.title}
+          </div>
           <h1>Safety check</h1>
+          {job.created_via === 'watch' && (
+            <p className="muted row gap-8 wrap">
+              <OriginBadge job={job} />
+              Found by your watch folder. Nothing has been written yet: check it, choose the sharing label, then continue.
+            </p>
+          )}
         </div>
         <div className="grow" />
         <a className="btn btn-outline" href={links.dashboard}>
