@@ -7,6 +7,7 @@ GET  /api/records/{record_no}         one record: what was signed, by whom, file
 GET  /api/records/{record_no}/qr.png  its QR code (the verify address + record number), as on the files
 POST /api/admin/records/{record_no}/withdraw   Admin: {"reason": "..."} adds a signed withdrawal (never deletes)
 GET  /api/admin/records/verify-bundle.zip      Admin: the public verify site with the latest records, for USB transfer
+POST /api/check-message               anyone signed in: "Is this real?" for a pasted message (not logged: it may be private)
 
 Operators read the records of jobs (as they read the jobs); the book itself is for Reviewers and Admins.
 """
@@ -23,11 +24,13 @@ from app import audit
 from app.auth.deps import allow
 from app.db import AuditEntry, Record, User, get_session
 from app.signing import records
+from app.signing.messages import check_message, published_records
 from app.signing.publish import bundle_zip, refresh_demo_site
 from app.signing.qr import qr_png, verify_url
 from app.signing.signer import SigningError, get_signer
 
 router = APIRouter(prefix="/api/records", tags=["records"])
+checker_router = APIRouter(prefix="/api", tags=["records"])
 admin_router = APIRouter(prefix="/api/admin/records", tags=["records"])
 READERS = allow("operator", "reviewer", "admin")
 BOOK_READERS = allow("reviewer", "admin")
@@ -171,3 +174,17 @@ def record_qr(record_no: str, db: Session = Depends(get_session), user: User = D
     entry = _issue(db, record_no)
     return Response(qr_png(verify_url(entry.record_no), 8), media_type="image/png",
                     headers={"Cache-Control": "no-store"})
+
+
+class MessageCheck(BaseModel):
+    text: str
+
+
+@checker_router.post("/check-message")
+def check_pasted_message(form: MessageCheck, db: Session = Depends(get_session), user: User = Depends(READERS)):
+    """The same check as the public page, against the same published data (so both agree)."""
+    if not form.text.strip():
+        raise HTTPException(400, "Paste the message you received.")
+    if len(form.text) > 20_000:
+        raise HTTPException(400, "That is too long for a message (20,000 characters at most).")
+    return check_message(form.text, published_records(db))

@@ -5,6 +5,7 @@ import { Sidebar } from './components/Sidebar'
 import { Topbar } from './components/Topbar'
 import { AuditTrail } from './pages/admin/AuditTrail'
 import { Users } from './pages/admin/Users'
+import { IsThisReal } from './pages/IsThisReal'
 import { RecordsPage } from './pages/RecordsPage'
 import { Forgot } from './pages/auth/Forgot'
 import { Pending, RequestAccess } from './pages/auth/RequestAccess'
@@ -23,9 +24,9 @@ import { links, navigate, useRoute, type Route } from './router'
 // The pages each role may open. Anything else sends them to their home page.
 // (Only for convenience: the backend refuses other roles' requests with 403.)
 const ROLE_PAGES: Record<Role, Route['page'][]> = {
-  operator: ['dashboard', 'new', 'safety', 'outputs', 'jobs', 'job', 'password'],
-  reviewer: ['review', 'job', 'records', 'password'],
-  admin: ['users', 'audit', 'record-book', 'password'],
+  operator: ['dashboard', 'new', 'safety', 'outputs', 'jobs', 'job', 'check', 'password'],
+  reviewer: ['review', 'job', 'records', 'check', 'password'],
+  admin: ['users', 'audit', 'record-book', 'check', 'password'],
 }
 const HOME: Record<Role, string> = { operator: links.dashboard, reviewer: links.review, admin: links.users }
 const SIGNED_OUT_PAGES: Route['page'][] = ['login', 'request-access', 'forgot', 'pending']
@@ -117,6 +118,7 @@ export default function App() {
           {page?.page === 'records' && <RecordsPage admin={false} />}
           {page?.page === 'record-book' && <RecordsPage admin />}
           {page?.page === 'password' && <ChangePasswordPage onDone={setUser} />}
+          {page?.page === 'check' && <IsThisReal />}
         </div>
       </div>
     </AuthContext.Provider>

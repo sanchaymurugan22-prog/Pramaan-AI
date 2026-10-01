@@ -579,3 +579,21 @@ export const withdrawRecord = (recordNo: string, reason: string) =>
 export const publicKeyUrl = '/api/records/public-key.pem'
 // The public verify site + latest records.json + public key, for one-way (USB) transfer to the public web server
 export const verifyBundleUrl = '/api/admin/records/verify-bundle.zip'
+
+// ---- "Is this real?" message checker (Stage 7, backend/app/signing/messages.py) -------------------
+
+export type ScamSign = { kind: string; label: string; detail: string; note?: string }
+export type MessageCheck = {
+  verdict: 'genuine' | 'replaced' | 'withdrawn' | 'changed' | 'scam' | 'not_found'
+  record_no: string | null
+  replaced_by?: string | null
+  title?: string | null
+  record_status?: 'genuine' | 'replaced' | 'withdrawn'
+  similarity?: number
+  label?: string
+  diff?: { text: string; kind: 'same' | 'added' | 'removed' }[]
+  signs: ScamSign[]
+  helpline: string
+  sha256: string
+}
+export const checkMessage = (text: string) => request<MessageCheck>('/api/check-message', sendJson('POST', { text }))

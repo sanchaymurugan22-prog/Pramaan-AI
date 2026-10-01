@@ -988,3 +988,22 @@ details summary { cursor: pointer; font-weight: 600; color: var(--navy); margin-
 .withdraw-link { color: var(--red-dark); }
 .withdraw-link:hover { background: var(--red-light); color: var(--red-dark); }
 .record-extras { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+
+/* "Is this real?" in the app */
+.check-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; align-items: start; }
+.check-result { display: flex; gap: 14px; align-items: center; padding: 18px 20px; border-radius: 18px; border: 1px solid; }
+.check-result strong { font-family: var(--font-heading); font-size: 22px; }
+.check-result-icon { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.check-genuine { background: var(--green-light); border-color: var(--green-mid); color: var(--green-dark); }
+.check-genuine .check-result-icon { background: var(--green); }
+.check-warn { background: var(--yellow-light); border-color: var(--yellow); color: var(--yellow-dark); }
+.check-warn .check-result-icon { background: #B98900; }
+.check-bad { background: var(--red-light); border-color: var(--red-border); color: var(--red-dark); }
+.check-bad .check-result-icon { background: var(--red); }
+.check-unknown { background: var(--card); border-color: var(--line-2); color: var(--ink); }
+.check-unknown .check-result-icon { background: var(--muted); }
+.message-diff { margin: 0; line-height: 1.9; }
+.diff-added { background: #FFD7D2; color: var(--red-dark); border-radius: 4px; padding: 0 2px; text-decoration: underline wavy var(--red); }
+.diff-removed { background: var(--green-light); color: var(--green-dark); border-radius: 4px; padding: 0 2px; text-decoration: line-through; }
+.sign-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.sign-list li { display: flex; gap: 10px; align-items: flex-start; line-height: 1.45; }

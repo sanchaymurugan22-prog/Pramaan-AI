@@ -2,8 +2,11 @@
 //   ./?r=PRM-2026-000001   what a QR code opens: is this record genuine, withdrawn or unknown?
 //   #scan                  how to scan (the phone's own camera app opens the ?r= address)
 //   #file                  drop a file: its SHA-256 is worked out here and compared with the records
+//   #message               paste a forwarded message: genuine, changed, or signs of a scam
 // Labels in English and Hindi (the button at the top right). Nothing is uploaded anywhere.
-import { checkFile, cleanRecordNo, importPublicKey, loadBook, lookup, usingWebCrypto } from './verify.js'
+import {
+  checkFile, checkMessage, cleanRecordNo, importPublicKey, loadBook, lookup, publishedRecords, usingWebCrypto,
+} from './verify.js'
 
 // ---- words -------------------------------------------------------------------------------------
 
@@ -68,6 +71,41 @@ const WORDS = {
     noData: 'The list of signed records is not available on this page yet.',
     badData: 'Some published records could not be checked (a signature did not match, or the list was incomplete), so they were ignored.',
     builtIn: 'Checked with this page’s built-in code (Web Crypto needs a secure https:// page).',
+    messageTitle: 'Paste a message',
+    messageNote: 'From WhatsApp, SMS or email',
+    messagePageTitle: 'Paste the message',
+    messageLabel: 'Message you received',
+    weCheck: 'We check for',
+    checkList: ['A digital signature from a real office', 'Suspicious or look-alike links', 'Requests for OTPs, passwords or payments', 'Pressure words like “act within 1 hour”'],
+    checkMessage: 'Check message',
+    msgGenuine: 'Genuine',
+    msgGenuineText: 'This message matches signed record {no} exactly.',
+    msgReplaced: 'Genuine, but outdated',
+    msgReplacedText: 'This matches record {no}, but a newer version was issued: {next}.',
+    msgWithdrawn: 'Withdrawn',
+    msgWithdrawnText: 'This matches record {no}, which the office withdrew. Do not rely on it or share it.',
+    msgChanged: 'Changed',
+    msgChangedText: 'This looks like record {no}, but it was changed. Do not trust the changed parts.',
+    msgScam: 'Not genuine',
+    msgScamText: 'This looks like a scam. Do not click, call or reply.',
+    msgUnknown: 'Not found',
+    msgUnknownText: 'No signed record matches this message. Treat it as unverified.',
+    seeRecord: 'See record {no}',
+    changes: 'What was changed',
+    legendAdded: 'added or changed',
+    legendRemoved: 'missing from the message',
+    why: 'Why we think so',
+    noSignature: 'No digital signature from any real office.',
+    sign_asks_secret: 'Asks for your OTP, password or PIN.',
+    sign_asks_payment: 'Asks you to pay or send money.',
+    sign_urgent: 'Pressure words or threats:',
+    sign_install_app: 'Asks you to install an app or share your screen:',
+    sign_unknown_link: 'Suspicious link:',
+    sign_unknown_phone: 'Phone number not in any signed record:',
+    'note_not a government website': 'is not a government website.',
+    'note_made to look official': 'is made to look official, but is not a government website.',
+    report: 'Report it: call 1930',
+    reportText: 'Report cyber fraud: call 1930 or visit cybercrime.gov.in',
   },
   hi: {
     brandSub: 'प्रमाण · क्या यह असली है?',
@@ -129,6 +167,41 @@ const WORDS = {
     noData: 'हस्ताक्षरित रिकॉर्ड की सूची अभी इस पेज पर उपलब्ध नहीं है।',
     badData: 'कुछ प्रकाशित रिकॉर्ड की जाँच नहीं हो सकी (हस्ताक्षर मेल नहीं खाया या सूची अधूरी थी), इसलिए उन्हें छोड़ दिया गया।',
     builtIn: 'इस पेज के अपने कोड से जाँचा गया (Web Crypto के लिए सुरक्षित https:// पेज चाहिए)।',
+    messageTitle: 'संदेश चिपकाएँ',
+    messageNote: 'WhatsApp, SMS या ईमेल से',
+    messagePageTitle: 'संदेश चिपकाएँ',
+    messageLabel: 'आपको मिला संदेश',
+    weCheck: 'हम जाँचते हैं',
+    checkList: ['किसी असली कार्यालय का डिजिटल हस्ताक्षर', 'संदिग्ध या नकली दिखने वाले लिंक', 'OTP, पासवर्ड या भुगतान की माँग', '“1 घंटे में करें” जैसे दबाव वाले शब्द'],
+    checkMessage: 'संदेश जाँचें',
+    msgGenuine: 'असली',
+    msgGenuineText: 'यह संदेश हस्ताक्षरित रिकॉर्ड {no} से पूरी तरह मेल खाता है।',
+    msgReplaced: 'असली, पर पुराना',
+    msgReplacedText: 'यह रिकॉर्ड {no} से मेल खाता है, पर इसका नया संस्करण जारी हुआ है: {next}।',
+    msgWithdrawn: 'वापस लिया गया',
+    msgWithdrawnText: 'यह रिकॉर्ड {no} से मेल खाता है, जिसे कार्यालय ने वापस ले लिया है। इस पर भरोसा न करें और इसे आगे न भेजें।',
+    msgChanged: 'बदला हुआ',
+    msgChangedText: 'यह रिकॉर्ड {no} जैसा दिखता है, पर इसमें बदलाव किया गया है। बदले हुए हिस्सों पर भरोसा न करें।',
+    msgScam: 'असली नहीं',
+    msgScamText: 'यह धोखाधड़ी लगती है। किसी लिंक पर क्लिक न करें, कॉल या जवाब न दें।',
+    msgUnknown: 'नहीं मिला',
+    msgUnknownText: 'कोई हस्ताक्षरित रिकॉर्ड इस संदेश से मेल नहीं खाता। इसे असत्यापित मानें।',
+    seeRecord: 'रिकॉर्ड {no} देखें',
+    changes: 'क्या बदला गया',
+    legendAdded: 'जोड़ा या बदला गया',
+    legendRemoved: 'संदेश में नहीं है',
+    why: 'हम ऐसा क्यों मानते हैं',
+    noSignature: 'किसी असली कार्यालय का डिजिटल हस्ताक्षर नहीं है।',
+    sign_asks_secret: 'आपका OTP, पासवर्ड या PIN माँगता है।',
+    sign_asks_payment: 'भुगतान करने या पैसे भेजने को कहता है।',
+    sign_urgent: 'दबाव या धमकी वाले शब्द:',
+    sign_install_app: 'ऐप डाउनलोड करने या स्क्रीन साझा करने को कहता है:',
+    sign_unknown_link: 'संदिग्ध लिंक:',
+    sign_unknown_phone: 'ऐसा फ़ोन नंबर जो किसी हस्ताक्षरित रिकॉर्ड में नहीं है:',
+    'note_not a government website': 'सरकारी वेबसाइट नहीं है।',
+    'note_made to look official': 'सरकारी जैसा दिखता है, पर सरकारी वेबसाइट नहीं है।',
+    report: 'शिकायत करें: 1930 पर कॉल करें',
+    reportText: 'साइबर धोखाधड़ी की शिकायत: 1930 पर कॉल करें या cybercrime.gov.in पर जाएँ',
   },
 }
 
@@ -287,7 +360,8 @@ const VIEWS = {
         <span><strong>${t('scanTitle')}</strong><span class="muted">${t('scanNote')}</span></span><span class="chev">${icon('chevron')}</span></a>
       <a class="choice" href="#file"><span class="choice-icon tone-navy">${icon('upload', 28)}</span>
         <span><strong>${t('fileTitle')}</strong><span class="muted">${t('fileNote')}</span></span><span class="chev">${icon('chevron')}</span></a>
-      ${VIEWS.homeExtra ? VIEWS.homeExtra() : ''}
+      <a class="choice" href="#message"><span class="choice-icon tone-green">${icon('clipboard', 28)}</span>
+        <span><strong>${t('messageTitle')}</strong><span class="muted">${t('messageNote')}</span></span><span class="chev">${icon('chevron')}</span></a>
       <p class="note good">${icon('lock')}<span>${t('privacy')}</span></p>`
   },
 
@@ -304,6 +378,18 @@ const VIEWS = {
 
   file() {
     return `<h1 class="page-title">${t('fileTitle')}</h1>${dataNotes()}${dropZone('file-drop', t('fileDrop'))}<div id="file-result"></div>`
+  },
+
+  message() {
+    const checks = WORDS[lang].checkList.map((c) => `<li><span class="mark good">${icon('check', 16, 3)}</span><span>${escapeHtml(c)}</span></li>`).join('')
+    return `<h1 class="page-title">${t('messagePageTitle')}</h1>${dataNotes()}
+      <form class="field" id="message-form">
+        <label for="message-text">${t('messageLabel')}</label>
+        <textarea class="input" id="message-text" required></textarea>
+        <section class="card"><h2 class="card-title">${t('weCheck')}</h2><ul class="list-x">${checks}</ul></section>
+        <button class="btn btn-navy" type="submit">${icon('check')} ${t('checkMessage')}</button>
+      </form>
+      <div id="message-result" tabindex="-1"></div>`
   },
 
   record(recordNo) {
@@ -325,6 +411,38 @@ const VIEWS = {
       ${!usingWebCrypto() ? `<p class="small muted">${t('builtIn')}</p>` : ''}
       ${shareButton()}`
   },
+}
+
+function messageResult(result) {
+  const no = result.record_no
+  const cards = {
+    genuine: ['genuine', 'check', t('msgGenuine'), t('msgGenuineText', { no })],
+    replaced: ['warn', 'warning', t('msgReplaced'), t('msgReplacedText', { no, next: result.replaced_by })],
+    withdrawn: ['bad', 'cross', t('msgWithdrawn'), t('msgWithdrawnText', { no })],
+    changed: ['warn', 'warning', t('msgChanged'), t('msgChangedText', { no })],
+    scam: ['bad', 'cross', t('msgScam'), t('msgScamText')],
+    not_found: ['unknown', 'question', t('msgUnknown'), t('msgUnknownText')],
+  }
+  const parts = [resultCard(...cards[result.verdict])]
+  if (no) parts.push(`<a class="btn btn-outline" href="?r=${encodeURIComponent(no)}">${t('seeRecord', { no: escapeHtml(no) })}</a>`)
+  if (result.diff) {
+    const words = result.diff.map((d) => (d.kind === 'same' ? escapeHtml(d.text) : `<span class="${d.kind}">${escapeHtml(d.text)}</span>`)).join(' ')
+    parts.push(`<section class="card"><h2 class="card-title">${t('changes')}</h2><p class="diff">${words}</p>
+      <p class="small muted"><span class="diff"><span class="added">${t('legendAdded')}</span></span> ·
+      <span class="diff"><span class="removed">${t('legendRemoved')}</span></span></p></section>`)
+  }
+  const reasons = []
+  if (result.verdict === 'scam' || result.verdict === 'not_found') reasons.push(['bad', t('noSignature'), ''])
+  for (const sign of result.signs) {
+    const detail = sign.kind === 'unknown_link' ? `${escapeHtml(sign.detail)} ${t('note_' + sign.note)}` : sign.kind.startsWith('asks') ? '' : `“${escapeHtml(sign.detail)}”`
+    reasons.push(['bad', t('sign_' + sign.kind), detail])
+  }
+  if (reasons.length && result.verdict !== 'genuine') {
+    const items = reasons.map(([tone, label, detail]) => `<li><span class="mark ${tone}">${icon('cross', 16, 3)}</span><span><strong>${label}</strong> ${detail}</span></li>`).join('')
+    parts.push(`<section class="card"><h2 class="card-title">${t('why')}</h2><ul class="list-x">${items}</ul></section>`)
+  }
+  parts.push(`<a class="btn btn-red" href="tel:1930">${t('report')}</a><p class="small muted" style="margin:0;text-align:center">${t('reportText')}</p>`)
+  return parts.join('')
 }
 
 // ---- routing -----------------------------------------------------------------------------------
@@ -366,7 +484,17 @@ async function render() {
   }
   wireDropZone('file-drop', showFile)
   wireDropZone('record-drop', showFile)
-  if (VIEWS.wire) VIEWS.wire(view)
+  const messageForm = document.getElementById('message-form')
+  if (messageForm) {
+    messageForm.addEventListener('submit', async (e) => {
+      e.preventDefault()
+      const result = await checkMessage(document.getElementById('message-text').value, book ? publishedRecords(book) : [])
+      const box = document.getElementById('message-result')
+      box.innerHTML = messageResult(result)
+      box.focus()
+      box.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
 }
 
 document.getElementById('lang').addEventListener('click', () => {

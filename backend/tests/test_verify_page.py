@@ -14,7 +14,9 @@ import pytest
 from app import crypto
 from app.db import Record, SessionLocal
 from app.signing import publish, records
+from app.signing.messages import check_message, published_records
 from app.signing.sign_job import signed_dir
+from app.signing.texts import normalise, text_hash
 from app.signing.signer import get_signer, verify
 from tests.auth_helpers import signed_in_client
 from tests.test_signing import approved_job, operator, reviewer
@@ -47,6 +49,35 @@ def site(tmp_path_factory) -> dict:
         for f in job["record"]["files"]:
             (files_dir / f["name"]).write_bytes(crypto.read_file(signed_dir(job["id"], job["record"]["record_no"]) / f["name"]))
     pdf = next(f["name"] for f in genuine["record"]["files"] if f["name"].endswith(".pdf"))
+
+    # The same messages through the Python checker; the page's JavaScript must give the same answers.
+    with SessionLocal() as db:
+        published = published_records(db)
+    post = next(t["text"] for r in reversed(published) for t in r["texts"] if t.get("label") == "Whole thread")
+    words = post.split()
+    messages = [
+        post, post.upper() + " 🙏🙏", post.replace(" ", " \u200b "),
+        " ".join(words[:6] + ["Share", "your", "OTP", "at", "cert-verify.top"] + words[6:]),
+        " ".join(words[: len(words) // 2]),
+        "URGENT GOVT CYBER ALERT: Act within 1 hour or data will be deleted. Verify at gov-alert-update.xyz and share the OTP.",
+        "Your electricity will be disconnected tonight. Pay now: call 98765 43210.",
+        "Never share your OTP. Report fraud on 1930 or cybercrime.gov.in.",
+        "आपका खाता तुरंत बंद हो जाएगा। अपना ओटीपी बताएँ।",
+        "The office canteen is closed on Friday.",
+    ]
+    message_cases = []
+    for text in messages:
+        result = check_message(text, published)
+        message_cases.append({
+            "text": text, "verdict": result["verdict"], "record_no": result["record_no"],
+            "signs": sorted(sg["kind"] for sg in result["signs"]),
+            "sign_details": sorted(sg["detail"] for sg in result["signs"]),
+            "diff": [[d["kind"], d["text"]] for d in result.get("diff", [])],
+            "similarity": result.get("similarity"),
+        })
+    samples = ["Patch your VPN today!", "ＰＡＴＣＨ\u200b your  VPN 🙏", "तुरंत पैच करें! (कृपया)", "Call 1930, or visit cybercrime.gov.in.",
+               "e\u0301 café — “quotes” & ‘more’…", "Line one\n\nLine two\t#tag @user 50% ₹500"]
+    normalise_cases = [{"text": t, "normalised": normalise(t), "sha256": text_hash(t)} for t in samples]
     fixture = {
         "issued": issued,
         "genuine": genuine["record"]["record_no"],
@@ -60,6 +91,8 @@ def site(tmp_path_factory) -> dict:
         "withdrawn_file": withdrawn["record"]["files"][0]["name"],
         "files_dir": str(files_dir),
         "big_sha256": hashlib.sha256(bytes((i * 31) % 251 for i in range(200_003))).hexdigest(),
+        "messages": message_cases,
+        "normalise": normalise_cases,
     }
     (folder / "fixture.json").write_text(json.dumps(fixture))
     return {"folder": folder / "site", "fixture_path": folder / "fixture.json", **fixture}
@@ -109,7 +142,8 @@ def test_the_demo_site_is_refreshed_after_signing(site, monkeypatch, tmp_path):
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="Node.js is not installed")
 def test_the_verify_page_javascript(site):
-    """verify-page/tests/verify.test.mjs: signatures, lookups, file check, tampering, with and without Web Crypto."""
+    """verify-page/tests/verify.test.mjs: signatures, lookups, file check, tampering, with and without Web Crypto,
+    and the message checker giving the same answers as the Python one."""
     project = publish.VERIFY_PAGE.parent
     result = subprocess.run(
         ["node", "--test", str(publish.VERIFY_PAGE / "tests" / "verify.test.mjs")], cwd=project, capture_output=True, text=True, timeout=180,

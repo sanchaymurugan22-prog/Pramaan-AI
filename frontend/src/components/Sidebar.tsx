@@ -17,12 +17,12 @@ const MAIN_NAV: Record<Role, NavItem[]> = {
     { label: 'My jobs', icon: 'history', href: links.jobs, pages: ['jobs', 'job'] },
     { label: 'Emergency alert', icon: 'siren' },
     { label: 'Watch folder', icon: 'folder' },
-    { label: 'Is this real?', icon: 'scan' },
+    { label: 'Is this real?', icon: 'scan', href: links.check, pages: ['check'] },
   ],
   reviewer: [
     { label: 'Review queue', icon: 'history', href: links.review, pages: ['review', 'job'] },
     { label: 'Signed records', icon: 'shieldCheck', href: links.records, pages: ['records'] },
-    { label: 'Is this real?', icon: 'scan' },
+    { label: 'Is this real?', icon: 'scan', href: links.check, pages: ['check'] },
   ],
   admin: [
     { label: 'Users & access', icon: 'user', href: links.users, pages: ['users'] },
@@ -30,6 +30,7 @@ const MAIN_NAV: Record<Role, NavItem[]> = {
     { label: 'AI models', icon: 'chip' },
     { label: 'Security & policies', icon: 'shield' },
     { label: 'Record book', icon: 'box', href: links.recordBook, pages: ['record-book'] },
+    { label: 'Is this real?', icon: 'scan', href: links.check, pages: ['check'] },
   ],
 }
 

@@ -286,3 +286,174 @@ export async function checkFile(book, bytes, recordNo = '') {
   if (!match) return { status: 'not_found', sha256, record: null, file: null }
   return { status: match.record.withdrawn ? 'withdrawn' : 'genuine', sha256, ...match }
 }
+
+// ---- "Is this real?" message checker -----------------------------------------------------------
+// The SAME rules as backend/app/signing/messages.py and texts.py (the tests run the same messages
+// through both). Word boundaries (\b) and digits (\d) are ASCII-only in both.
+
+// Spaces, case, punctuation, emojis and invisible characters do not matter.
+export function normalise(text) {
+  return String(text || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/\p{P}/gu, ' ')
+    .replace(/[\p{S}\p{Cf}⃣︀-️]|[\u{E0100}-\u{E01EF}]/gu, '')
+    .replace(/\s+/gu, ' ')
+    .trim()
+}
+
+export const textHash = (text) => sha256Hex(normalise(text))
+
+const SHINGLE = 5
+const SIMILAR = 0.5
+export const HELPLINE = 'Report cyber fraud: call 1930 or visit cybercrime.gov.in'
+
+export function shingles(normalised) {
+  const chars = Array.from(normalised) // code points, as Python counts them
+  if (chars.length <= SHINGLE) return new Set(chars.length ? [normalised] : [])
+  const out = new Set()
+  for (let i = 0; i + SHINGLE <= chars.length; i++) out.add(chars.slice(i, i + SHINGLE).join(''))
+  return out
+}
+
+export function similarity(a, b) {
+  const sa = shingles(normalise(a))
+  const sb = shingles(normalise(b))
+  if (!sa.size || !sb.size) return 0
+  let common = 0
+  for (const s of sa) if (sb.has(s)) common++
+  const union = sa.size + sb.size - common
+  return Math.round(Math.max(common / union, (0.85 * common) / sa.size) * 10000) / 10000
+}
+
+// The message's words marked same / added, with the record's missing words marked removed.
+export function wordDiff(message, recordText) {
+  const words = (text) =>
+    String(text)
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((w) => [w, normalise(w)])
+      .filter(([, k]) => k)
+  const mine = words(message)
+  const theirs = words(recordText)
+  const a = mine.map(([, k]) => k)
+  const b = theirs.map(([, k]) => k)
+  const table = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0))
+  for (let i = a.length - 1; i >= 0; i--) {
+    for (let j = b.length - 1; j >= 0; j--) {
+      table[i][j] = a[i] === b[j] ? table[i + 1][j + 1] + 1 : Math.max(table[i + 1][j], table[i][j + 1])
+    }
+  }
+  const out = []
+  let i = 0
+  let j = 0
+  while (i < a.length || j < b.length) {
+    if (i < a.length && j < b.length && a[i] === b[j]) {
+      out.push({ text: mine[i][0], kind: 'same' })
+      i++
+      j++
+    } else if (j < b.length && (i === a.length || table[i][j + 1] >= table[i + 1][j])) {
+      out.push({ text: theirs[j][0], kind: 'removed' })
+      j++
+    } else {
+      out.push({ text: mine[i][0], kind: 'added' })
+      i++
+    }
+  }
+  return out
+}
+
+const OFFICIAL_SUFFIXES = ['.gov.in', '.nic.in', '.gov']
+const OFFICIAL_DOMAINS = new Set(['cybercrime.gov.in', 'cert-in.org.in', 'sancharsaathi.gov.in', 'india.gov.in', 'rbi.org.in'])
+const HELPLINES = new Set(['1930', '112', '100', '1098', '181', '14422'])
+const FILE_ENDINGS = new Set(['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt', 'jpg', 'jpeg', 'png', 'gif', 'zip', 'srt', 'csv'])
+const NEGATION = /\b(never|not|don'?t|do not|no one|nobody|nor)\b|कभी\s*न|मत|न करें/i
+const SIGNS = [
+  ['asks_secret', 'Asks for your OTP, password or PIN',
+    /\b(otp|one[\s-]?time[\s-]?password|password|passcode|pin|cvv|upi pin|atm pin|card number|card details|bank details|net ?banking|login details)\b|ओटीपी|पासवर्ड|पिन/gi],
+  ['asks_payment', 'Asks you to pay or send money',
+    /\b(pay (now|the|a|your|rs|₹)|make (a )?payment|send money|transfer (rs|₹|money|the amount)|processing fee|registration fee|pay a fine|refund|deposit|gift card|bitcoin|crypto(currency)?)\b|भुगतान करें|पैसे भेजें|शुल्क जमा/gi],
+  ['urgent', 'Pressure or threats',
+    /\b(urgent(ly)?|immediately|act now|right now|within \d+ ?(hours?|hrs?|minutes?|mins?)|last (chance|warning|date)|today only|will be (blocked|suspended|deactivated|deleted|disconnected)|(account|sim|card|number) (is |will be )?(blocked|suspended|closed|deactivated)|legal action|arrest(ed)?|police case|penalty)\b|तुरंत|गिरफ्तार|बंद (हो|कर) (जाएगा|दिया जाएगा)|ब्लॉक/gi],
+  ['install_app', 'Asks you to install an app or share your screen',
+    /\b(\.apk|apk file|anydesk|teamviewer|quick ?support|screen ?shar(e|ing)|install (this|the|our) app|download (this|the|our) app)\b/gi],
+] // prettier-ignore
+const URL_PATTERN = /\b((?:https?:\/\/)?(?:[a-z0-9-]+\.)+[a-z]{2,12})(?:\/[^\s]*)?/gi
+const PHONE = /(^|\D)(?:\+?91[\s-]?|0)?([6-9]\d{4}[\s-]?\d{5})(?!\d)/gi
+const EMAIL = /\S+@\S+/g
+
+const negated = (lower, start) => NEGATION.test(lower.slice(Math.max(0, start - 30), start))
+const domainOf = (link) => link.replace(/^https?:\/\//i, '').split('/')[0].toLowerCase().replace(/^www\./, '')
+
+export function scamSigns(text, records) {
+  const knownText = records.flatMap((r) => r.texts.map((t) => t.text || '')).join(' ').toLowerCase()
+  const knownDigits = knownText.replace(/\D/g, '')
+  const lower = text.toLowerCase()
+  const signs = []
+  for (const [kind, label, pattern] of SIGNS) {
+    const found = [...text.matchAll(pattern)].find((m) => !negated(lower, m.index))
+    if (found) signs.push({ kind, label, detail: found[0].trim() })
+  }
+  for (const match of text.replace(EMAIL, ' ').matchAll(URL_PATTERN)) {
+    const domain = domainOf(match[1])
+    if (FILE_ENDINGS.has(domain.split('.').pop())) continue
+    const official = OFFICIAL_DOMAINS.has(domain) || OFFICIAL_SUFFIXES.some((s) => domain.endsWith(s))
+    if (!official && !knownText.includes(domain)) {
+      const looksOfficial = /gov|sarkar|nic|cert|police|bank|rbi|uidai|aadhaar/.test(domain)
+      signs.push({ kind: 'unknown_link', label: 'Suspicious link', detail: domain, note: looksOfficial ? 'made to look official' : 'not a government website' })
+      break
+    }
+  }
+  for (const match of text.matchAll(PHONE)) {
+    const digits = match[2].replace(/\D/g, '')
+    if (!HELPLINES.has(digits) && !knownDigits.includes(digits)) {
+      signs.push({ kind: 'unknown_phone', label: 'Phone number not in any signed record', detail: match[2].trim() })
+      break
+    }
+  }
+  return signs
+}
+
+// The published records in the shape the checker uses (the same as messages.published_records).
+export function publishedRecords(book) {
+  return [...book.records.values()].map((r) => ({
+    record_no: r.record_no,
+    status: r.withdrawn ? 'withdrawn' : r.replaced_by ? 'replaced' : 'genuine',
+    replaced_by: r.replaced_by,
+    title: r.title ?? null,
+    restricted: r.restricted !== false,
+    texts: r.texts || [],
+  }))
+}
+
+// verdict: genuine | replaced | withdrawn (exact match) | changed | scam | not_found
+export async function checkMessage(text, records) {
+  text = text || ''
+  const digest = await textHash(text)
+  const base = { helpline: HELPLINE, sha256: digest, normalised: normalise(text) }
+  const newestFirst = [...records].reverse() // if several records hold the same text, the newest decides
+  for (const record of newestFirst) {
+    const hit = record.texts.find((t) => t.sha256 === digest)
+    if (hit) {
+      return { ...base, verdict: record.status, record_no: record.record_no, replaced_by: record.replaced_by, title: record.title, restricted: record.restricted, label: hit.label, signs: [] }
+    }
+  }
+  let best = null
+  let bestScore = 0
+  let bestText = null
+  for (const record of newestFirst) {
+    for (const t of record.texts) {
+      if (t.text === undefined) continue
+      const score = similarity(text, t.text)
+      if (score > bestScore) [best, bestScore, bestText] = [record, score, t]
+    }
+  }
+  const signs = scamSigns(text, records)
+  if (best && bestScore >= SIMILAR) {
+    return {
+      ...base, verdict: 'changed', record_no: best.record_no, title: best.title, record_status: best.status,
+      similarity: bestScore, label: bestText.label, diff: wordDiff(text, bestText.text), signs,
+    } // prettier-ignore
+  }
+  return { ...base, verdict: signs.length ? 'scam' : 'not_found', record_no: null, signs }
+}

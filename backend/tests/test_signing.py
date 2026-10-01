@@ -178,7 +178,7 @@ def test_the_private_key_is_stored_encrypted(tmp_path):
 @pytest.mark.parametrize("a, b", [
     ("Patch your VPN today!", "patch   your vpn today"),
     ("Patch your VPN today 🙏🔒", "Patch your VPN today"),
-    ("Patch​ your VPN‍ today", "Patch your VPN today"),
+    ("Patch\u200b your VPN\u200d today", "Patch your VPN today"),
     ("ＰＡＴＣＨ your VPN today", "patch your vpn today"),
     ("Call 1930, or visit cybercrime.gov.in.", "call 1930 or visit cybercrime gov in"),
     ("तुरंत पैच करें!", "तुरंत पैच करें"),

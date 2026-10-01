@@ -96,3 +96,39 @@ for (const webCrypto of [true, false]) {
     assert.equal(await verify.verifySignature(key, 'hello', btoa('x'.repeat(64))), false)
   })
 }
+
+// ---- the message checker: the same answers as backend/app/signing/messages.py -------------------
+
+test('normalising and text fingerprints match Python', async () => {
+  for (const c of fixture.normalise) {
+    assert.equal(verify.normalise(c.text), c.normalised, JSON.stringify(c.text))
+    assert.equal(await verify.textHash(c.text), c.sha256, JSON.stringify(c.text))
+  }
+})
+
+for (const webCrypto of [true, false]) {
+  test(`message checker gives the same answers as Python (${webCrypto ? 'Web Crypto' : 'built-in code'})`, async () => {
+    verify.setUseWebCrypto(webCrypto)
+    const book = await verify.loadBook(records(), await verify.importPublicKey(pem))
+    const published = verify.publishedRecords(book)
+    for (const c of fixture.messages) {
+      const result = await verify.checkMessage(c.text, published)
+      const label = c.text.slice(0, 50)
+      assert.equal(result.verdict, c.verdict, label)
+      assert.equal(result.record_no, c.record_no, label)
+      assert.deepEqual(result.signs.map((s) => s.kind).sort(), c.signs, label)
+      assert.deepEqual(result.signs.map((s) => s.detail).sort(), c.sign_details, label)
+      assert.deepEqual((result.diff || []).map((d) => [d.kind, d.text]), c.diff, label)
+      if (c.similarity !== null) assert.ok(Math.abs(result.similarity - c.similarity) < 0.0002, label)
+      assert.equal(result.helpline, 'Report cyber fraud: call 1930 or visit cybercrime.gov.in')
+    }
+  })
+}
+
+test('the cases cover every kind of answer', () => {
+  const verdicts = new Set(fixture.messages.map((c) => c.verdict))
+  // an exact match (genuine / replaced / withdrawn: the newest record with that text decides), a changed copy,
+  // a scam and an unknown message
+  assert.ok(['genuine', 'replaced', 'withdrawn'].some((v) => verdicts.has(v)), 'an exact match')
+  for (const v of ['changed', 'scam', 'not_found']) assert.ok(verdicts.has(v), v)
+})
