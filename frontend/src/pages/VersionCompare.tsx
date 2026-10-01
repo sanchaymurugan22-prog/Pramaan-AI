@@ -68,7 +68,7 @@ export function VersionCompare({ jobId }: { jobId: number }) {
         <div className="stack gap-2">
           <div className="eyebrow">Job {jobNo(data.job_id)} · Version compare</div>
           <h1>
-            {data.right.label} vs {data.left.label.toLowerCase()}
+            {data.right.label} vs {data.left.key === 0 ? 'the first AI draft' : data.left.label.toLowerCase()}
           </h1>
           <p className="muted page-lead">
             {s.outputs_changed === 0

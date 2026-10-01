@@ -6,7 +6,16 @@ and every document signed and verifiable.
 
 Smart India Hackathon · Problem Statement 26154 · NTRO.
 
-**Current stage: 9A — Operator screens.** Every Operator screen from the designs (08–23) works with real
+**Current stage: 9B — All screens for every role.** The start screens (splash, language, sign in,
+request access, forgot password, pending, first-time setup), the **Reviewer** screens (dashboard, a
+review page with **comments on single sentences**, sign dialog, Signed, send back with notes, signed
+records), the **Admin** screens (overview, users, audit trail, **AI models and measured speed**,
+**templates and letterhead** — your office name and logo on every exported file — **security policies
+that really apply**, record book, public verify page, **encrypted backups**), and the shared screens
+(notifications, **Profile & settings** with text size and high contrast, Help). Every role sees only
+its own menu; any other page says "You don't have access". See "All screens for every role (Stage 9B)".
+
+Stage 9A — Operator screens: every Operator screen from the designs (08–23) works with real
 data: a dashboard with real numbers, **live progress** while the AI writes, **results tabs** (advisory,
 executive summary as a page, slide viewer with speaker notes, video storyboard, social posts, infographic),
 a **campaign kit** page, **My jobs** with filters, **version compare** (v1 against v2, word by word),
@@ -291,8 +300,8 @@ Job states: `ready` → **Submit for review** → `in_review` (locked: nobody ca
 
 **Accounts**
 - *First-time setup*: only while there are no users; makes the first Admin. Then it is closed.
-- *Request access* (sign-in page): name, username, Operator or Reviewer, reason, and a password
-  (stored only as a hash). An Admin approves (can change the role) or rejects it. Admin accounts are
+- *Request access* (sign-in page): name, employee ID (Stage 9B; it becomes the username), official email,
+  division, Operator or Reviewer, preferred language, and a password (stored only as a hash). An Admin approves (can change the role) or rejects it. Admin accounts are
   made only by an Admin.
 - *Forgot password* (offline, no email): sends a request to the Admin. The Admin checks who you are in
   person and clicks **Reset password**: a temporary password (like `tulsi-river-7429-kamal`) is shown
@@ -522,6 +531,61 @@ or deletes your files; its own copy is encrypted like every source.
   compare uses underline / strike-through (and "added" / "removed" for screen readers), switches say On / Off.
 - After moving to another page, focus goes to the page, so screen readers start reading there.
 
+## All screens for every role (Stage 9B)
+
+With the mock AI (`AI_MODE=mock`), start the app and try each role. A test account for each role can be
+made by the Admin on **Users & access** (the person signs in with the temporary password shown once).
+
+**Start (designs 01–07)**
+
+| Screen | What to try |
+|---|---|
+| Splash (01) | Opens once per browser (or at `#/welcome`). The bar fills when the backend answers; **Get started**. |
+| Language (02) | Pick any of the 23 languages. Saved in this browser, and used for "Preferred language" when asking for access. The app's own words stay English until Stage 8. |
+| Sign in (03) | Type your **username, employee ID or official email** (any case). |
+| Request access (04) | Full name, **employee ID**, official email, **division**, role, password, preferred language, the acceptable-use box. The employee ID becomes the username. |
+| Forgot password (05) | Username or employee ID; the Admin resets it. |
+| Pending (06) | Shows your details and which Admin can approve. Sign in with your employee ID once approved. |
+| First-time setup (07) | Shows **this computer's real memory, processors, free disk** and the AI in use; makes the first Admin (with employee ID). |
+
+**Reviewer (designs 24–29)**
+
+| Screen | What to try |
+|---|---|
+| Review queue (24) | Waiting, signed today, **average review time** and sent back this week, all measured. Emergency alerts first; filter All / Emergency / Kits. The signing key card and today's signed records. |
+| Review a kit (25) | **Click any sentence**: its source shows on the right, and you can **comment on that line**. Outputs with notes have a ⚠ mark. **Automatic checks** list what the app already checked. *Take back* a comment while the review is open. |
+| Sign (26) → Signed (27) | **Approve & sign** → tick the box → **Sign N files** → the Signed page with the record's QR code, fingerprint and what happened next. |
+| Send back (28) | Pick reasons, see each line comment next to **what the source says**, add a whole-job comment, write a note. The Operator gets a notification, and on the job a **Line comments from the Reviewer** card with **Show the line** for each. |
+| Signed records (29) | Search, filter, check the chain, **Export list** (CSV). |
+
+**Admin (designs 30–39)**
+
+| Screen | What to try |
+|---|---|
+| Overview (30) | Active users by role, jobs this month, documents signed, fake or edited messages caught by "Is this real?" (counts only, never the messages), **this computer** (processor load, memory, disk, encryption), approve requests here, latest security events. |
+| Users & access (31, 32) | Employee ID, email, division, DSC token, emergency duty, status, last active. **Add user** / **Edit**: the same details; a Reviewer on the **emergency duty roster** is told first about emergency alerts. |
+| Audit trail (33) | Filters as before; **Export log with hashes** (CSV) so the chain can be checked outside the app. |
+| AI models (34) | Which AI is in use (set by `AI_MODE` in `.env`, not from the page), the planned models, and **speeds measured from real jobs** on this computer. **Run a speed test** asks the AI for a short answer and times it. |
+| Templates (35) | The built-in template of each output, and **your letterhead**: type the **office name** and **upload a logo** (PNG / JPEG, up to 2 MB). From then on every PDF, Word, PowerPoint, PNG and text file carries them, and the public verify page says "Issued by" that office. |
+| Security & policies (36) | Switch scanner checks on or off (a warning if you switch one off), add **classification words** (e.g. INTERNAL ONLY: found in every new source), **sign out after 15 / 30 / 60 minutes**, **lock after 3 / 5 / 10 wrong passwords**. These really apply, and every change is in the audit trail. |
+| Record book (37) | As in Stage 7, plus Export list. |
+| Public verify page (38) | Its address, what it holds and never holds, **Export update file** for the USB copy. |
+| Updates & backup (39) | **Back up now**: one .zip in `data/backups/` with a consistent copy of the encrypted database and every (encrypted) file, made while the app runs. **Keep a copy of `.env` separately**: the backup cannot be read without `DB_KEY`. The README in the zip explains how to restore. Installing update packages comes in Stage 10. |
+
+**Everyone**
+
+| Screen | What to try |
+|---|---|
+| Notifications (40) | As in 9A. Switch kinds off on Profile & settings. |
+| Profile & settings (41) | Your details (changed by an Admin), **app language**, **default output languages**, **text size** (whole app larger) and **high contrast**, notification switches, change password, sign out. |
+| Help | A short guide for your role, keyboard keys, what to do if something is wrong. Works offline. |
+| You don't have access | Open a page of another role (e.g. `#/admin/security` as an Operator): a friendly page with a link home. The backend refuses its data anyway (403). Unknown addresses say the page does not exist. |
+
+**Public verify page (42–46, `verify-page/`)**: on a phone browser that can read QR codes (Chrome on
+Android, over https or localhost), **Scan with this phone's camera** reads the QR code live (nothing is
+uploaded); elsewhere the steps for the phone's own camera app are shown. Genuine results show "Changed
+since? No"; fake ones have **Warn my family and friends** (shares a short warning, not the scam message).
+
 ## API (see <http://localhost:8000/docs> for all details)
 
 Every call except `/api/health` and the sign-in calls needs a session cookie, and every
@@ -553,6 +617,14 @@ POST/PUT/DELETE needs an `Origin` header from `ALLOWED_ORIGINS` (browsers send i
 | `GET /api/dashboard` | Operator | dashboard numbers and "Needs your attention" |
 | `GET/PUT /api/watch`, `POST /api/watch/folders` · `/check` | Operator | watch folder settings, make a folder, check now |
 | `POST /api/alerts/check` · `POST /api/alerts` | Operator | emergency alert: live check; make the alert job (fast-track review) |
+| `GET /api/auth/options` · `GET /api/auth/computer` | anyone (computer: only before setup) | languages and divisions; this computer's memory, cores, disk and AI |
+| `GET/PUT /api/profile` | signed in | my details; change my language and preferences only |
+| `GET/POST /api/jobs/{id}/comments`, `DELETE .../{cid}` | Operator + Reviewer / Reviewer | line comments (add and take back: Reviewer, while in review) |
+| `POST /api/jobs/{id}/review` with `"reasons"` | Reviewer | send-back reasons: Facts need checking, Language quality, Tone, Sensitive detail, Formatting |
+| `GET /api/admin/overview` · `GET /api/admin/ai` · `POST /api/admin/ai/speed-test` | Admin | overview numbers; AI and measured speed; speed test |
+| `GET/PUT /api/admin/security` | Admin | security policy (scanner switches, classification words, inactivity, lockout) |
+| `GET/PUT /api/admin/letterhead`, `POST/DELETE /api/admin/letterhead/logo`, `GET /api/letterhead/logo.png` | Admin (logo image: signed in) | office name and logo on exported files |
+| `GET /api/admin/public-page` · `GET/POST /api/admin/backups` · `GET /api/admin/backups/{name}` | Admin | public page information; list / make / download backups |
 
 Job calls (Operators change jobs; Reviewers may read them and download):
 
@@ -649,7 +721,13 @@ role, dashboard), `test_watch.py` (drafts wait at the Safety check and never sta
 outside `data/watch/` refused, duplicates, other file types, files still being copied, PDF / DOCX, hidden
 instructions found), `test_compare.py` (word diff, numbers like "five" → "six", v1 against v2 after a
 send-back) and `test_alerts_kit_polish.py` (public-release check, fast-track review, choosing kit outputs,
-captions, long titles in footers):
+captions, long titles in footers). Stage 9B adds `test_profile_accounts.py` (employee ID / email sign-in,
+request details, profile changes only language and preferences, notification switches, emergency duty
+roster), `test_review_comments.py` (line comments, separation of duties, send-back reasons, dashboard
+numbers), `test_admin_system.py` (overview, AI speed from real runs, speed test, and the security policy
+really changing the scanner, inactivity sign-out and lockout) and `test_admin_files.py` (letterhead name and
+logo inside real PDF / Word / PowerPoint / PNG / text files and as "Issued by", logo checks, a backup whose
+database opens with the key):
 
 ```bash
 cd backend && .venv/bin/python -m pytest
@@ -685,8 +763,10 @@ backend/        FastAPI app (app/main.py), settings (app/config.py), database (a
   app/assets/fonts/  Poppins, Hind, IBM Plex Mono (TTF, OFL)
   app/safety/     scanner.py, shield.py, masking.py, tlp.py, decisions.py (Stage 6A, no AI), public_check.py (9A)
   app/notifications.py, app/watch.py   in-app notifications, the watch folder (Stage 9A)
+  app/app_settings.py, app/branding.py, app/backup.py   Admin settings and security policy, letterhead, backups (9B)
   app/routes/     system.py (health, AI ping), jobs.py (jobs API), outputs.py (edit, regenerate, versions, downloads,
                   kit, compare), notifications.py, search.py, dashboard.py, watch.py, alerts.py (Stage 9A),
+                  profile.py, comments.py, admin_system.py, admin_files.py (Stage 9B),
                   safety.py (the Safety check), auth.py (sign-in pages), review.py (submit / approve /
                   send back), admin.py (users, requests, audit trail), records.py (record book,
                   verify bundle, "Is this real?")
@@ -699,6 +779,7 @@ verify-page/    public "Is this real?" page (Stage 7): index.html, app.js (page)
 scripts/        start.sh (app), start-ai.sh (AI model), serve-verify.sh (public verify page on port 8090)
 samples/        fictional test files: sample-ransomware-report.txt, sample-private-data.txt (fake
                 Aadhaar/PAN/phone/email/IPs/password), sample-injection.txt (hidden instruction)
-models/, data/  model files and app data (never committed); data/watch/ holds the watch folders
+models/, data/  model files and app data (never committed); data/watch/ holds the watch folders,
+                data/backups/ the backups, data/branding/ the logo (encrypted)
 Designs/        screen designs and clickable prototype (reference only)
 ```

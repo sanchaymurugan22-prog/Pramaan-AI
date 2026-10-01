@@ -59,6 +59,7 @@ export function SafetyCheck({ jobId }: { jobId: number }) {
   if (job.status !== 'draft' || !safety) {
     return (
       <main className="page">
+        <h1>Safety check</h1>
         <div className="alert alert-yellow">
           {safety ? 'This job has already started, so its safety check is locked.' : 'This job was made before the safety check existed.'}{' '}
           <a href={links.job(job.id)}>Open its results</a>.

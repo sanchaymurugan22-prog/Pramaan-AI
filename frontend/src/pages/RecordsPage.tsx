@@ -169,7 +169,9 @@ export function RecordsPage({ admin }: { admin: boolean }) {
             ))}
           </div>
         </div>
+        <div className="table-scroll">
         <table className="data-table">
+          <caption className="sr-only">{admin ? 'The record book' : 'Signed records'}</caption>
           <thead>
             <tr>
               <th>Record</th>
@@ -226,6 +228,7 @@ export function RecordsPage({ admin }: { admin: boolean }) {
             ))}
           </tbody>
         </table>
+        </div>
         {book && book.records.length === 0 && <p className="muted">No records yet. A record is made when a Reviewer approves and signs a job.</p>}
       </section>
 
