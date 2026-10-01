@@ -56,7 +56,10 @@ MATRIX = [
     ("POST", "/api/admin/records/{record}/withdraw", {AD}, {"reason": "Permission test"}),
     ("GET", "/api/admin/records/verify-bundle.zip", {AD}, None),
     ("POST", "/api/check-message", ANYONE, {"text": "Is this real?"}),
-    # Stage 9B: profile
+    # Stage 9B: line comments, profile
+    ("GET", "/api/jobs/{job}/comments", {OP, RV}, None),
+    ("POST", "/api/jobs/{job}/comments", {RV}, {"text": "A comment"}),
+    ("DELETE", "/api/jobs/{job}/comments/999999", {RV}, None),
     ("GET", "/api/profile", ANYONE, None),
     ("PUT", "/api/profile", ANYONE, {}),
     # Stage 9A: notifications, search, dashboard

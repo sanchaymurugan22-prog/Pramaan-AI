@@ -409,6 +409,13 @@ def job_summary(job: Job) -> dict:
     }
 
 
+def _comments(job: Job) -> list[dict]:
+    from sqlalchemy.orm import object_session
+    from app.routes.comments import comment_json, comments_for  # here: comments.py imports this module
+    db = object_session(job)
+    return [comment_json(c, db) for c in comments_for(db, job.id)] if db else []
+
+
 def job_detail(job: Job) -> dict:
     return {
         **job_summary(job),
@@ -426,6 +433,8 @@ def job_detail(job: Job) -> dict:
         "consistency": job.consistency_json,
         # Stage 9A: panic wording or shouting in the public outputs (LinkedIn, X, infographic)
         "public_check": check_public_outputs(job.outputs),
+        # Stage 9B: the Reviewers' line comments (every version, oldest first)
+        "comments": _comments(job),
         "sources": [
             {"id": s.source_key, "filename": s.filename, "kind": s.kind, "pages": s.pages, "chars": s.chars, "sha256": s.sha256}
             for s in job.sources

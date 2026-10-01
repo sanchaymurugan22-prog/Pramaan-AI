@@ -12,6 +12,8 @@ Separation of duties: a Reviewer cannot review a job they worked on (created, ed
 choices for, or submitted), even if they were an Operator when they did it. Someone else must check it.
 """
 
+import json
+from datetime import datetime, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -21,8 +23,9 @@ from sqlalchemy.orm import Session
 
 from app import audit, notifications
 from app.auth.deps import allow
-from app.db import Job, OutputVersion, Review, User, get_session
+from app.db import Job, OutputVersion, Record, Review, User, as_utc, get_session, utc_now
 from app.exporters import is_blocked
+from app.safety.public_check import check_public_outputs
 from app.pipeline.checks import fact_sheet_check
 from app.pipeline.output_types import OUTPUT_TYPES
 from app.routes.jobs import _get_job, _time, job_detail, review_json
@@ -71,6 +74,11 @@ class ReviewDecision(BaseModel):
     decision: Literal["approve", "send_back"]
     notes: str = ""
     pin: str = ""  # DSC token PIN (SIGNER=dsc only); used once, never stored or logged
+    reasons: list[str] = []  # Stage 9B, send back: chips from SEND_BACK_REASONS
+
+
+# Stage 9B (design 28): why a job is sent back
+SEND_BACK_REASONS = ["Facts need checking", "Language quality", "Tone", "Sensitive detail", "Formatting"]
 
 
 def worked_on_by(db: Session, job: Job) -> set[int]:
@@ -99,8 +107,18 @@ def review_job(job_id: int, body: ReviewDecision, db: Session = Depends(get_sess
                                                 "(refused: separation of duties)", actor=user, target=f"job {job.id}")
         raise HTTPException(403, SEPARATION)
     notes = body.notes.strip()[:4000]
-    if body.decision == "send_back" and len(notes) < 5:
-        raise HTTPException(400, "Write a note for the Operator: what should be changed?")
+    unknown = [r for r in body.reasons if r not in SEND_BACK_REASONS]
+    if unknown:
+        raise HTTPException(400, f"Unknown reason: {unknown[0]}")
+    from app.routes.comments import comments_for  # here: comments.py imports this module
+    comments = comments_for(db, job.id, job.version)
+    if body.decision == "send_back":
+        if len(notes) < 5 and not comments:
+            raise HTTPException(400, "Write a note for the Operator, or comment on the lines to change.")
+        if body.reasons:
+            notes = f"Reasons: {', '.join(body.reasons)}." + (f" {notes}" if notes else "")
+        elif not notes:
+            notes = f"See the {len(comments)} line comment{'s' if len(comments) != 1 else ''}."
 
     decision = "approved" if body.decision == "approve" else "sent_back"
     db.add(Review(job=job, user_id=user.id, decision=decision, notes=notes, job_version=job.version))
@@ -124,10 +142,11 @@ def review_job(job_id: int, body: ReviewDecision, db: Session = Depends(get_sess
         refresh_demo_site()
     else:
         job.status = decision
+        lines = f" · {len(comments)} line comment{'s' if len(comments) != 1 else ''}" if comments else ""
         notifications.notify(db, job.owner_id, "sent_back", f"“{job.title}” was sent back",
-                             f"{user.full_name}: “{notes}”", job)
+                             f"{user.full_name}: “{notes}”{lines}", job)
         db.commit()
-        audit.log("review", "sent_back", f"Sent back job #{job.id} v{job.version} with notes: “{notes}”",
+        audit.log("review", "sent_back", f"Sent back job #{job.id} v{job.version}{lines.replace(' · ', ' with ')}: “{notes}”",
                   actor=user, target=f"job {job.id}")
     return job_detail(job)
 
@@ -169,6 +188,10 @@ def review_queue(db: Session = Depends(get_session), user: User = Depends(allow(
         select(Review).where(Review.decision.in_(("approved", "sent_back"))).order_by(Review.id.desc()).limit(10)
     ).all()
     return {
+        "stats": queue_stats(db),
+        "signed_today": signed_today(db),
+        "signer": _signer_card(user),
+        "reasons": SEND_BACK_REASONS,
         # emergency alerts first (fast-track), then waiting longest first
         "waiting": sorted((_queue_item(db, job, user) for job in waiting),
                           key=lambda item: (not item["fast_track"], item["submitted_at"] or "")),
@@ -196,7 +219,68 @@ def _queue_item(db: Session, job: Job, reviewer: User) -> dict:
         "numbers_match": (job.consistency_json or {}).get("ok", True),
         "fact_sheet_ok": sheet_check["ok"] if sheet_check else True,
         "fast_track": job.created_via == "emergency",  # Stage 9A emergency alert
+        "leaks": sum(len((o.quality_json or {}).get("leaks", [])) for o in job.outputs),
+        "public_problems": len(check_public_outputs(job.outputs)["problems"]),
+        "languages": sorted({o.language for o in job.outputs}) or ["en"],
         "alert": job.alert_json,
         "can_review": not mine,
         "why_not": SEPARATION if mine else None,
     }
+
+
+# ---- Stage 9B: the Reviewer dashboard (design 24) -------------------------------------------------
+
+
+def _start_of_today() -> datetime:
+    """Midnight today on this computer's clock (record times are stored with their timezone)."""
+    local = datetime.now().astimezone()
+    return local.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def queue_stats(db: Session) -> dict:
+    """Waiting, signed today, average review time this week, sent back this week."""
+    week_ago = utc_now() - timedelta(days=7)
+    today = _start_of_today()
+    waiting = db.scalars(select(Job).where(Job.status == "in_review")).all()
+    submitted_times = []
+    for job in waiting:
+        sub = next((r for r in reversed(job.reviews) if r.decision == "submitted"), None)
+        if sub:
+            submitted_times.append(as_utc(sub.created_at))
+    # review time: from each submission to the decision that followed it
+    minutes = []
+    for decision in db.scalars(select(Review).where(Review.decision.in_(("approved", "sent_back")))):
+        if as_utc(decision.created_at) < week_ago:
+            continue
+        before = [r for r in decision.job.reviews if r.decision == "submitted" and r.id < decision.id]
+        if before:
+            minutes.append((as_utc(decision.created_at) - as_utc(before[-1].created_at)).total_seconds() / 60)
+    signed = [r for r in db.scalars(select(Record).where(Record.kind == "issue").order_by(Record.seq))
+              if datetime.fromisoformat(r.created_at) >= today]
+    last_files = len(json.loads(signed[-1].manifest)["files"]) if signed else 0
+    sent_back = db.scalars(select(Review).where(Review.decision == "sent_back")).all()
+    return {
+        "waiting": len(waiting),
+        "oldest_submitted_at": min(submitted_times).isoformat() if submitted_times else None,
+        "signed_today": len(signed),
+        "files_in_last_kit": last_files,
+        "average_review_minutes": round(sum(minutes) / len(minutes)) if minutes else None,
+        "sent_back_this_week": sum(as_utc(r.created_at) >= week_ago for r in sent_back),
+    }
+
+
+def signed_today(db: Session) -> list[dict]:
+    today = _start_of_today()
+    rows = [r for r in db.scalars(select(Record).where(Record.kind == "issue").order_by(Record.seq.desc()))
+            if datetime.fromisoformat(r.created_at) >= today]
+    return [{"record_no": r.record_no, "title": json.loads(r.manifest)["title"], "job_id": r.job_id} for r in rows[:8]]
+
+
+def _signer_card(user: User) -> dict:
+    """The "DSC token" card: which key signs (the test key on this computer, or a DSC token)."""
+    try:
+        signer = get_signer().describe()
+        return {"ready": True, **signer, "holder": user.full_name, "dsc_holder": bool(user.dsc_holder)}
+    except SigningError as exc:
+        return {"ready": False, "kind": "dsc", "label": "Class 3 DSC on a USB token", "error": str(exc),
+                "holder": user.full_name, "dsc_holder": bool(user.dsc_holder)}

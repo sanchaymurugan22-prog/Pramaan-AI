@@ -2,7 +2,8 @@
 
 Tables so far: jobs, sources, fact_sheets, outputs (Stage 3), output_versions (Stage 5),
 safety_decisions (Stage 6A), users, account_requests, sessions, reviews, audit_log (Stage 6B),
-records (Stage 7: the record book of signed documents), notifications, watch_settings, watch_files (Stage 9A).
+records (Stage 7: the record book of signed documents), notifications, watch_settings, watch_files (Stage 9A),
+review_comments (Stage 9B).
 `init_db()` first encrypts a database left from before Stage 6B (keeping the old plain file as
 data/pramaan.db.plain-backup), then creates any missing tables and columns. It never deletes data.
 The rest of the app only uses `engine` / `SessionLocal` and does not know about the encryption.
@@ -206,6 +207,28 @@ class Review(Base):
 
     job: Mapped[Job] = relationship(back_populates="reviews")
     user: Mapped["User"] = relationship()
+
+
+class ReviewComment(Base):
+    """A Reviewer's comment on one sentence of one output (Stage 9B, designs 25 and 28). It belongs to the
+    job version that was reviewed; the Operator sees it when the job is sent back. A comment can be taken
+    back by its author while the review is still open (removed_at), never edited or deleted."""
+
+    __tablename__ = "review_comments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id"), index=True)
+    job_version: Mapped[int]
+    output_id: Mapped[int | None] = mapped_column(default=None)   # None = about the whole job
+    sentence_id: Mapped[str | None] = mapped_column(String(20), default=None)  # "s3" (see checks.py)
+    path: Mapped[list | None] = mapped_column(JSON, default=None)  # where the sentence is in the output
+    quote: Mapped[str] = mapped_column(Text, default="")           # the sentence as the Reviewer saw it
+    text: Mapped[str] = mapped_column(Text)
+    author_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(default=utc_now)
+    removed_at: Mapped[datetime | None] = mapped_column(default=None)
+
+    author: Mapped["User"] = relationship()
 
 
 class Record(Base):
