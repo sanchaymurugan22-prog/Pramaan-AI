@@ -13,7 +13,10 @@ assets/fonts to install it on a Mac), otherwise Word / Keynote shows a similar f
 """
 
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
+
+from PIL import ImageFont
 
 FONT_DIR = Path(__file__).resolve().parents[1] / "assets" / "fonts"
 
@@ -52,3 +55,15 @@ def font_file(role: str, weight: str = "regular", language: str = "en") -> Path:
     """Path of the TTF file; falls back to the regular weight if that weight is not bundled."""
     files = font_set(role, language).files
     return FONT_DIR / files.get(weight, files["regular"])
+
+
+@cache
+def _measuring_font(role: str, weight: str, language: str):
+    return ImageFont.truetype(str(font_file(role, weight, language)), size=1000)
+
+
+def text_width(text: str, size: float, role: str = "body", weight: str = "regular", language: str = "en") -> float:
+    """Width of one line of text in points, measured with the bundled font (for DOCX / PPTX, which cannot
+    measure text themselves)."""
+    return _measuring_font(role, weight, language).getlength(text) * size / 1000
+

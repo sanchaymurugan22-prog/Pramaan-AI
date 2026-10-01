@@ -40,6 +40,7 @@ MATRIX = [
     ("GET", "/api/jobs/{job}/outputs/{output}/download?format=txt", {OP, RV}, None),
     ("GET", "/api/jobs/{job}/kit.zip", {OP, RV}, None),
     ("GET", "/api/jobs/{job}/compare", {OP, RV}, None),
+    ("GET", "/api/jobs/{job}/kit-info", {OP, RV}, None),
     # review
     ("POST", "/api/jobs/{job}/submit", {OP}, {}),
     ("POST", "/api/jobs/{job}/review", {RV}, {"decision": "send_back", "notes": "Permission test note"}),
@@ -66,6 +67,8 @@ MATRIX = [
     ("PUT", "/api/watch", {OP}, {}),
     ("POST", "/api/watch/folders", {OP}, {"name": "matrix"}),
     ("POST", "/api/watch/check", {OP}, None),
+    ("POST", "/api/alerts/check", {OP}, {"message": "Do not open unknown links. Report fraud by calling 1930."}),
+    ("POST", "/api/alerts", {OP}, {"type": "Other", "severity": "Advisory", "message": "x"}),
     # admin
     ("GET", "/api/admin/users", {AD}, None),
     ("POST", "/api/admin/users", {AD}, {"username": "matrix.made", "full_name": "Matrix Made", "role": "operator"}),

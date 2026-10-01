@@ -20,7 +20,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Flowable, Image, KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from app.exporters.blocks import Block, document_blocks
-from app.exporters.common import PALETTE, QR_PLACEHOLDER, TLP_TEXT_COLOURS, ExportInfo
+from app.exporters.common import PALETTE, QR_PLACEHOLDER, TLP_TEXT_COLOURS, ExportInfo, fit_title
 from app.exporters.fonts import font_file
 
 PAGE_WIDTH, PAGE_HEIGHT = A4
@@ -180,10 +180,11 @@ def _page_decoration(canvas, doc, info: ExportInfo, fonts) -> None:
     canvas.drawString(MARGIN + 6, 9.5 * mm, info.footer)
     canvas.setFont(fonts["body"], 8)
     canvas.setFillColor(_colour("muted"))
-    job = f"Job #{info.job_id}: {info.job_title}"
-    if len(job) > 70:
-        job = job[:67] + "…"
-    canvas.drawRightString(PAGE_WIDTH - MARGIN - 6, 9.5 * mm, f"{job}  ·  Page {doc.page}")
+    # The job line fills the space the footer text leaves, never more (a long title is shortened with "…")
+    room = TEXT_WIDTH - pdfmetrics.stringWidth(info.footer, fonts["heading"], 8) - 18
+    line = fit_title(f"Job #{info.job_id}: ", info.job_title, f"  ·  Page {doc.page}",
+                     lambda text: pdfmetrics.stringWidth(text, fonts["body"], 8), room)
+    canvas.drawRightString(PAGE_WIDTH - MARGIN - 6, 9.5 * mm, line)
     canvas.restoreState()
 
 

@@ -44,6 +44,7 @@ from app.pipeline.output_types import DEFAULT_SETTINGS, OUTPUT_ORDER, OUTPUT_TYP
 from app.pipeline.segments import segments
 from app.pipeline.versions import ORIGIN_LABELS, current_version
 from app.safety.decisions import decision_json, record
+from app.safety.public_check import check_public_outputs
 from app.safety.scanner import ScanSource, scan_sources
 from app.safety.tlp import switched_off
 
@@ -423,6 +424,8 @@ def job_detail(job: Job) -> dict:
         "settings": job.settings_json,
         "quality_score": job.quality_score,
         "consistency": job.consistency_json,
+        # Stage 9A: panic wording or shouting in the public outputs (LinkedIn, X, infographic)
+        "public_check": check_public_outputs(job.outputs),
         "sources": [
             {"id": s.source_key, "filename": s.filename, "kind": s.kind, "pages": s.pages, "chars": s.chars, "sha256": s.sha256}
             for s in job.sources

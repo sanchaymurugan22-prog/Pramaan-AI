@@ -108,3 +108,16 @@ def save_text(target: Path | BinaryIO, text: str) -> None:
         target.write_text(text, encoding="utf-8")
     else:
         target.write(text.encode("utf-8"))
+
+
+def fit_title(start: str, title: str, end: str, width_of, max_width: float) -> str:
+    """start + title + end on ONE line: a long job title is shortened at a word, with "…", until
+    width_of(text) <= max_width (Stage 9A: long titles ran over the footer)."""
+    title = title.strip()
+    text = f"{start}{title}{end}"
+    while title and width_of(text) > max_width:
+        # drop the last word (or the last letter of a single very long word)
+        title = (title.rsplit(" ", 1)[0] if " " in title else title[:-1]).rstrip(" ·,:;-")
+        text = f"{start}{title}…{end}"
+    return text
+

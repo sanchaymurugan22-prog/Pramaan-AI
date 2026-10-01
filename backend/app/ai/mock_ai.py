@@ -267,6 +267,38 @@ def _words(text: str, limit: int) -> str:
     return " ".join(words[:limit]).rstrip(",;:") if len(words) > limit else text
 
 
+# A short caption must not end on one of these ("...through an unpatched", "...patch to", "...that did")
+SMALL_WORDS = {
+    "a", "an", "the", "to", "of", "in", "on", "at", "by", "for", "from", "with", "and", "or", "but", "that",
+    "which", "who", "as", "was", "were", "is", "are", "be", "has", "have", "had", "been", "did", "do", "does",
+    "its", "their", "his", "her", "our", "your", "this", "these", "those", "into", "than", "so", "not", "no",
+    "since", "after", "before", "over", "under", "about", "through", "via", "per", "also", "all", "every",
+    "some", "most", "mostly", "more", "very", "first", "if", "when", "while", "then", "it", "they", "there",
+}
+# Words that start a new part of a sentence: a good place to cut a caption
+BREAK_WORDS = {"through", "via", "to", "on", "at", "in", "by", "for", "from", "with", "since", "after", "before",
+               "because", "which", "who", "while", "when", "but", "and", "during", "until", "mostly"}
+LEAD_IN = re.compile(r"^(?:As of|In|On|Since|By|After|Before|During|Today|Yesterday|However|Meanwhile)\b[^,]{0,30},\s+")
+
+
+def _caption(text: str, limit: int) -> str:
+    """A short phrase of at most `limit` words that reads well on a screen or a slide.
+    "The attackers enter through an unpatched remote-access gateway" -> "The attackers enter";
+    "As of 28 September, 42 hospitals in five states have reported ..." -> "42 hospitals in five states".
+    Text that fits is kept whole (only a dangling small word at the end is dropped)."""
+    words = text.strip().rstrip(".").split()
+    if len(words) > limit:
+        words = LEAD_IN.sub("", " ".join(words)).split()
+    if len(words) > limit:
+        # cut before the last linking word that leaves a whole "who did what" (at least 3 words)
+        cuts = [i for i in range(3, limit + 1) if words[i].lower() in BREAK_WORDS]
+        words = words[:cuts[-1]] if cuts else words[:limit]
+    while len(words) > 1 and words[-1].lower().strip(",;:") in SMALL_WORDS:
+        words.pop()
+    caption = " ".join(words).rstrip(",;:-")
+    return caption[:1].upper() + caption[1:]
+
+
 def _fit(text: str, characters: int) -> str:
     """Whole words that fit in `characters`."""
     while len(text) > characters and " " in text:
@@ -318,7 +350,7 @@ def linkedin_post(s: Sheet) -> dict:
 def executive_summary(s: Sheet) -> dict:
     first = s.facts[0] if s.facts else ("", s.summary)
     return {
-        "title": "Briefing: " + _words(first[1], 8),
+        "title": "Briefing: " + _caption(first[1], 8),
         "bottom_line": _grounded(_words(first[1], 55), [first[0]] if first[0] else []),
         "key_points": [_grounded(text, [fid]) for fid, text in s.facts[1:5]] or [_grounded(s.summary, [])],
         "actions_needed": [_grounded(text, [aid]) for aid, text in s.actions[:4]]
@@ -342,10 +374,10 @@ def infographic(s: Sheet) -> dict:
     if not numbers:
         numbers = [{"value": s.severity.capitalize(), "label": "severity", "fact_ids": []}]
     steps = [_grounded(_fit(text.rstrip("."), 60), [aid]) for aid, text in s.actions[:4]]
-    headline = _fit(_words(s.facts[0][1], 7), 60) if s.facts else "Key facts"
+    headline = _fit(_caption(s.facts[0][1], 7), 60) if s.facts else "Key facts"
     return {
         "headline": headline,
-        "subheadline": _words(s.facts[1][1], 12) if len(s.facts) > 1 else _words(s.summary, 12),
+        "subheadline": _caption(s.facts[1][1], 12) if len(s.facts) > 1 else _caption(s.summary, 12),
         "key_numbers": numbers[:3],
         "steps": steps or [_grounded("Follow official guidance", [])],
         "layout": "number_grid" if numbers and numbers[0]["fact_ids"] else "vertical_steps",
@@ -356,7 +388,7 @@ def advisory(s: Sheet) -> dict:
     facts = s.facts or [("", s.summary)]
     first_two = facts[:2]
     return {
-        "title": "Advisory: " + _words(facts[0][1], 8),
+        "title": "Advisory: " + _caption(facts[0][1], 8),
         "severity": s.severity if s.severity in ("low", "medium", "high", "critical") else "unknown",
         "overview": _grounded(" ".join(t for _, t in first_two), [f for f, _ in first_two if f]),
         "affected": [_grounded(t, [f]) for f, t in facts[2:4]] or [_grounded(facts[0][1], [facts[0][0]] if facts[0][0] else [])],
@@ -369,7 +401,7 @@ def advisory(s: Sheet) -> dict:
 
 def presentation(s: Sheet) -> dict:
     def slide(title, items):
-        return {"title": title, "bullets": [_words(text, 15) for _, text in items],
+        return {"title": title, "bullets": [_caption(text, 16) for _, text in items],
                 "speaker_notes": " ".join(text for _, text in items), "fact_ids": [i for i, _ in items if i]}
 
     slides = []
@@ -378,25 +410,27 @@ def presentation(s: Sheet) -> dict:
     if len(s.facts) > 3:
         slides.append(slide("More details", s.facts[3:6]))
     if s.dates:
-        slides.append(slide("Key dates", [(did, f"{date}: {event}") for did, date, event in s.dates[:4]]))
+        slides.append(slide("Key dates", [(did, f"{date}: {_caption(event, 10)}") for did, date, event in s.dates[:4]]))
     if s.actions:
         slides.append(slide("What to do now", s.actions[:4]))
     while len(slides) < 3:
         slides.append(slide("Summary", [("", _words(s.summary, 15) or "No facts were found.")]))
-    return {"title": "Briefing: " + _words(s.facts[0][1], 8) if s.facts else "Briefing", "slides": slides[:6]}
+    return {"title": "Briefing: " + _caption(s.facts[0][1], 8) if s.facts else "Briefing", "slides": slides[:6]}
 
 
 def video_package(s: Sheet) -> dict:
     def scene(item_id, text):
-        return {"visual": "Simple animation showing: " + _words(text, 6), "on_screen_text": _words(text, 6),
-                "narration": _words(text, 38), "fact_ids": [item_id] if item_id else []}
+        caption = _caption(text, 6)
+        return {"visual": f"Simple shapes and icons showing: {caption[:1].lower() + caption[1:]}", "on_screen_text": caption,
+                "narration": text if len(text.split()) <= 40 else _caption(text, 38) + ".",
+                "fact_ids": [item_id] if item_id else []}
 
     scenes = [scene(fid, text) for fid, text in s.facts[:3]]
     if s.actions:
         scenes.append(scene(s.actions[0][0], s.actions[0][1]))
     while len(scenes) < 2:
         scenes.append(scene("", "Stay alert and follow official guidance."))
-    return {"title": "Video: " + (_words(s.facts[0][1], 6) if s.facts else "key facts"), "scenes": scenes}
+    return {"title": "Video: " + (_caption(s.facts[0][1], 6) if s.facts else "key facts"), "scenes": scenes}
 
 
 BUILDERS = {

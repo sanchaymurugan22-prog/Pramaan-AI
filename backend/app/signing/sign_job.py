@@ -155,9 +155,10 @@ def signed_file(job: Job, output, fmt: str) -> ExportedFile | None:
     return ExportedFile(path.name, crypto.read_file(path))
 
 
-def signed_kit(db: Session, job: Job) -> ExportedFile | None:
+def signed_kit(db: Session, job: Job, only: set[str] | None = None) -> ExportedFile | None:
     """The campaign kit of an approved job: every signed file, the signed public record and the public
-    key (so anyone can check it with no internet), and a README."""
+    key (so anyone can check it with no internet), and a README. only: the output types to put in
+    (None = all); the record still lists every signed file."""
     entry = records.find_issue(db, job.record_no) if job.status == "approved" and job.record_no else None
     if entry is None:
         return None
@@ -180,7 +181,8 @@ def signed_kit(db: Session, job: Job) -> ExportedFile | None:
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("README.txt", "\n".join(line for line in lines if line is not None) + "\n")
         for f in manifest["files"]:
-            archive.writestr(f["name"], crypto.read_file(folder / f["name"]))
+            if only is None or f["output"] in only:
+                archive.writestr(f["name"], crypto.read_file(folder / f["name"]))
         archive.writestr("record.json", json.dumps({"manifest": entry.public_manifest,
                                                     "signature": entry.public_signature}, indent=1))
         archive.writestr("public-key.pem", get_signer().public_key_pem())

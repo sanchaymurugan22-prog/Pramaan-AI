@@ -17,8 +17,8 @@ from docx.shared import Cm, Pt, RGBColor
 from PIL import Image
 
 from app.exporters.blocks import Block, document_blocks
-from app.exporters.common import PALETTE, QR_PLACEHOLDER, TLP_TEXT_COLOURS, ExportInfo, rgb
-from app.exporters.fonts import family
+from app.exporters.common import PALETTE, QR_PLACEHOLDER, TLP_TEXT_COLOURS, ExportInfo, fit_title, rgb
+from app.exporters.fonts import family, text_width
 
 PAGE_WIDTH, PAGE_HEIGHT, MARGIN = Cm(21), Cm(29.7), Cm(2)  # A4
 TEXT_WIDTH = PAGE_WIDTH - 2 * MARGIN
@@ -82,7 +82,11 @@ def _page_setup(document, info: ExportInfo) -> None:
 
     footer = section.footer.paragraphs[0]
     _run(footer, info.footer, "heading", 8.5, info, colour="saffron_dark", bold=True)
-    _run(footer, f"  ·  Job #{info.job_id}: {info.job_title}  ·  Page ", "body", 8.5, info, colour="muted")
+    # One line: a long job title is shortened with "…" (room for a 3-digit page number is kept)
+    room = TEXT_WIDTH / 12700 - text_width(info.footer, 8.5, "heading", "bold", info.language) - 6
+    job_line = fit_title(f"  ·  Job #{info.job_id}: ", info.job_title, "  ·  Page 999",
+                         lambda text: text_width(text, 8.5, "body", "regular", info.language), room)
+    _run(footer, job_line.removesuffix("999"), "body", 8.5, info, colour="muted")
     _page_number(footer)
 
 

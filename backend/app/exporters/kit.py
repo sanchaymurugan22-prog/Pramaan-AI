@@ -14,8 +14,9 @@ from app.exporters import FORMATS, ExportedFile, ExportError, export_info, expor
 from app.exporters.common import FOOTER
 
 
-def build_kit(job) -> ExportedFile:
-    done = [o for o in job.outputs if o.status == "done" and o.content_json]
+def build_kit(job, only: set[str] | None = None) -> ExportedFile:
+    """only: the output types to put in (Stage 9A "What is inside" ticks); None = all of them."""
+    done = [o for o in job.outputs if o.status == "done" and o.content_json and (only is None or o.type in only)]
     finished = [o for o in done if not is_blocked(o)]
     blocked = [o for o in done if is_blocked(o)]
     if not finished:

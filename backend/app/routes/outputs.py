@@ -8,6 +8,8 @@ GET  /api/jobs/{id}/outputs/{output_id}/versions/{n}     one old version's text 
 GET /api/jobs/{id}/outputs/{output_id}/download?format=pdf   one file (docx | pdf | pptx | png | srt | txt)
     add &inline=true to show it in the browser instead of saving it (used for the infographic preview)
 GET /api/jobs/{id}/kit.zip                                     every finished output of the job in one .zip
+    (Stage 9A: ?outputs=advisory,x_thread for some of them only)
+GET /api/jobs/{id}/kit-info                                    Stage 9A: what the kit holds (files, and their sizes once signed)
 GET /api/jobs/{id}/compare?left=1&right=2                      Stage 9A: two versions of the job side by side
     (0 = the first AI draft; without left/right: the version before the latest, and the latest)
 
@@ -28,7 +30,7 @@ from sqlalchemy.orm import Session
 from app import audit
 from app.auth.deps import allow
 from app.db import Job, Output, User, get_session
-from app.exporters import MEDIA_TYPES, ExportedFile, ExportError, export_output
+from app.exporters import FORMATS, MEDIA_TYPES, ExportedFile, ExportError, export_output, file_name, is_blocked
 from app.exporters.kit import build_kit
 from app.pipeline import runner
 from app.pipeline.checks import recheck_job
@@ -37,7 +39,7 @@ from app.pipeline.generate import add_timings
 from app.pipeline.output_types import OUTPUT_TYPES
 from app.pipeline.segments import EditError, apply_edits
 from app.pipeline.versions import ORIGIN_LABELS, save_version, version_summary
-from app.routes.jobs import _time, job_detail, must_be_changeable
+from app.routes.jobs import _time, job_detail, must_be_changeable, record_summary
 from app.signing.sign_job import signed_file, signed_kit
 
 router = APIRouter(prefix="/api", tags=["outputs"])
@@ -162,17 +164,45 @@ def download_output(
 
 
 @router.get("/jobs/{job_id}/kit.zip")
-def download_kit(job_id: int, db: Session = Depends(get_session), user: User = Depends(allow("operator", "reviewer"))):
+def download_kit(job_id: int, outputs: str = "", db: Session = Depends(get_session),
+                 user: User = Depends(allow("operator", "reviewer"))):
     job = db.get(Job, job_id)
     if job is None:
         raise HTTPException(404, f"Job {job_id} not found.")
+    only = {o.strip() for o in outputs.split(",") if o.strip()} or None
+    if only and not only <= {o.type for o in job.outputs}:
+        raise HTTPException(400, f"This job has no {', '.join(sorted(only - {o.type for o in job.outputs}))}.")
     try:
-        kit = signed_kit(db, job) or build_kit(job)
+        kit = signed_kit(db, job, only) or build_kit(job, only)
     except ExportError as exc:
         raise HTTPException(409, str(exc))
-    audit.log("content", "download", f"Downloaded the campaign kit (.zip) of job #{job.id}", actor=user,
+    which = f" ({', '.join(OUTPUT_TYPES[o]['label'] for o in sorted(only))})" if only else ""
+    audit.log("content", "download", f"Downloaded the campaign kit (.zip) of job #{job.id}{which}", actor=user,
               target=f"job {job.id}")
     return _file_response(kit, MEDIA_TYPES["zip"])
+
+
+@router.get("/jobs/{job_id}/kit-info")
+def kit_info(job_id: int, db: Session = Depends(get_session), user: User = Depends(allow("operator", "reviewer"))):
+    """What the campaign kit holds. Sizes are known once the files are signed (they are made then);
+    before that, files are made when downloaded."""
+    job = db.get(Job, job_id)
+    if job is None:
+        raise HTTPException(404, f"Job {job_id} not found.")
+    record = record_summary(job) if job.status == "approved" else None
+    signed = {f["name"]: f for f in record["files"]} if record else {}
+    outputs = []
+    for output in job.outputs:
+        if output.status != "done" or not output.content_json:
+            continue
+        files = []
+        for fmt in FORMATS.get(output.type, []):
+            name = file_name(job, output, fmt)
+            files.append({"format": fmt, "name": name, "bytes": signed[name]["bytes"] if name in signed else None})
+        outputs.append({"output_id": output.id, "type": output.type, "label": _label(output),
+                        "language": output.language, "blocked": is_blocked(output), "files": files})
+    return {"job_id": job.id, "title": job.title, "tlp": job.tlp, "status": job.status, "record": record,
+            "outputs": outputs}
 
 
 @router.get("/jobs/{job_id}/compare")

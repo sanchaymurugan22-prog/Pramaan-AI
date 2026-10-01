@@ -169,8 +169,9 @@ def review_queue(db: Session = Depends(get_session), user: User = Depends(allow(
         select(Review).where(Review.decision.in_(("approved", "sent_back"))).order_by(Review.id.desc()).limit(10)
     ).all()
     return {
-        # waiting longest first
-        "waiting": sorted((_queue_item(db, job, user) for job in waiting), key=lambda item: item["submitted_at"] or ""),
+        # emergency alerts first (fast-track), then waiting longest first
+        "waiting": sorted((_queue_item(db, job, user) for job in waiting),
+                          key=lambda item: (not item["fast_track"], item["submitted_at"] or "")),
         "recent": [review_json(r) | {"job_id": r.job_id, "job_title": r.job.title} for r in recent],
     }
 
@@ -194,6 +195,8 @@ def _queue_item(db: Session, job: Job, reviewer: User) -> dict:
         "warnings": warnings,  # sentences not linked to the source
         "numbers_match": (job.consistency_json or {}).get("ok", True),
         "fact_sheet_ok": sheet_check["ok"] if sheet_check else True,
+        "fast_track": job.created_via == "emergency",  # Stage 9A emergency alert
+        "alert": job.alert_json,
         "can_review": not mine,
         "why_not": SEPARATION if mine else None,
     }

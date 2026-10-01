@@ -22,7 +22,7 @@ from sqlalchemy import select
 from app import audit, notifications
 from app.ai import llm
 from app.config import settings
-from app.db import FactSheet, Job, SessionLocal, utc_now
+from app.db import FactSheet, Job, Review, SessionLocal, utc_now
 from app.pipeline.factsheet import SourcePages, build_fact_sheet
 from app.pipeline.generate import generate_output
 from app.pipeline.ingest import load_pages
@@ -123,6 +123,26 @@ def _run(db, job: Job) -> None:
     done = len(job.outputs) - len(failed)
     audit.log("system", "generated", f"Wrote {done} of {len(job.outputs)} output{'s' if len(job.outputs) != 1 else ''} "
                                      f"for job #{job.id}" + (f" ({len(failed)} failed)" if failed else ""),
+              target=f"job {job.id}")
+    _fast_track(db, job)
+
+
+def _fast_track(db, job: Job) -> None:
+    """Emergency alerts (Stage 9A): when every output is ready the first time, send the job to the
+    Reviewers by itself, marked fast-track. The Operator pressed "Send for fast-track approval" already;
+    nothing is published until a Reviewer approves and signs it. If anything failed or private data was
+    found, it stays with the Operator."""
+    if job.created_via != "emergency" or job.status != "ready" or job.reviews:
+        return
+    if any(o.status != "done" or (o.quality_json or {}).get("leaks") for o in job.outputs):
+        return
+    job.status = "in_review"
+    db.add(Review(job=job, user_id=job.owner_id, decision="submitted", job_version=job.version,
+                  notes="Emergency alert: fast-track review"))
+    notifications.notify_reviewers(db, "alert", f"Fast-track: {job.title}",
+                                   (job.alert_json or {}).get("message", "")[:200], job, except_user=job.owner_id)
+    db.commit()
+    audit.log("review", "submitted", f"Emergency alert job #{job.id} sent for fast-track review",
               target=f"job {job.id}")
 
 
