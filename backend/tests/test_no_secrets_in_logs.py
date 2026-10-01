@@ -10,7 +10,7 @@ from sqlalchemy import select
 from app import crypto
 from app.auth import sessions
 from app.config import ensure_secret
-from app.db import AuditEntry, SessionLocal, engine
+from app.db import AuditEntry, Record, SessionLocal, engine
 from app.main import app
 from tests.auth_helpers import ORIGIN, empty_accounts, signed_in_client
 
@@ -82,3 +82,30 @@ def _audit_text(first_row: int) -> str:
 def test_signed_in_clients_still_work_after_the_accounts_were_put_back():
     """empty_accounts() above must leave the other tests' users and sessions as they were."""
     assert signed_in_client("operator").get("/api/jobs").status_code == 200
+
+
+def test_signing_never_logs_the_private_key(caplog, capsys):
+    """Stage 7: approving signs with the private key; it never appears in logs, the audit trail, records,
+    the published bundle or any answer."""
+    from app.signing import publish
+    from app.signing.signer import get_signer
+    from tests.test_signing import approved_job
+
+    caplog.set_level(logging.DEBUG)
+    first_row = _last_audit_seq() + 1
+    job = approved_job(outputs=("x_thread",))
+    signer = get_signer()
+    pem = crypto.read_file(signer._private_path).decode()  # the test key, read only to compare
+    key_body = "".join(pem.strip().splitlines()[1:-1])
+    assert len(key_body) > 100
+
+    with SessionLocal() as db:
+        bundle = publish.records_json(db).decode()
+        stored_records = " ".join(f"{r.manifest} {r.public_manifest}" for r in db.query(Record))
+    admin = signed_in_client("admin", "log.key.admin")
+    answers = admin.get("/api/records").text + admin.get(f"/api/records/{job['record']['record_no']}").text
+    captured = capsys.readouterr()
+    written = "\n".join([caplog.text, captured.out, captured.err, _audit_text(first_row), bundle, stored_records, answers])
+    for piece in (key_body, key_body[:40], key_body[-40:]):
+        assert piece not in written
+    assert "PRIVATE KEY" not in written

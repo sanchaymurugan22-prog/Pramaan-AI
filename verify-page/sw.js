@@ -1,7 +1,7 @@
-// Offline copy of Pramaan Verify. The page itself is cached on the first visit; the records and the
-// public key are fetched fresh when there is a connection and taken from the cache when there is not.
+// Offline copy of Pramaan Verify. Everything is fetched fresh when there is a connection (so new
+// records, withdrawals and page updates show up at once) and taken from the saved copy when there is not.
 // (Browsers allow this only on https:// pages and on localhost.)
-const CACHE = 'pramaan-verify-v1'
+const CACHE = 'pramaan-verify-v2'
 const SHELL = [
   './', 'index.html', 'style.css', 'app.js', 'verify.js', 'icon.svg',
   'fonts/hind-latin-400-normal.woff2', 'fonts/hind-latin-600-normal.woff2',
@@ -23,19 +23,14 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url)
   if (event.request.method !== 'GET' || url.origin !== location.origin) return
-  const fresh = FRESH.some((name) => url.pathname.endsWith('/' + name))
-  if (fresh) {
-    // network first, so newly signed or withdrawn records show up
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const copy = response.clone()
-          caches.open(CACHE).then((cache) => cache.put(event.request, copy))
-          return response
-        })
-        .catch(() => caches.match(event.request)),
-    )
-  } else {
-    event.respondWith(caches.match(event.request, { ignoreSearch: true }).then((hit) => hit || fetch(event.request)))
-  }
+  // network first, the saved copy when offline
+  event.respondWith(
+    fetch(event.request)
+      .then((response) => {
+        const copy = response.clone()
+        caches.open(CACHE).then((cache) => cache.put(event.request, copy))
+        return response
+      })
+      .catch(() => caches.match(event.request, { ignoreSearch: true })),
+  )
 })

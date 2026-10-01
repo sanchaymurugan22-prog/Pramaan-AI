@@ -6,7 +6,14 @@ and every document signed and verifiable.
 
 Smart India Hackathon · Problem Statement 26154 · NTRO.
 
-**Current stage: 6B — Accounts and data protection.** People now sign in. There are three roles,
+**Current stage: 7 — Anti-fake.** When a Reviewer approves a job it is **signed**: every final file
+gets a QR code and a record number (`PRM-2026-000123`), its SHA-256 fingerprint and the fingerprint of
+every output's text go into a signed manifest, and the job gets an entry in a hash-chained **record
+book** (an Admin can withdraw a record; nothing is ever deleted). A static public **"Is this real?"**
+page (`verify-page/`, no backend, works offline) checks a record from its QR code, a dropped file,
+or a pasted WhatsApp / SMS message, in English and Hindi. See "Signing and verification (Stage 7)".
+
+Stage 6B — Accounts and data protection: people sign in. There are three roles,
 checked by the backend on every request: **Operator** (makes and changes jobs, submits them for
 review), **Reviewer** (approves or sends back with notes, never their own job) and **Admin** (users,
 access requests, audit trail). Every action goes into a hash-chained audit trail, and the database
@@ -41,7 +48,7 @@ subtitles, text), or all together as one campaign kit (.zip). See `CLAUDE.md` fo
 
 (If you set up an earlier stage, run the `pip install` line again: Stage 4 added python-pptx,
 ReportLab and Pillow; Stage 6B adds argon2-cffi, cryptography and sqlcipher3, all with ready-made
-builds for Intel Macs. New tables and columns are added to your existing database automatically
+builds for Intel Macs; Stage 7 adds qrcode. New tables and columns are added to your existing database automatically
 when the backend starts; nothing is deleted. On the first Stage 6B start the database and files are
 encrypted — see "Encryption at rest" — and `APP_SECRET_KEY` and `DB_KEY` are made and saved in `.env`.)
 
@@ -92,6 +99,7 @@ tells you which one and does not start.
 | Backend API | http://localhost:8000 |
 | API docs (auto-generated) | http://localhost:8000/docs |
 | AI model (llama-server) | http://localhost:8081 |
+| Public "Is this real?" page (Stage 7, `./scripts/serve-verify.sh`) | http://localhost:8090 |
 
 ## Try it quickly with the mock AI (no model needed)
 
@@ -152,6 +160,8 @@ source (text / .txt / .pdf / .docx)
   → leak check    (no AI) a hidden value in an output blocks its download (Stage 6A)
   → edit / regenerate one output → checks again; every version kept
   → review        the Operator submits; a Reviewer approves or sends back with notes (Stage 6B)
+  → sign          approve = final files with a QR code + signed record in the record book (Stage 7)
+  → verify        public page: record (QR), file fingerprint, or pasted message (Stage 7)
 ```
 
 - `backend/app/ai/llm.py` is the only file that talks to the model. In local mode it sends the
@@ -267,8 +277,9 @@ route): **401** = not signed in, **403** = this role may not. Hiding buttons in 
 for convenience. `backend/tests/test_permissions.py` tries every endpoint with every role.
 
 Job states: `ready` → **Submit for review** → `in_review` (locked: nobody can edit) → **Approve**
-→ `approved` (locked for good; signing comes in Stage 7), or **Send back** (notes required) →
-`sent_back` → the Operator changes it and submits again as **v2**.
+→ `approved` and **signed** (Stage 7; locked for good), or **Send back** (notes required) →
+`sent_back` → the Operator changes it and submits again as **v2**. To change an approved job:
+**Start a new version** (needs a new review and a new signature; the new record replaces the old one).
 
 **Accounts**
 - *First-time setup*: only while there are no users; makes the first Admin. Then it is closed.
@@ -344,6 +355,110 @@ key), or unwrapped by a hardware token (the organisation's HSM / smart card / DS
 PKCS#11, or the Mac's Secure Enclave / TPM), and kept only in memory while the app runs. The code
 already reads the key in one place (`crypto._master_key`), so only that function would change.
 
+## Signing and verification (Stage 7)
+
+Code: `backend/app/signing/` (`signer.py`, `sign_job.py`, `records.py`, `texts.py`, `messages.py`,
+`publish.py`, `qr.py`), `backend/app/routes/records.py`, and the public page in `verify-page/`.
+
+### 1. Signing on Approve (Reviewer)
+
+**Approve & sign** opens the sign dialog (design 26). Then, in one step:
+
+1. The next **record number** is taken: `PRM-<year>-<6 digits>`.
+2. The **final files** of every output are made with a real **QR code** in place of the dashed box,
+   and the footer says "Approved and signed · Record PRM-…". The QR holds only
+   `VERIFY_BASE_URL/?r=<record number>` (`.env`, default `http://localhost:8090`). `.txt` and `.srt`
+   files get a "Check it is genuine: …" line instead.
+3. **SHA-256** of every final file, and of each output's **normalised text** (spaces, capitals,
+   punctuation, emojis and zero-width characters ignored, so a forwarded copy still matches).
+4. A **manifest** (record number, job title, TLP, issuing office `ISSUING_OFFICE`, approver name and
+   role, time, files and fingerprints, text fingerprints) is **signed** (ECDSA P-256, SHA-256). A second,
+   **public** manifest is signed too: for **TLP:RED / AMBER** it has only the record number, date and
+   fingerprints, marked "Restricted" (no title, no names, no text). Public records name the approver's
+   **role**, not the person.
+5. A new, hash-chained entry in the **record book**; the job becomes `approved`.
+
+The signed files are saved encrypted under `data/jobs/<id>/signed/<record>/` and made read-only.
+Downloads of an approved job give exactly these bytes; the **signed kit** (.zip) also holds
+`record.json` and `public-key.pem`, so anyone can check it with no internet.
+
+**Signers** (`SIGNER` in `.env`), one interface:
+- `test` (default): an ECDSA P-256 key made on first use. The private key is stored **encrypted** with
+  the Stage 6B file key (`data/keys/test-signer.key`) and never printed or logged. **Not a legal DSC.**
+- `dsc`: a Class 3 DSC USB token through PKCS#11 (PyKCS11). **Design only, NOT tested** (no token was
+  available): see the notes in `DscSigner` (most Indian DSCs are RSA-2048, the certificate chain must be
+  published, …).
+
+### 2. Record book
+
+Reviewer → **Signed records** (design 29); Admin → **Record book** (design 37). The `records` table is
+append-only (the database refuses UPDATE and DELETE) and **hash-chained**: each entry stores the hash
+of the one before it. **Check the whole chain** re-checks every entry's hash, both signatures, and that
+every signed file on disk still has its fingerprint, and shows the **first broken entry**. The Admin can
+**Withdraw** a record with a reason: a new signed entry (for TLP:RED / AMBER the public reason is only
+"Withdrawn by the issuing office"). A record replaced by a newer version shows "Replaced by …".
+
+### 3. The public "Is this real?" page (`verify-page/`)
+
+Plain HTML + CSS + JS, no backend, no secrets: it reads `records.json` (the public manifests, their
+signatures, and a **signed index** of all entries, so a dropped withdrawal is noticed) and
+`public-key.pem`, and checks every signature in the browser. Mobile-first, large text, English and
+Hindi (हिं button), fonts bundled, works offline once loaded (service worker, on https or localhost).
+
+- `?r=PRM-2026-000001` (what the QR opens): **Genuine** / **Genuine, but replaced** / **Withdrawn** /
+  **Not found**, with title, date, issuing office, approver role and the files with fingerprints
+  (Restricted records: only number, date, fingerprints).
+- **Check a file**: drop it; its SHA-256 is worked out on the device and compared.
+- **Paste a message**: see 4.
+
+Signatures are checked with **Web Crypto** when the browser offers it. Browsers only offer it on
+`https://` or `localhost`, **not** on a plain `http://192.168.x.x` address (how a phone reaches the demo
+laptop), so the page then uses its own built-in SHA-256 and ECDSA P-256 code (`verify.js`). Both paths
+are tested.
+
+**Admin → Record book → Export verify bundle** downloads a .zip of the whole site with the latest
+records, for one-way (USB) transfer to the public web server. For the demo:
+
+```bash
+./scripts/serve-verify.sh
+```
+
+builds `data/verify-site/` and serves it on <http://localhost:8090> (and on this Mac's Wi-Fi address).
+While it runs, every new signature or withdrawal updates it straight away.
+
+### 4. "Is this real?" message checker (in the app and on the public page)
+
+Paste a forwarded message:
+1. **Exact match** (after normalising) with a signed text → "Genuine, matches record X" (or Withdrawn /
+   outdated). If several records hold the same text, the newest decides.
+2. Otherwise **similarity** with the published texts (5-character shingles, Jaccard): 50% or more →
+   "**Changed**: looks like record X", with the **changed words highlighted**.
+3. Otherwise "**Not found** — treat as unverified"; with scam signs, "**Not genuine** — looks like a scam".
+
+**Scam signs** (rules, no AI, English and Hindi): asks for an OTP / password / PIN or payment (not "never
+share your OTP"), urgent threats ("act within 1 hour", "will be blocked"), links that are not government
+sites and not in any record (look-alikes like `gov-alert-update.xyz` are called out), phone numbers not
+in any record (1930 and other helplines are fine), asks to install an app. Always shown: **Report cyber
+fraud: call 1930 or visit cybercrime.gov.in**. The app version (`/api/check-message`) uses the same
+published data, so both give the same answer; a test runs the same messages through the Python and the
+JavaScript checker. Pasted messages are not stored or logged.
+
+**Limits:** the test key is not a legal signature; the DSC signer is untested; similarity only knows
+texts published for TLP:CLEAR / GREEN social posts; rules can miss a cleverly worded scam or flag an
+unusual genuine message (the result says what it found, the person decides); a host could serve an
+*older* complete `records.json` (the signed index shows its date) — in production serve it over HTTPS
+from the organisation's own server.
+
+### Scan a QR code with your phone (same Wi-Fi)
+
+1. Find this Mac's Wi-Fi address: `ipconfig getifaddr en0` (e.g. `192.168.1.20`).
+2. In `.env`, set `VERIFY_BASE_URL=http://192.168.1.20:8090` **before signing** (the address is printed
+   inside every QR code), then restart `./scripts/start.sh`.
+3. Run `./scripts/serve-verify.sh` (allow incoming connections if macOS asks).
+4. Sign a job, open a signed PDF or the infographic on the Mac's screen, and point the iPhone / Android
+   **camera app** at the QR code; tap the link. The phone must be on the same Wi-Fi (not a guest
+   network that isolates devices).
+
 ## API (see <http://localhost:8000/docs> for all details)
 
 Every call except `/api/health` and the sign-in calls needs a session cookie, and every
@@ -362,6 +477,14 @@ POST/PUT/DELETE needs an `Origin` header from `ALLOWED_ORIGINS` (browsers send i
 | `GET/POST /api/admin/users`, `PUT /api/admin/users/{id}`, `POST .../reset-password` | Admin | list, add (temporary password shown once), change role / switch off / unlock, reset |
 | `GET /api/admin/requests`, `POST .../{id}/approve` · `/reject` | Admin | access and forgot-password requests |
 | `GET /api/admin/audit?category=&q=&actor=&days=&offset=` · `POST /api/admin/audit/verify` | Admin | the audit trail; check the hash chain |
+| `POST /api/jobs/{id}/review` with `"approve"` | Reviewer | approves **and signs** (Stage 7); optional `"pin"` for a DSC token |
+| `GET /api/jobs/{id}/sign-info` | Reviewer | for the sign dialog: signer, outputs, files |
+| `POST /api/jobs/{id}/new-version` | Operator | reopen an approved job as a new version |
+| `GET /api/records` · `POST /api/records/verify` | Reviewer, Admin | the record book; check chain, signatures and signed files |
+| `GET /api/records/{record_no}` · `/qr.png` · `GET /api/records/public-key.pem` | signed in | one record, its QR code, the public key |
+| `POST /api/admin/records/{record_no}/withdraw` | Admin | `{"reason": "..."}`: a signed withdrawal entry |
+| `GET /api/admin/records/verify-bundle.zip` | Admin | the public verify site with the latest records |
+| `POST /api/check-message` | signed in | `{"text": "..."}`: "Is this real?" for a pasted message |
 
 Job calls (Operators change jobs; Reviewers may read them and download):
 
@@ -445,7 +568,12 @@ Backend tests (they always use the mock AI, a temporary folder and test keys, so
 and your `data/` folder and `.env` are not touched). Stage 6B adds `test_accounts.py`,
 `test_sessions.py`, `test_review.py`, `test_permissions.py` (every role × every endpoint),
 `test_audit.py` (including changing and deleting rows to prove "Verify chain" finds them),
-`test_encryption.py` and `test_no_secrets_in_logs.py`:
+`test_encryption.py` and `test_no_secrets_in_logs.py`. Stage 7 adds `test_signing.py` (signature
+verifies, one changed byte fails, QR files, TLP:RED hides the title, new versions), `test_record_book.py`
+(withdraw; changed, re-hashed or deleted entries and changed signed files are found), `test_messages.py`
+(exact / changed / unknown / scam signs) and `test_verify_page.py`, which builds a real verify site and
+runs the page's own JavaScript with Node (`verify-page/tests/verify.test.mjs`: signatures with and without
+Web Crypto, file checks, tampering, and the message checker giving the same answers as Python):
 
 ```bash
 cd backend && .venv/bin/python -m pytest
@@ -476,11 +604,15 @@ backend/        FastAPI app (app/main.py), settings (app/config.py), database (a
   app/safety/     scanner.py, shield.py, masking.py, tlp.py, decisions.py (Stage 6A, no AI)
   app/routes/     system.py (health, AI ping), jobs.py (jobs API), outputs.py (edit, regenerate, versions, downloads),
                   safety.py (the Safety check), auth.py (sign-in pages), review.py (submit / approve /
-                  send back), admin.py (users, requests, audit trail)
+                  send back), admin.py (users, requests, audit trail), records.py (record book,
+                  verify bundle, "Is this real?")
+  app/signing/    signer.py (test key + DSC stub), sign_job.py, records.py (record book), texts.py,
+                  messages.py ("Is this real?"), publish.py (verify bundle), qr.py (Stage 7)
 frontend/       React + TypeScript + Vite app; design tokens in src/styles/tokens.css;
                 sign-in pages in src/pages/auth/, Admin pages in src/pages/admin/
-verify-page/    public "Is this real?" page (Stage 7)
-scripts/        start.sh (app), start-ai.sh (AI model)
+verify-page/    public "Is this real?" page (Stage 7): index.html, app.js (page), verify.js (checks),
+                sw.js (offline), fonts/, tests/ (Node)
+scripts/        start.sh (app), start-ai.sh (AI model), serve-verify.sh (public verify page on port 8090)
 samples/        fictional test files: sample-ransomware-report.txt, sample-private-data.txt (fake
                 Aadhaar/PAN/phone/email/IPs/password), sample-injection.txt (hidden instruction)
 models/, data/  model files and app data (never committed)
