@@ -40,6 +40,7 @@ DEFAULTS = {
     "letterhead": {"office_name": "", "has_logo": False},
     "counters": {"checks": 0, "genuine": 0, "changed": 0, "scam": 0, "withdrawn": 0, "not_found": 0},
     "speed_test": {},
+    "public_page": {"last_export": None},
 }
 
 

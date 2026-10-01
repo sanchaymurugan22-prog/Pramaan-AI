@@ -26,7 +26,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from app import crypto
+from app import branding, crypto
 from app.config import settings
 from app.db import Job, Record, User
 from app.exporters import FORMATS, ExportedFile, export_info, file_name, render
@@ -85,7 +85,7 @@ def sign_job(db: Session, job: Job, reviewer: User, pin: str = "") -> Record:
             "job_version": job.version,
             "title": job.title,
             "tlp": job.tlp,
-            "issuing_office": settings.issuing_office,
+            "issuing_office": branding.office_name(),
             "approved_by": {"name": reviewer.full_name, "role": "Reviewer", "user_id": reviewer.id},
             "signer": key,
             "verify_url": url,

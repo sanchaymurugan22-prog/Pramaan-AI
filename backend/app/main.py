@@ -15,7 +15,7 @@ from app import watch
 from app.config import settings
 from app.db import init_db
 from app.pipeline import runner
-from app.routes import admin, admin_system, alerts, auth, comments, dashboard, jobs, notifications, outputs, profile, records, review, safety, search, system, watch as watch_routes
+from app.routes import admin, admin_files, admin_system, alerts, auth, comments, dashboard, jobs, notifications, outputs, profile, records, review, safety, search, system, watch as watch_routes
 
 
 @asynccontextmanager
@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI):
     watch.stop_timer()
 
 
-app = FastAPI(title="Pramaan AI", version="0.6.0", lifespan=lifespan)
+app = FastAPI(title="Pramaan AI", version="0.9.0", lifespan=lifespan)
 
 # The React dev server (port 5173) proxies /api to us, but allow it directly too.
 app.add_middleware(
@@ -83,3 +83,4 @@ app.include_router(alerts.router)
 app.include_router(profile.router)
 app.include_router(comments.router)
 app.include_router(admin_system.router)
+app.include_router(admin_files.router)

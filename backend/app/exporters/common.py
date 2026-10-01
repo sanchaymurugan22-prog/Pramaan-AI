@@ -52,6 +52,9 @@ class ExportInfo:
     # QR code holds. Then the QR code replaces the empty box and the footer says "Approved and signed".
     record_no: str | None = None
     verify_url: str | None = None
+    # Stage 9B letterhead (app/branding.py): the office's name and logo (PNG bytes, or None)
+    office_name: str = "Pramaan AI"
+    logo_png: bytes | None = None
 
     @property
     def signed(self) -> bool:

@@ -152,6 +152,8 @@ def verify_bundle(db: Session = Depends(get_session), admin: User = Depends(allo
         raise HTTPException(409, str(exc))
     audit.log("security", "verify_bundle_exported", "Exported the public verify bundle (records.json + public key)",
               actor=admin)
+    from app import app_settings
+    app_settings.put("public_page", {"last_export": records.now_iso()}, by=admin)  # shown on the Admin page
     name = f"pramaan-verify-bundle-{records.now_iso()[:10]}.zip"
     return Response(data, media_type="application/zip",
                     headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})

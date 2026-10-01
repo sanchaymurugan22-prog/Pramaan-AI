@@ -30,7 +30,7 @@ def post_text(info: ExportInfo, content: dict) -> str:
             body += "\n\n" + hashtags
 
     header = [
-        f"Pramaan AI · {info.output_label}",
+        f"{info.office_name} · {info.output_label}",
         f"Job #{info.job_id}: {info.job_title}",
         f"Prepared: {info.date}",
     ]

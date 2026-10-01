@@ -46,7 +46,7 @@ def write_pptx(info: ExportInfo, content: dict, path: Path) -> Path:
 
     _list_notes_master(deck)
     props = deck.core_properties
-    props.title, props.subject, props.author = title, info.job_title, "Pramaan AI"
+    props.title, props.subject, props.author = title, info.job_title, info.office_name
     props.comments = f"{info.footer}. {info.header_line()}"
     deck.save(path)
     return path
@@ -105,6 +105,12 @@ def _title_slide(deck, info: ExportInfo, title: str, count: int, total: int) -> 
     notes = (f"Introduce the briefing: {title}. It is based on '{info.job_title}' and has {count} content slides. "
              f"This deck is AI-assisted and pending human approval until a reviewer signs it.")
     slide = _new_slide(deck, info, 1, total, notes)
+    # Stage 9B letterhead: the office's logo and name above the title
+    x = LEFT
+    if info.logo_png:
+        picture = slide.shapes.add_picture(io.BytesIO(info.logo_png), LEFT, Inches(0.9), height=Inches(0.7))
+        x = LEFT + picture.width + Inches(0.2)
+    _text(slide, x, Inches(1.0), Inches(8), Inches(0.5), info.office_name, "heading", 16, info, colour="navy", bold=True)
     _text(slide, LEFT, Inches(1.9), Inches(9), Inches(0.4), f"PRESENTATION · JOB #{info.job_id}", "heading", 14, info,
           colour="saffron_dark", bold=True)
     _text(slide, LEFT, Inches(2.4), Inches(9.2), Inches(2.2), title, "heading", 40 if len(title) < 50 else 32, info,

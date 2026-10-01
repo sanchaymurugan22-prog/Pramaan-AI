@@ -26,6 +26,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import branding
 from app.config import PROJECT_ROOT, settings
 from app.db import Record, SessionLocal
 from app.signing import records
@@ -48,7 +49,7 @@ def records_json(db: Session) -> bytes:
     index = {
         "format": "pramaan-verify-index/1",
         "generated_at": generated_at,
-        "issuer": settings.issuing_office,
+        "issuer": branding.office_name(),
         "key_id": key["key_id"],
         "count": len(entries),
         "entries": [hashlib.sha256(e.public_manifest.encode("utf-8")).hexdigest() for e in entries],
@@ -58,7 +59,7 @@ def records_json(db: Session) -> bytes:
     data = {
         "format": FORMAT,
         "generated_at": generated_at,
-        "issuer": settings.issuing_office,
+        "issuer": branding.office_name(),
         "key_id": key["key_id"],
         "algorithm": ALGORITHM,
         "index": index_text,

@@ -38,7 +38,7 @@ def write_docx(info: ExportInfo, content: dict, path: Path) -> Path:
             _add_block(document, block, info)
 
     props = document.core_properties
-    props.title, props.subject, props.author = title, info.job_title, "Pramaan AI"
+    props.title, props.subject, props.author = title, info.job_title, info.office_name
     props.comments = f"{info.footer}. {info.header_line()}"
     document.save(path)
     return path
@@ -75,7 +75,10 @@ def _page_setup(document, info: ExportInfo) -> None:
     line = header.add_paragraph()
     line.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     line.paragraph_format.space_before = Pt(4)
-    _run(line, "Pramaan AI · " + info.output_label, "heading", 8, info, colour="muted", bold=True)
+    if info.logo_png:  # the office's logo (Stage 9B letterhead)
+        line.add_run().add_picture(io.BytesIO(info.logo_png), height=Cm(0.8))
+        line.add_run("  ")
+    _run(line, f"{info.office_name} · {info.output_label}", "heading", 8, info, colour="muted", bold=True)
     if info.tlp_label:
         line.add_run("   ")
         _tlp_run(line, info)

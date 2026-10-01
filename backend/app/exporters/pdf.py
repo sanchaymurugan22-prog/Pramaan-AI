@@ -15,6 +15,7 @@ from reportlab.lib.colors import HexColor
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Flowable, Image, KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
@@ -46,7 +47,7 @@ def write_pdf(info: ExportInfo, content: dict, path: Path) -> Path:
 
     document = SimpleDocTemplate(
         str(path) if isinstance(path, Path) else path, pagesize=A4, leftMargin=MARGIN, rightMargin=MARGIN, topMargin=22 * mm, bottomMargin=20 * mm,
-        title=title, author="Pramaan AI", subject=info.job_title, creator="Pramaan AI", keywords=info.footer,
+        title=title, author=info.office_name, subject=info.job_title, creator="Pramaan AI", keywords=info.footer,
     )
     document.build(story, onFirstPage=decorate, onLaterPages=decorate)
     return path
@@ -165,9 +166,15 @@ def _page_decoration(canvas, doc, info: ExportInfo, fonts) -> None:
         canvas.rect(number * third, PAGE_HEIGHT - 5, third, 5, stroke=0, fill=1)
 
     top = PAGE_HEIGHT - 13 * mm
+    x = MARGIN + 6
+    if info.logo_png:  # the office's logo, 8 mm high (Stage 9B letterhead)
+        logo = ImageReader(io.BytesIO(info.logo_png))
+        width, height = logo.getSize()
+        canvas.drawImage(logo, x, top - 2.5 * mm, width=8 * mm * width / height, height=8 * mm, mask="auto")
+        x += 8 * mm * width / height + 3 * mm
     canvas.setFillColor(_colour("muted"))
     canvas.setFont(fonts["heading"], 8)
-    canvas.drawString(MARGIN + 6, top, f"Pramaan AI · {info.output_label}")
+    canvas.drawString(x, top, f"{info.office_name} · {info.output_label}")
     if info.tlp_label:
         _tlp_label(canvas, info, fonts, PAGE_WIDTH - MARGIN - 6, top - 3)
 

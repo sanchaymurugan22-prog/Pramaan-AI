@@ -51,6 +51,7 @@ def _draw(info: ExportInfo, c: dict, scale: float) -> tuple[Image.Image, int]:
     draw.rectangle((0, 0, WIDTH // 3, 14), fill=rgb("saffron"))
     draw.rectangle((2 * WIDTH // 3, 0, WIDTH, 14), fill=rgb("green"))
 
+    _letterhead(image, draw, info)
     y = 70
     y = _pill(draw, PAD, y, "Public alert", _font("heading", "semibold", 24, lang), "red", "red_light") + round(28 * scale)
 
@@ -168,6 +169,18 @@ def _timeline(draw, steps: list[str], y: int, scale: float, lang: str) -> int:
     for cy, number, colour in centres:
         _numbered_circle(draw, x_line, cy, radius, number, colour, lang)
     return y - round(22 * scale)
+
+
+def _letterhead(image, draw, info: ExportInfo) -> None:
+    """Stage 9B: the office's logo and name at the top left, above the "Public alert" label."""
+    x = PAD
+    if info.logo_png:
+        logo = Image.open(io.BytesIO(info.logo_png)).convert("RGBA")
+        logo = logo.resize((max(1, round(logo.width * 34 / logo.height)), 34), Image.LANCZOS)
+        image.paste(logo, (x, 26), logo)
+        x += logo.width + 12
+    name = _shorten(draw, info.office_name, _font("heading", "semibold", 22, info.language), WIDTH - x - 330)
+    draw.text((x, 43), name, font=_font("heading", "semibold", 22, info.language), fill=rgb("navy"), anchor="lm")
 
 
 def _footer(image, draw, info: ExportInfo) -> None:

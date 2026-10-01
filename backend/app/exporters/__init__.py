@@ -60,7 +60,10 @@ def exports_dir(job_id: int) -> Path:
 
 
 def export_info(job, output) -> ExportInfo:
+    from app import branding  # here: branding reads app settings from the database
     return ExportInfo(
+        office_name=branding.office_name(),
+        logo_png=branding.logo_png(),
         job_id=job.id,
         job_title=job.title,
         date=format_date(job.created_at),
