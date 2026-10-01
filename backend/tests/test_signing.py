@@ -24,9 +24,9 @@ operator = signed_in_client("operator", "sign.operator")
 reviewer = signed_in_client("reviewer", "sign.reviewer")
 
 
-def approved_job(outputs=("x_thread", "advisory"), tlp: str | None = None) -> dict:
+def approved_job(outputs=("x_thread", "advisory"), tlp: str | None = None, title: str = "") -> dict:
     """A job taken through submit and approve (which signs it)."""
-    created = operator.post("/api/jobs", data={"text": SAMPLE_REPORT.read_text(encoding="utf-8"), **(
+    created = operator.post("/api/jobs", data={"text": SAMPLE_REPORT.read_text(encoding="utf-8"), "title": title, **(
         {"outputs": list(outputs)} if tlp is None else {})})
     job_id = created.json()["id"]
     if tlp is not None:  # the Safety check, with this label

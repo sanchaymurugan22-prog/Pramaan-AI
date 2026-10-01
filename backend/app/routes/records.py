@@ -6,6 +6,7 @@ GET  /api/records/public-key.pem      anyone signed in: the public key that chec
 GET  /api/records/{record_no}         one record: what was signed, by whom, files and fingerprints, withdrawn?
 GET  /api/records/{record_no}/qr.png  its QR code (the verify address + record number), as on the files
 POST /api/admin/records/{record_no}/withdraw   Admin: {"reason": "..."} adds a signed withdrawal (never deletes)
+GET  /api/admin/records/verify-bundle.zip      Admin: the public verify site with the latest records, for USB transfer
 
 Operators read the records of jobs (as they read the jobs); the book itself is for Reviewers and Admins.
 """
@@ -22,6 +23,7 @@ from app import audit
 from app.auth.deps import allow
 from app.db import AuditEntry, Record, User, get_session
 from app.signing import records
+from app.signing.publish import bundle_zip, refresh_demo_site
 from app.signing.qr import qr_png, verify_url
 from app.signing.signer import SigningError, get_signer
 
@@ -135,7 +137,21 @@ def withdraw_record(record_no: str, form: Withdrawal, db: Session = Depends(get_
         raise HTTPException(409, f"Could not sign the withdrawal: {exc}")
     audit.log("review", "record_withdrawn", f"Withdrew record {record_no.upper()}: “{' '.join(form.reason.split())}”",
               actor=admin, target=f"record {record_no.upper()}")
+    refresh_demo_site()
     return record_json(db, _issue(db, record_no))
+
+
+@admin_router.get("/verify-bundle.zip")
+def verify_bundle(db: Session = Depends(get_session), admin: User = Depends(allow("admin"))):
+    try:
+        data = bundle_zip(db)
+    except SigningError as exc:
+        raise HTTPException(409, str(exc))
+    audit.log("security", "verify_bundle_exported", "Exported the public verify bundle (records.json + public key)",
+              actor=admin)
+    name = f"pramaan-verify-bundle-{records.now_iso()[:10]}.zip"
+    return Response(data, media_type="application/zip",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
 
 
 def _issue(db: Session, record_no: str):

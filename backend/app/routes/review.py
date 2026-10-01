@@ -26,6 +26,7 @@ from app.exporters import is_blocked
 from app.pipeline.checks import fact_sheet_check
 from app.pipeline.output_types import OUTPUT_TYPES
 from app.routes.jobs import _get_job, _time, job_detail, review_json
+from app.signing.publish import refresh_demo_site
 from app.signing.sign_job import outputs_and_files, sign_job
 from app.signing.signer import SigningError, get_signer
 
@@ -111,6 +112,7 @@ def review_job(job_id: int, body: ReviewDecision, db: Session = Depends(get_sess
         audit.log("review", "approved", f"Approved and signed job #{job.id} v{job.version} as record {entry.record_no} "
                                         f"({files} files)" + (f": “{notes}”" if notes else ""),
                   actor=user, target=f"job {job.id}")
+        refresh_demo_site()
     else:
         job.status = decision
         db.commit()

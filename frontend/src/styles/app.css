@@ -987,3 +987,4 @@ details summary { cursor: pointer; font-weight: 600; color: var(--navy); margin-
 .chain-card-title { font-weight: 600; line-height: 1.35; }
 .withdraw-link { color: var(--red-dark); }
 .withdraw-link:hover { background: var(--red-light); color: var(--red-dark); }
+.record-extras { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }

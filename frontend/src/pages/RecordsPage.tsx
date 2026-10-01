@@ -3,7 +3,7 @@
 // before it. "Check the whole chain" asks the backend to check every entry, signature and signed file.
 // Only an Admin can withdraw a record (a new, signed entry: nothing is ever changed or deleted).
 import { useEffect, useState } from 'react'
-import { listRecords, publicKeyUrl, verifyRecordBook, withdrawRecord, type BookCheck, type RecordBook, type RecordItem, type RecordStatus } from '../api'
+import { listRecords, publicKeyUrl, verifyBundleUrl, verifyRecordBook, withdrawRecord, type BookCheck, type RecordBook, type RecordItem, type RecordStatus } from '../api'
 import { Icon } from '../components/Icon'
 import { TlpLabel } from '../components/TlpLabel'
 import { links } from '../router'
@@ -224,16 +224,29 @@ export function RecordsPage({ admin }: { admin: boolean }) {
       </section>
 
       {admin && (
-        <section className="card card-pad stack gap-12 narrow-card">
-          <h2>Public key</h2>
-          <p className="muted">
-            Verification pages and phones use this to check signatures, even offline. It contains no secret information.
-          </p>
-          <a className="btn btn-navy-outline" href={publicKeyUrl} download>
-            <Icon name="download" size={18} strokeWidth={2} />
-            Download public key
-          </a>
-        </section>
+        <div className="record-extras">
+          <section className="card card-pad stack gap-12">
+            <h2>Public verify page</h2>
+            <p className="muted">
+              The “Is this real?” site with the latest records and the public key, as a .zip. Copy it to the public web
+              server (one-way, e.g. by USB). It contains no secrets: titles of TLP:RED / AMBER records are not in it.
+            </p>
+            <a className="btn btn-navy" href={verifyBundleUrl} download>
+              <Icon name="download" size={18} strokeWidth={2} />
+              Export verify bundle
+            </a>
+          </section>
+          <section className="card card-pad stack gap-12">
+            <h2>Public key</h2>
+            <p className="muted">
+              Verification pages and phones use this to check signatures, even offline. It contains no secret information.
+            </p>
+            <a className="btn btn-navy-outline" href={publicKeyUrl} download>
+              <Icon name="download" size={18} strokeWidth={2} />
+              Download public key
+            </a>
+          </section>
+        </div>
       )}
 
       {withdrawing && (

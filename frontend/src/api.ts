@@ -577,3 +577,5 @@ export const verifyRecordBook = () => request<BookCheck>('/api/records/verify', 
 export const withdrawRecord = (recordNo: string, reason: string) =>
   request<RecordItem>(`/api/admin/records/${recordNo}/withdraw`, sendJson('POST', { reason }))
 export const publicKeyUrl = '/api/records/public-key.pem'
+// The public verify site + latest records.json + public key, for one-way (USB) transfer to the public web server
+export const verifyBundleUrl = '/api/admin/records/verify-bundle.zip'

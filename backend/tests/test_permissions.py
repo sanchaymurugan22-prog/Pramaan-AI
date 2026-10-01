@@ -52,6 +52,7 @@ MATRIX = [
     ("POST", "/api/records/verify", {RV, AD}, None),
     ("GET", "/api/records/public-key.pem", ANYONE, None),
     ("POST", "/api/admin/records/{record}/withdraw", {AD}, {"reason": "Permission test"}),
+    ("GET", "/api/admin/records/verify-bundle.zip", {AD}, None),
     # admin
     ("GET", "/api/admin/users", {AD}, None),
     ("POST", "/api/admin/users", {AD}, {"username": "matrix.made", "full_name": "Matrix Made", "role": "operator"}),
