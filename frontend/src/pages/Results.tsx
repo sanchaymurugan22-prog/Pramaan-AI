@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import {
   downloadUrl,
   getJob,
   getVersion,
-  kitUrl,
   listVersions,
   regenerateOutput,
   retryJob,
@@ -14,37 +13,59 @@ import {
   type VersionSummary,
 } from '../api'
 import { useAuth } from '../auth'
-import { Icon } from '../components/Icon'
+import { Icon, type IconName } from '../components/Icon'
+import { OUTPUT_ICONS } from '../components/outputIcons'
 import { StatusChip } from '../components/StatusChip'
 import { TlpLabel } from '../components/TlpLabel'
 import { links } from '../router'
-import { duration, factLookup, FOUND_LABELS, shortTime } from './format'
+import { duration, factLookup, FOUND_LABELS, jobNo, shortTime, type FactLookup } from './format'
 import { OutputEditor } from './OutputEditor'
 import { ReviewPanel } from './ReviewPanel'
 import { LeakAlert, SafetySection } from './SafetySection'
-import { IndicatorTable, OutputBody, SeverityChip } from './OutputViews'
+import { IndicatorTable, OutputBody, SeverityChip, type ViewMeta } from './OutputViews'
 import { CheckWarnings, ConsistencyPanel, QualityCard, ScoreBadge, SourcePanel } from './TracePanels'
 import { FactChip, TraceProvider } from './trace'
 import { NO_SELECTION, sentencesByPath, type Selection } from './traceState'
 
 const POLL_MS = 2000
 
-type Tab = 'facts' | number // the fact sheet, or an output id
+// A tab: the fact sheet, one output, or "Social posts" (LinkedIn post + X thread together, design 16)
+type Tab = 'facts' | 'social' | number
+type TabInfo = { key: Tab; label: string; icon: IconName; outputs: JobOutput[] }
 
-// Results of one job. While the job is generating, it asks the backend for news every 2 seconds
-// and shows the fact sheet, then each output, as soon as they are ready.
-// Layout as in the design "13 · Results · Advisory with source trace": a tab per output, the
-// output on the left, and on the right the source trace, the warnings and the quality score.
+// The order of the tabs in the designs 13-18
+const TAB_ORDER = ['advisory', 'executive_summary', 'presentation', 'video_package', 'social', 'infographic']
+const SOCIAL = ['linkedin_post', 'x_thread']
+
+function tabsOf(job: JobDetail): TabInfo[] {
+  const tabs: TabInfo[] = []
+  for (const kind of TAB_ORDER) {
+    if (kind === 'social') {
+      const social = SOCIAL.map((t) => job.outputs.find((o) => o.type === t)).filter((o): o is JobOutput => Boolean(o))
+      if (social.length) tabs.push({ key: 'social', label: 'Social posts', icon: 'share', outputs: social })
+    } else {
+      const output = job.outputs.find((o) => o.type === kind)
+      if (output) tabs.push({ key: output.id, label: output.label, icon: OUTPUT_ICONS[kind] ?? 'file', outputs: [output] })
+    }
+  }
+  tabs.push({ key: 'facts', label: 'Fact sheet', icon: 'summary', outputs: [] })
+  return tabs
+}
+
+// Results of one job (designs 13-18). While the job is generating, it asks the backend for news every
+// 2 seconds and shows each output as soon as it is ready. A tab per output; the output on the left, and
+// on the right the source trace, the warnings and the quality score of the output being looked at.
 export function Results({ jobId }: { jobId: number }) {
   const { user } = useAuth()
   const [job, setJob] = useState<JobDetail | null>(null)
   const [error, setError] = useState('')
   const [pollRound, setPollRound] = useState(0) // bump to start polling again (after "Try again" or "Regenerate")
-  const [chosenTab, setTab] = useState<Tab | null>(null) // null until the reviewer picks a tab
+  const [chosenTab, setTab] = useState<Tab | null>(null) // null until a tab is picked
   const [selection, setSelection] = useState<Selection>(NO_SELECTION)
   const [editing, setEditing] = useState<number | null>(null) // output id being edited
   const [viewing, setViewing] = useState<Record<number, VersionDetail | undefined>>({}) // old version on screen
   const now = useNow(job?.status === 'generating')
+  const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
 
   useEffect(() => {
     let timer: number | undefined
@@ -69,13 +90,16 @@ export function Results({ jobId }: { jobId: number }) {
     }
   }, [jobId, pollRound])
 
-  // Until a tab is picked: the first finished output, or the fact sheet while nothing is finished yet.
-  const tab: Tab = chosenTab ?? job?.outputs.find((o) => o.status === 'done')?.id ?? 'facts'
   const facts = useMemo(() => factLookup(job?.fact_sheet ?? null), [job?.fact_sheet])
-  const active = typeof tab === 'number' ? job?.outputs.find((o) => o.id === tab) : undefined
+  const tabs = job ? tabsOf(job) : []
+  // Until a tab is picked: the first tab with a finished output, or the fact sheet while nothing is finished.
+  const tab: Tab = chosenTab ?? tabs.find((t) => t.outputs.some((o) => o.status === 'done'))?.key ?? 'facts'
+  const current = tabs.find((t) => t.key === tab) ?? tabs.at(-1)
+  const shown = current?.outputs ?? []
+  // The output the side panels describe: the one a sentence was picked in, else the first on screen
+  const active = shown.find((o) => o.id === selection.outputId) ?? shown[0]
   const viewed = active ? viewing[active.id] : undefined
   const shownQuality = viewed ? viewed.quality : active?.quality
-  const byPath = useMemo(() => sentencesByPath(shownQuality?.sentences), [shownQuality])
 
   if (!job) {
     return (
@@ -115,9 +139,20 @@ export function Results({ jobId }: { jobId: number }) {
     setEditing(null)
   }
 
+  // ARIA tabs: arrow keys move between tabs, Home / End to the first / last one
+  function onTabKey(e: KeyboardEvent<HTMLButtonElement>, index: number) {
+    const moves: Record<string, number> = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: tabs.length - 1 }
+    if (!(e.key in moves)) return
+    e.preventDefault()
+    const next = tabs[(moves[e.key] + tabs.length) % tabs.length]
+    changeTab(next.key)
+    tabRefs.current.get(String(next.key))?.focus()
+  }
+
   // From the consistency panel or a warning: show that output and that sentence.
   function openSentence(outputId: number, sentenceId: string, factId: string | null) {
-    setTab(outputId)
+    const target = tabs.find((t) => t.outputs.some((o) => o.id === outputId))
+    if (target) setTab(target.key)
     setEditing(null)
     setViewing((v) => ({ ...v, [outputId]: undefined }))
     setSelection({ outputId, sentenceId, factId, scroll: true })
@@ -140,52 +175,66 @@ export function Results({ jobId }: { jobId: number }) {
         (lowest && scored.length > 1 ? ` Lowest: ${lowest.label} (${lowest.quality_score}).` : '') +
         ' Each score counts sentences linked to a fact, quotes found in the source, numbers not in the source, and length rules.'
       : undefined
+  const hasVersions = job.version > 1 || done.some((o) => o.version > 1)
+  const meta = (output: JobOutput): ViewMeta => ({
+    title: job.title,
+    tlp: job.tlp,
+    recordNo: job.record?.current ? job.record.record_no : null,
+    audience: job.settings?.audience ?? '',
+    quality: viewing[output.id]?.quality ?? output.quality,
+  })
 
   return (
     <main className="page">
       <div className="page-head">
         <div className="stack gap-6">
           <div className="eyebrow">
-            Job #{job.id}
+            Job {jobNo(job.id)}
             {job.version > 1 && ` · v${job.version}`} · {job.sources.length} source{job.sources.length === 1 ? '' : 's'} · English
             {job.owner && ` · by ${job.owner.full_name}`}
           </div>
           <h1>{job.title}</h1>
-          <div className="row gap-10 wrap">
-            {job.tlp && <TlpLabel tlp={job.tlp} />}
-            <StatusChip status={job.status} />
-            <span className="chip chip-navy">
-              {done.length} of {job.outputs.length} ready
-            </span>
-            <ScoreBadge score={job.quality_score} explanation={jobExplanation} big />
-            {job.status === 'generating' && job.step && (
-              <span className="row gap-6 muted small">
-                <span className="spinner" aria-hidden="true" />
-                {job.step}…
-              </span>
-            )}
-          </div>
         </div>
         <div className="grow" />
-        {canRetry && (
-          <button type="button" className="btn btn-outline" onClick={tryAgain}>
-            <Icon name="refresh" size={18} strokeWidth={2} />
-            Try again
-          </button>
-        )}
-        {/* One .zip with every finished output (latest versions, made without AI) */}
-        {done.length > 0 ? (
-          <a className="btn btn-saffron" href={kitUrl(job.id)} download>
-            <Icon name="box" size={18} strokeWidth={2} />
-            {job.status === 'approved' ? 'Download signed kit (.zip)' : 'Download campaign kit (.zip)'}
-          </a>
-        ) : (
-          <button type="button" className="btn btn-saffron" disabled title="Available when an output is ready">
-            <Icon name="box" size={18} strokeWidth={2} />
-            Download campaign kit (.zip)
-          </button>
-        )}
+        <div className="row gap-10 wrap head-actions">
+          <span className="chip chip-navy">
+            <Icon name="clock" size={14} strokeWidth={2.2} />
+            {done.length} of {job.outputs.length} ready
+          </span>
+          {job.tlp && <TlpLabel tlp={job.tlp} />}
+          <StatusChip status={job.status} />
+          <ScoreBadge score={job.quality_score} explanation={jobExplanation} big />
+          {canRetry && (
+            <button type="button" className="btn btn-outline" onClick={tryAgain}>
+              <Icon name="refresh" size={18} strokeWidth={2} />
+              Try again
+            </button>
+          )}
+          {hasVersions && (
+            <a className="btn btn-outline" href={links.compare(job.id)}>
+              <Icon name="compare" size={18} strokeWidth={2} />
+              Compare versions
+            </a>
+          )}
+          {done.length > 0 ? (
+            <a className="btn btn-outline" href={links.kit(job.id)}>
+              <Icon name="box" size={18} strokeWidth={2} />
+              Campaign kit
+            </a>
+          ) : (
+            <button type="button" className="btn btn-outline" disabled title="Available when an output is ready">
+              <Icon name="box" size={18} strokeWidth={2} />
+              Campaign kit
+            </button>
+          )}
+        </div>
       </div>
+      {job.status === 'generating' && job.step && (
+        <p className="row gap-6 muted small" role="status">
+          <span className="spinner" aria-hidden="true" />
+          {job.step}… <a href={links.progress(job.id)}>See live progress</a>
+        </p>
+      )}
 
       {error && <div className="alert alert-red">{error}</div>}
       {job.error && <div className={job.status === 'failed' ? 'alert alert-red' : 'alert alert-yellow'}>{job.error}</div>}
@@ -210,40 +259,49 @@ export function Results({ jobId }: { jobId: number }) {
       )}
       <ReviewPanel job={job} onChange={setJob} />
 
-      <Sources job={job} />
-      <SafetySection job={job} />
-      <ConsistencyPanel
-        consistency={job.consistency}
-        generating={job.status === 'generating'}
-        facts={facts}
-        onOpen={openSentence}
-        onFact={(factId) => setSelection({ outputId: null, sentenceId: null, factId })}
-      />
+      <div className="tab-bar" role="tablist" aria-label="Outputs">
+        {tabs.map((t, index) => {
+          const isCurrent = t.key === tab
+          const scores = t.outputs.map((o) => o.quality_score).filter((n): n is number => n !== null)
+          const working = t.outputs.some((o) => o.status === 'generating')
+          const waiting = t.outputs.length > 0 && t.outputs.every((o) => o.status === 'queued')
+          const problem = t.outputs.some((o) => o.status === 'failed' || (o.status === 'done' && (o.quality?.leaks?.length ?? 0) > 0))
+          return (
+            <button
+              key={String(t.key)}
+              ref={(el) => {
+                if (el) tabRefs.current.set(String(t.key), el)
+              }}
+              type="button"
+              role="tab"
+              id={`tab-${t.key}`}
+              aria-selected={isCurrent}
+              aria-controls="tab-panel"
+              tabIndex={isCurrent ? 0 : -1}
+              className={isCurrent ? 'output-tab is-current' : 'output-tab'}
+              onClick={() => changeTab(t.key)}
+              onKeyDown={(e) => onTabKey(e, index)}
+            >
+              <Icon name={t.icon} size={18} color={isCurrent ? 'var(--saffron-dark)' : 'var(--icon)'} />
+              {t.label}
+              {working && <span className="spinner" aria-label="Writing" />}
+              {waiting && <span className="tab-count">Waiting</span>}
+              {problem && (
+                <span className="tab-count tab-failed">
+                  ! <span className="sr-only">Needs attention</span>
+                </span>
+              )}
+              {t.key === 'facts' && job.fact_sheet && <span className="tab-count">{job.fact_sheet.key_facts.length}</span>}
+              {scores.length > 0 && <ScoreBadge score={Math.min(...scores)} />}
+            </button>
+          )
+        })}
+      </div>
 
-      <nav className="output-tabs" aria-label="Outputs">
-        <TabButton current={tab === 'facts'} onClick={() => changeTab('facts')}>
-          <Icon name="file" size={18} />
-          Fact sheet
-          {job.fact_sheet && <span className="tab-count">{job.fact_sheet.key_facts.length}</span>}
-        </TabButton>
-        {job.outputs.map((o) => (
-          <TabButton key={o.id} current={tab === o.id} onClick={() => changeTab(o.id)}>
-            {o.label}
-            {o.status === 'generating' && <span className="spinner" aria-label="Writing" />}
-            {o.status === 'queued' && <span className="tab-count">…</span>}
-            {o.status === 'failed' && <span className="tab-count tab-failed">!</span>}
-            {o.status === 'done' && (o.quality?.leaks?.length ?? 0) > 0 && (
-              <span className="tab-count tab-failed" title="Private data found">!</span>
-            )}
-            {o.status === 'done' && <ScoreBadge score={o.quality_score} explanation={o.quality?.explanation} inButton />}
-          </TabButton>
-        ))}
-      </nav>
-
-      <TraceProvider value={{ outputId: active?.id ?? null, byPath, facts, selection, select: setSelection }}>
-        <div className="results-grid">
-          <div className="results-main">
-            {tab === 'facts' && (
+      <div className="results-grid" id="tab-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
+        <div className="results-main">
+          {tab === 'facts' && (
+            <TraceProvider value={{ outputId: null, byPath: new Map(), facts, selection, select: setSelection }}>
               <FactSheetCard
                 sheet={job.fact_sheet}
                 generating={job.status === 'generating'}
@@ -251,34 +309,52 @@ export function Results({ jobId }: { jobId: number }) {
                 selectedFact={selection.outputId === null ? selection.factId : null}
                 onFact={(factId) => setSelection({ outputId: null, sentenceId: null, factId })}
               />
-            )}
-            {active && (
-              <OutputCard
-                key={active.id}
+              <Sources job={job} />
+              <SafetySection job={job} />
+              <ConsistencyPanel
+                consistency={job.consistency}
+                generating={job.status === 'generating'}
+                facts={facts}
+                onOpen={openSentence}
+                onFact={(factId) => setSelection({ outputId: null, sentenceId: null, factId })}
+              />
+            </TraceProvider>
+          )}
+          {tab === 'social' && <PublicNotice job={job} />}
+          <div className={tab === 'social' ? 'social-grid' : 'stack gap-20'}>
+            {shown.map((output) => (
+              <OutputPanel
+                key={output.id}
                 job={job}
-                output={active}
+                output={output}
+                meta={meta(output)}
                 now={now}
-                editing={editing === active.id}
+                facts={facts}
+                selection={selection}
+                select={setSelection}
+                editing={editing === output.id}
                 onEdit={(on) => {
-                  setEditing(on ? active.id : null)
+                  setEditing(on ? output.id : null)
                   setSelection(NO_SELECTION)
                 }}
                 onSaved={(updated) => {
                   setJob(updated)
                   setEditing(null)
-                  setViewing((v) => ({ ...v, [active.id]: undefined }))
+                  setViewing((v) => ({ ...v, [output.id]: undefined }))
                 }}
-                viewed={viewed}
+                viewed={viewing[output.id]}
                 onView={(version) => {
-                  setViewing((v) => ({ ...v, [active.id]: version }))
+                  setViewing((v) => ({ ...v, [output.id]: version }))
                   setSelection(NO_SELECTION)
                 }}
-                onRegenerate={() => regenerate(active)}
+                onRegenerate={() => regenerate(output)}
                 canChange={canChange}
               />
-            )}
+            ))}
           </div>
-          <aside className="results-side">
+        </div>
+        <aside className="results-side" aria-label="Source trace and checks">
+          <TraceProvider value={{ outputId: active?.id ?? null, byPath: new Map(), facts, selection, select: setSelection }}>
             <SourcePanel
               jobId={job.id}
               facts={facts}
@@ -294,17 +370,70 @@ export function Results({ jobId }: { jobId: number }) {
                 <QualityCard
                   quality={shownQuality}
                   versionNote={
-                    viewed
+                    (shown.length > 1 ? `${active.label} · ` : '') +
+                    (viewed
                       ? `Version ${viewed.version} · ${viewed.origin_label} (older version)`
-                      : `Version ${active.version} · ${active.origin_label}`
+                      : `Version ${active.version} · ${active.origin_label}`)
                   }
                 />
               </>
             )}
-          </aside>
-        </div>
-      </TraceProvider>
+          </TraceProvider>
+        </aside>
+      </div>
     </main>
+  )
+}
+
+// One output with its own sentence tracing (the Social posts tab shows two side by side).
+function OutputPanel(props: OutputCardProps & { facts: FactLookup; selection: Selection; select: (s: Selection) => void }) {
+  const { output, viewed, facts, selection, select } = props
+  const quality = viewed ? viewed.quality : output.quality
+  const byPath = useMemo(() => sentencesByPath(quality?.sentences), [quality])
+  return (
+    <TraceProvider value={{ outputId: output.id, byPath, facts, selection, select }}>
+      <OutputCard {...props} />
+    </TraceProvider>
+  )
+}
+
+// Social posts tab: what was hidden because these posts are public, and the public-release check.
+function PublicNotice({ job }: { job: JobDetail }) {
+  const hidden = (job.safety?.findings ?? []).filter((f) => f.choice !== 'keep').length
+  const check = job.public_check
+  return (
+    <div className="notice-grid">
+      <div className="notice notice-saffron">
+        <Icon name="eyeOff" size={20} />
+        <span>
+          {hidden > 0 ? (
+            <>
+              <strong>
+                {hidden} sensitive detail{hidden === 1 ? '' : 's'} hidden
+              </strong>{' '}
+              because these are public posts{job.tlp ? ` (TLP:${job.tlp} source)` : ''}.
+            </>
+          ) : (
+            <>No private data was found in the source, so nothing needed hiding.</>
+          )}
+        </span>
+      </div>
+      {check && (
+        <div className={check.ok ? 'notice notice-green' : 'notice notice-red'} role={check.ok ? undefined : 'alert'}>
+          <Icon name={check.ok ? 'shieldCheck' : 'warning'} size={20} />
+          {check.ok ? (
+            <span>
+              <strong>Public-release check passed.</strong> No panic wording or shouting.
+            </span>
+          ) : (
+            <span>
+              <strong>Public-release check: {check.problems.length} problem{check.problems.length === 1 ? '' : 's'}.</strong>{' '}
+              {check.problems.slice(0, 3).map((p) => `${p.where}: ${p.label} (“${p.text}”)`).join('; ')}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -317,14 +446,6 @@ function useNow(active: boolean): number {
     return () => window.clearInterval(timer)
   }, [active])
   return now
-}
-
-function TabButton({ current, onClick, children }: { current: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button type="button" className={current ? 'output-tab is-current' : 'output-tab'} aria-current={current ? 'page' : undefined} onClick={onClick}>
-      {children}
-    </button>
-  )
 }
 
 function Sources({ job }: { job: JobDetail }) {
@@ -478,6 +599,7 @@ function FactSheetCard({ sheet, generating, step, selectedFact, onFact }: FactSh
 type OutputCardProps = {
   job: JobDetail
   output: JobOutput
+  meta: ViewMeta
   now: number
   editing: boolean
   onEdit: (on: boolean) => void
@@ -488,7 +610,7 @@ type OutputCardProps = {
   canChange: boolean // Operator, and the job is not with a reviewer or approved
 }
 
-function OutputCard({ job, output, now, editing, onEdit, onSaved, viewed, onView, onRegenerate, canChange }: OutputCardProps) {
+function OutputCard({ job, output, meta, now, editing, onEdit, onSaved, viewed, onView, onRegenerate, canChange }: OutputCardProps) {
   const [showVersions, setShowVersions] = useState(false)
   const busy = job.status === 'generating'
   const hasText = Boolean(output.content)
@@ -595,10 +717,10 @@ function OutputCard({ job, output, now, editing, onEdit, onSaved, viewed, onView
           {output.type === 'infographic' && !viewed && !(output.quality?.leaks ?? []).length ? (
             <div className="infographic-layout">
               <InfographicPreview jobId={job.id} output={output} />
-              <OutputBody type={output.type} content={output.content!} />
+              <OutputBody type={output.type} content={output.content!} meta={meta} />
             </div>
           ) : (
-            <OutputBody type={output.type} content={(viewed?.content ?? output.content)!} />
+            <OutputBody type={output.type} content={(viewed?.content ?? output.content)!} meta={meta} />
           )}
         </div>
       )}
