@@ -2,7 +2,7 @@
 
 Tables so far: jobs, sources, fact_sheets, outputs (Stage 3), output_versions (Stage 5),
 safety_decisions (Stage 6A), users, account_requests, sessions, reviews, audit_log (Stage 6B),
-records (Stage 7: the record book of signed documents).
+records (Stage 7: the record book of signed documents), notifications, watch_settings, watch_files (Stage 9A).
 `init_db()` first encrypts a database left from before Stage 6B (keeping the old plain file as
 data/pramaan.db.plain-backup), then creates any missing tables and columns. It never deletes data.
 The rest of the app only uses `engine` / `SessionLocal` and does not know about the encryption.
@@ -73,6 +73,14 @@ class Job(Base):
     settings_json: Mapped[dict] = mapped_column(JSON, default=dict)  # audience, tone, objective, style, detail_level
     quality_score: Mapped[int | None] = mapped_column(default=None)        # 0-100: average of the outputs (Stage 5)
     consistency_json: Mapped[dict | None] = mapped_column(JSON, default=None)  # same numbers in every output? (Stage 5)
+    # Stage 9A: which AI wrote it (mock | local | cloud, set when the AI starts; None = not started / before 9A)
+    ai_mode: Mapped[str | None] = mapped_column(String(10), default=None)
+    # how the job was made: manual (New transformation) | watch (Watch folder) | emergency (Emergency alert)
+    created_via: Mapped[str] = mapped_column(String(20), default="manual")
+    # Watch folder: the outputs ticked in advance on step 3 ("kit to prepare"); None = the usual defaults
+    suggested_outputs: Mapped[list | None] = mapped_column(JSON, default=None)
+    # Emergency alert: the alert form ({type, severity, area, message}); reviewers see these jobs first
+    alert_json: Mapped[dict | None] = mapped_column(JSON, default=None)
     created_at: Mapped[datetime] = mapped_column(default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(default=utc_now, onupdate=utc_now)
 
@@ -224,6 +232,56 @@ class Record(Base):
     key_id: Mapped[str] = mapped_column(String(16))
     prev_hash: Mapped[str] = mapped_column(String(64))
     entry_hash: Mapped[str] = mapped_column(String(64))
+
+
+class Notification(Base):
+    """An in-app notification for one person (Stage 9A): a job finished, was sent back, approved,
+    signed, submitted for review, or the watch folder drafted a file. Nothing is ever sent outside the app."""
+
+    __tablename__ = "notifications"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    # finished | failed | sent_back | approved | signed | submitted | watch | alert
+    kind: Mapped[str] = mapped_column(String(20))
+    title: Mapped[str] = mapped_column(String(200))
+    detail: Mapped[str] = mapped_column(Text, default="")
+    job_id: Mapped[int | None] = mapped_column(default=None)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now)
+    read_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+class WatchSettings(Base):
+    """One Operator's watch folder (Stage 9A): a folder inside data/watch/ that is checked every minute.
+    New .txt / .pdf / .docx files there become DRAFT jobs that wait at the Safety check."""
+
+    __tablename__ = "watch_settings"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(default=False)
+    folder: Mapped[str] = mapped_column(String(200), default="")         # relative to data/watch/, e.g. "incoming"
+    outputs: Mapped[list] = mapped_column(JSON, default=list)            # the kit ticked in advance on step 3
+    skip_duplicates: Mapped[bool] = mapped_column(default=True)          # same file as an earlier job -> skipped
+    notify: Mapped[bool] = mapped_column(default=True)                   # in-app notification for each draft
+    last_check: Mapped[datetime | None] = mapped_column(default=None)
+
+
+class WatchFile(Base):
+    """Every file the watch folder has seen, so each one is handled once (Stage 9A)."""
+
+    __tablename__ = "watch_files"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    folder: Mapped[str] = mapped_column(String(200))
+    filename: Mapped[str] = mapped_column(String(255))
+    size: Mapped[int]
+    mtime: Mapped[float]
+    sha256: Mapped[str] = mapped_column(String(64), index=True)
+    status: Mapped[str] = mapped_column(String(20))   # drafted | skipped | failed
+    detail: Mapped[str] = mapped_column(Text, default="")
+    job_id: Mapped[int | None] = mapped_column(default=None)
+    found_at: Mapped[datetime] = mapped_column(default=utc_now)
 
 
 class User(Base):

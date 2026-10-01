@@ -54,6 +54,13 @@ MATRIX = [
     ("POST", "/api/admin/records/{record}/withdraw", {AD}, {"reason": "Permission test"}),
     ("GET", "/api/admin/records/verify-bundle.zip", {AD}, None),
     ("POST", "/api/check-message", ANYONE, {"text": "Is this real?"}),
+    # Stage 9A: notifications, search, dashboard
+    ("GET", "/api/notifications", ANYONE, None),
+    ("GET", "/api/notifications/count", ANYONE, None),
+    ("POST", "/api/notifications/read-all", ANYONE, None),
+    ("POST", "/api/notifications/999999/read", ANYONE, None),
+    ("GET", "/api/search?q=ransomware", ANYONE, None),
+    ("GET", "/api/dashboard", {OP}, None),
     # admin
     ("GET", "/api/admin/users", {AD}, None),
     ("POST", "/api/admin/users", {AD}, {"username": "matrix.made", "full_name": "Matrix Made", "role": "operator"}),

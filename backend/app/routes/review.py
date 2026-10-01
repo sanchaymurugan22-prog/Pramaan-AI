@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import audit
+from app import audit, notifications
 from app.auth.deps import allow
 from app.db import Job, OutputVersion, Review, User, get_session
 from app.exporters import is_blocked
@@ -59,6 +59,8 @@ def submit_for_review(job_id: int, body: SubmitRequest, db: Session = Depends(ge
     job.status = "in_review"
     db.add(Review(job=job, user_id=user.id, decision="submitted", notes=body.notes.strip()[:2000],
                   job_version=job.version))
+    notifications.notify_reviewers(db, "submitted", f"New for review: {job.title}",
+                                   f"v{job.version} · submitted by {user.full_name}", job, except_user=user.id)
     db.commit()
     audit.log("review", "submitted", f"Submitted job #{job.id} v{job.version} for review", actor=user,
               target=f"job {job.id}")
@@ -103,18 +105,27 @@ def review_job(job_id: int, body: ReviewDecision, db: Session = Depends(get_sess
     decision = "approved" if body.decision == "approve" else "sent_back"
     db.add(Review(job=job, user_id=user.id, decision=decision, notes=notes, job_version=job.version))
     if decision == "approved":
+        _, files = outputs_and_files(job)
+        notifications.notify(db, job.owner_id, "approved", f"“{job.title}” was approved",
+                             f"Approved by {user.full_name}" + (f": “{notes}”" if notes else ""), job)
         try:
             entry = sign_job(db, job, user, body.pin)  # sets "approved" and commits, with the Review row
         except SigningError as exc:
             db.rollback()
             raise HTTPException(409, f"Could not sign: {exc}")
-        _, files = outputs_and_files(job)
+        # Signing gave the record number: a second note, so the Operator knows the files are final
+        notifications.notify(db, job.owner_id, "signed", f"Signed: record {entry.record_no}",
+                             f"{user.full_name} signed {files} file{'s' if files != 1 else ''} of “{job.title}”, "
+                             "each with its QR code", job)
+        db.commit()
         audit.log("review", "approved", f"Approved and signed job #{job.id} v{job.version} as record {entry.record_no} "
                                         f"({files} files)" + (f": “{notes}”" if notes else ""),
                   actor=user, target=f"job {job.id}")
         refresh_demo_site()
     else:
         job.status = decision
+        notifications.notify(db, job.owner_id, "sent_back", f"“{job.title}” was sent back",
+                             f"{user.full_name}: “{notes}”", job)
         db.commit()
         audit.log("review", "sent_back", f"Sent back job #{job.id} v{job.version} with notes: “{notes}”",
                   actor=user, target=f"job {job.id}")

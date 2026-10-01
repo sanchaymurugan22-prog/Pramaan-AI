@@ -7,7 +7,8 @@ POST /api/jobs/{id}/start 3. outputs and settings: create the outputs and start 
     (POST /api/jobs with `outputs` does all three at once, with the suggested label and default choices:
     handy for scripts and tests)
 
-GET  /api/jobs            list jobs, newest first
+GET  /api/jobs            list jobs, newest first. Filters (Stage 9A): ?q= title, job number or source file
+                          name; ?status=draft,in_review; ?tlp=AMBER; ?days=30 (changed in the last 30 days)
 GET  /api/jobs/{id}       status, fact sheet, each output as it finishes, checks and scores (the page polls this)
 POST /api/jobs/{id}/retry run a failed job again; finished parts are kept
 GET  /api/jobs/{id}/sources/{S1}   the text of one source, page by page (for the "Source trace" panel)
@@ -22,7 +23,7 @@ Admins manage users and do not see job content. While a job is with a reviewer (
 approved, nobody can change it.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Annotated
 
 import copy
@@ -35,7 +36,7 @@ from sqlalchemy.orm import Session
 
 from app import audit
 from app.auth.deps import allow, signed_in
-from app.db import Job, Output, Source, User, as_utc, get_session
+from app.db import Job, Output, Source, User, as_utc, get_session, utc_now
 from app.exporters import FORMATS
 from app.pipeline import ingest, runner
 from app.pipeline.checks import CHECKS_VERSION, fact_sheet_check, recheck_job
@@ -176,9 +177,29 @@ def start_outputs(db: Session, job: Job, selected: list[str], job_settings: dict
 
 
 @router.get("/jobs")
-def list_jobs(db: Session = Depends(get_session), user: User = Depends(allow("operator", "reviewer"))):
-    jobs = db.scalars(select(Job).order_by(Job.id.desc()).limit(200))
-    return [job_summary(job) for job in jobs]
+def list_jobs(q: str = "", status: str = "", tlp: str = "", days: int = 0, db: Session = Depends(get_session),
+              user: User = Depends(allow("operator", "reviewer"))):
+    query = select(Job).order_by(Job.id.desc())
+    statuses = [s.strip() for s in status.split(",") if s.strip()]
+    if statuses:
+        query = query.where(Job.status.in_(statuses))
+    if tlp.strip():
+        query = query.where(Job.tlp == tlp.strip().upper())
+    if days > 0:
+        query = query.where(Job.updated_at >= utc_now() - timedelta(days=days))
+    if q.strip():
+        query = query.where(matches_text(q))
+    return [job_summary(job) for job in db.scalars(query.limit(500))]
+
+
+def matches_text(q: str):
+    """A WHERE clause for the search box: the title, the job number ("142", "#0142") or a source file name."""
+    text = q.strip()
+    number = text.lstrip("#").lstrip("0")
+    clause = Job.title.ilike(f"%{text}%") | Job.sources.any(Source.filename.ilike(f"%{text}%"))
+    if number.isdigit():
+        clause = clause | (Job.id == int(number))
+    return clause
 
 
 @router.get("/jobs/{job_id}")
@@ -354,13 +375,23 @@ def job_summary(job: Job) -> dict:
         "output_types": [o.type for o in job.outputs],
         "created_at": _time(job.created_at),
         "updated_at": _time(job.updated_at),
+        # Stage 9A: for "My jobs" and the dashboard
+        "tlp": job.tlp,
+        "version": job.version,
+        "ai_mode": job.ai_mode,  # mock | local | cloud; None until the AI starts
+        "quality_score": job.quality_score,
+        "created_via": job.created_via,  # manual | watch | emergency
+        "suggested_outputs": job.suggested_outputs,
+        "alert": job.alert_json,
+        "record_no": job.record_no,
+        "languages": sorted({o.language for o in job.outputs}) or ["en"],
+        "sources_count": len(job.sources),
     }
 
 
 def job_detail(job: Job) -> dict:
     return {
         **job_summary(job),
-        "tlp": job.tlp,
         # Stage 7: the latest signed record of this job (None until approved)
         "record": record_summary(job),
         # Stage 6B: submitted, approved, sent back (with the reviewer's notes), oldest first
@@ -370,7 +401,6 @@ def job_detail(job: Job) -> dict:
         "safety": job.safety_json,
         "safety_decisions": [decision_json(d) for d in job.safety_decisions],
         "switched_off": switched_off(job.tlp),
-        "version": job.version,
         "settings": job.settings_json,
         "quality_score": job.quality_score,
         "consistency": job.consistency_json,

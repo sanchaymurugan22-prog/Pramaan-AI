@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.db import init_db
 from app.pipeline import runner
-from app.routes import admin, auth, jobs, outputs, records, review, safety, system
+from app.routes import admin, auth, dashboard, jobs, notifications, outputs, records, review, safety, search, system
 
 
 @asynccontextmanager
@@ -72,3 +72,6 @@ app.include_router(admin.router)
 app.include_router(records.router)
 app.include_router(records.admin_router)
 app.include_router(records.checker_router)
+app.include_router(notifications.router)
+app.include_router(search.router)
+app.include_router(dashboard.router)

@@ -19,8 +19,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy import select
 
-from app import audit
+from app import audit, notifications
 from app.ai import llm
+from app.config import settings
 from app.db import FactSheet, Job, SessionLocal, utc_now
 from app.pipeline.factsheet import SourcePages, build_fact_sheet
 from app.pipeline.generate import generate_output
@@ -60,11 +61,13 @@ def run_job(job_id: int) -> None:
             log.exception("Job %s failed", job_id)
             db.rollback()
             job.status, job.step, job.error = "failed", "", f"Unexpected error: {exc}"
+            notifications.job_finished(db, job, 0, len(job.outputs))
             db.commit()
 
 
 def _run(db, job: Job) -> None:
     job.status, job.error = "generating", None
+    job.ai_mode = settings.ai_mode  # shown on "My jobs": which AI wrote it
     report = _StepReporter(db, job)
     report("Starting")
     masker = Masker(job.safety_json)
@@ -75,6 +78,7 @@ def _run(db, job: Job) -> None:
             sheet = build_fact_sheet(sources, on_progress=report, masker=masker)
         except llm.LLMError as exc:
             job.status, job.step, job.error = "failed", "", f"Could not build the fact sheet: {exc}"
+            notifications.job_finished(db, job, 0, len(job.outputs))
             db.commit()
             return
         db.add(FactSheet(job=job, json=sheet))
@@ -113,6 +117,7 @@ def _run(db, job: Job) -> None:
     else:
         job.status = "ready"
         job.error = f"{len(failed)} output(s) failed. Use 'Try again' to retry them." if failed else None
+    notifications.job_finished(db, job, len(job.outputs) - len(failed), len(failed))
     db.commit()
     recheck_job(db, job)
     done = len(job.outputs) - len(failed)
