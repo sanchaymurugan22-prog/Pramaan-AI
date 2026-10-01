@@ -1,14 +1,14 @@
-// Design 24 · Reviewer dashboard (review queue). Jobs waiting for review, oldest first. "Review" opens
-// the job's Results page, where the Reviewer approves it or sends it back with notes.
-// (Signing and the DSC token come in Stage 7.)
+// Design 24 · Reviewer dashboard (review queue). Jobs waiting for review, emergency alerts first, then
+// oldest first. "Review" opens the review page (design 25), where the Reviewer comments on lines,
+// approves and signs, or sends the job back with notes.
 import { useEffect, useState } from 'react'
 import { getReviewQueue, type QueueItem, type ReviewQueue as Queue } from '../api'
 import { firstName, useAuth } from '../auth'
-import { Icon } from '../components/Icon'
+import { Icon, type IconName } from '../components/Icon'
 import { Mandala } from '../components/Mandala'
 import { TlpLabel } from '../components/TlpLabel'
 import { links } from '../router'
-import { shortTime, todayLabel } from './format'
+import { jobNo, LANGUAGE_LABELS, todayLabel } from './format'
 
 function waitingFor(iso: string | null, now: number): string {
   if (!iso) return ''
@@ -18,145 +18,243 @@ function waitingFor(iso: string | null, now: number): string {
   return hours < 48 ? `${hours} hour${hours === 1 ? '' : 's'}` : `${Math.round(hours / 24)} days`
 }
 
+// What the automatic checks found, in one chip (icon + words)
+function checksChip(item: QueueItem) {
+  const notes = item.warnings + item.leaks + item.public_problems + (item.numbers_match ? 0 : 1) + (item.fact_sheet_ok ? 0 : 1)
+  if (notes === 0)
+    return (
+      <span className="chip chip-green chip-xs">
+        <Icon name="check" size={12} strokeWidth={2.4} />
+        All checks passed
+      </span>
+    )
+  return (
+    <span className="chip chip-yellow chip-xs">
+      <Icon name="warning" size={12} strokeWidth={2.4} />
+      {notes} note{notes === 1 ? '' : 's'} to check
+    </span>
+  )
+}
+
+function Stat({ icon, tone, label, value, note }: { icon: IconName; tone: string; label: string; value: string; note: string }) {
+  return (
+    <section className="card stat-card" aria-label={label}>
+      <div className={`stat-icon tone-${tone}`} aria-hidden="true">
+        <Icon name={icon} size={22} />
+      </div>
+      <div className="stack gap-2">
+        <span className="stat-label">{label}</span>
+        <span className="stat-value">{value}</span>
+        <span className="stat-note">{note}</span>
+      </div>
+    </section>
+  )
+}
+
 export function ReviewQueue() {
   const { user } = useAuth()
   const [queue, setQueue] = useState<Queue | null>(null)
   const [error, setError] = useState('')
+  const [filter, setFilter] = useState<'all' | 'emergency' | 'kits'>('all')
   const [now, setNow] = useState(0) // when the queue was loaded, for "Waiting 8 min"
 
   useEffect(() => {
-    getReviewQueue()
-      .then((q) => {
-        setNow(Date.now())
-        setQueue(q)
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load the review queue.'))
+    let timer: number | undefined
+    const load = () =>
+      getReviewQueue()
+        .then((q) => {
+          setNow(Date.now())
+          setQueue(q)
+          setError('')
+        })
+        .catch((e) => setError(e instanceof Error ? e.message : 'Could not load the review queue.'))
+        .finally(() => {
+          timer = window.setTimeout(load, 30000) // new submissions appear by themselves
+        })
+    load()
+    return () => window.clearTimeout(timer)
   }, [])
 
   const waiting = queue?.waiting ?? []
-  const sentBack = queue?.recent.filter((r) => r.decision === 'sent_back').length ?? 0
-  const approved = queue?.recent.filter((r) => r.decision === 'approved').length ?? 0
+  const emergencies = waiting.filter((w) => w.fast_track).length
+  const shown = waiting.filter((w) => filter === 'all' || (filter === 'emergency') === w.fast_track)
+  const s = queue?.stats
 
   return (
     <main className="page">
       <section className="hero hero-green">
-        <div className="hero-mandala-big">
+        <div className="hero-mandala-big" aria-hidden="true">
           <Mandala size={340} petals={16} color="var(--green)" opacity={0.4} />
         </div>
         <div className="hero-body">
-          <div className="eyebrow">{todayLabel()}</div>
+          <div className="eyebrow eyebrow-green">{todayLabel()}</div>
           <h1>Namaste, {firstName(user.full_name)}</h1>
           <p>
             {queue === null
               ? 'Loading the review queue…'
               : waiting.length === 0
                 ? 'Nothing is waiting for review.'
-                : `${waiting.length} job${waiting.length === 1 ? ' is' : 's are'} waiting for you.`}
+                : `${waiting.length} kit${waiting.length === 1 ? ' is' : 's are'} waiting for you` +
+                  (emergencies ? `, including ${emergencies} emergency alert${emergencies === 1 ? '' : 's'} on fast track.` : '.')}
           </p>
+          {queue && (
+            <div className="row gap-8 wrap">
+              <span className={queue.signer.ready ? 'chip chip-green' : 'chip chip-red'}>
+                <Icon name="usb" size={14} strokeWidth={2.2} />
+                {queue.signer.ready ? (queue.signer.kind === 'test' ? 'Test signing key ready' : 'DSC token connected') : 'Signing key not ready'}
+              </span>
+              {user.emergency_duty && (
+                <span className="chip chip-saffron">
+                  <Icon name="siren" size={14} strokeWidth={2.2} />
+                  On duty for emergencies
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </section>
 
-      <div className="stat-grid stat-grid-3">
-        <Stat icon="history" tone="green" label="Waiting for you" value={waiting.length} note={waiting[0] ? `Oldest: ${waitingFor(waiting[0].submitted_at, now)}` : 'All clear'} />
-        <Stat icon="check" tone="navy" label="Approved recently" value={approved} note="Last 10 decisions" />
-        <Stat icon="arrowLeft" tone="red" label="Sent back recently" value={sentBack} note="With notes to operators" />
+      <div className="stat-grid">
+        <Stat
+          icon="history"
+          tone="green"
+          label="Waiting for you"
+          value={s ? String(s.waiting) : '–'}
+          note={s?.oldest_submitted_at ? `Oldest: ${waitingFor(s.oldest_submitted_at, now)}` : 'All clear'}
+        />
+        <Stat
+          icon="award"
+          tone="navy"
+          label="Signed today"
+          value={s ? String(s.signed_today) : '–'}
+          note={s?.signed_today ? `${s.files_in_last_kit} files in the last kit` : 'None yet'}
+        />
+        <Stat
+          icon="clock"
+          tone="saffron"
+          label="Average review time"
+          value={s?.average_review_minutes !== null && s ? `${s.average_review_minutes} min` : '–'}
+          note="This week"
+        />
+        <Stat icon="arrowLeft" tone="red" label="Sent back this week" value={s ? String(s.sent_back_this_week) : '–'} note="With notes to operators" />
       </div>
 
       {error && <div className="alert alert-red">{error}</div>}
 
       <div className="dash-grid">
-        <section className="card card-pad stack gap-14">
-          <h2>Review queue</h2>
-          {queue && waiting.length === 0 && <p className="muted">No jobs are waiting. Submitted jobs appear here.</p>}
-          {waiting.map((item) => (
-            <QueueRow key={item.id} item={item} now={now} />
-          ))}
+        <section className="card card-pad stack gap-14" aria-labelledby="queue-title">
+          <div className="row gap-10 wrap">
+            <h2 id="queue-title" className="grow">
+              Review queue
+            </h2>
+            <div className="segmented" role="group" aria-label="Show">
+              {(['all', 'emergency', 'kits'] as const).map((f) => (
+                <button key={f} type="button" aria-pressed={filter === f} className={filter === f ? 'is-on' : ''} onClick={() => setFilter(f)}>
+                  {{ all: 'All', emergency: 'Emergency', kits: 'Kits' }[f]}
+                </button>
+              ))}
+            </div>
+          </div>
+          {queue && shown.length === 0 && <p className="muted">Nothing here. New jobs appear by themselves.</p>}
+          <ul className="clean-list-plain stack gap-10">
+            {shown.map((item) => (
+              <li key={item.id} className={item.fast_track ? 'queue-item is-emergency' : 'queue-item'}>
+                <div className="stack gap-6 grow queue-text">
+                  <div className="row gap-8 wrap">
+                    {item.fast_track ? (
+                      <span className="chip chip-red chip-xs">
+                        <Icon name="bolt" size={12} strokeWidth={2.4} />
+                        Emergency
+                      </span>
+                    ) : (
+                      item.tlp && <TlpLabel tlp={item.tlp} />
+                    )}
+                    <strong className="queue-title">
+                      {item.title}
+                      {item.version > 1 && ` · v${item.version}`}
+                    </strong>
+                  </div>
+                  <div className="row gap-10 wrap small muted">
+                    <span>From {item.submitted_by ?? item.owner ?? 'an Operator'}</span>
+                    <span>
+                      {item.outputs.length} output{item.outputs.length === 1 ? '' : 's'} ×{' '}
+                      {item.languages.map((l) => LANGUAGE_LABELS[l] ?? l).join(' · ')}
+                    </span>
+                    <span className="mono">{jobNo(item.id)}</span>
+                    {checksChip(item)}
+                  </div>
+                  {item.submit_notes && <span className="small">“{item.submit_notes}”</span>}
+                  {!item.can_review && <span className="small over-limit">You worked on this job: another Reviewer must check it.</span>}
+                </div>
+                <div className="stack gap-6 end-items">
+                  <span className="small muted">Waiting {waitingFor(item.submitted_at, now)}</span>
+                  {item.can_review ? (
+                    <a href={links.reviewJob(item.id)} className={item.fast_track ? 'btn btn-sm btn-red' : 'btn btn-sm btn-green-outline'}>
+                      Review<span className="sr-only"> {item.title}</span>
+                      <Icon name="arrowRight" size={16} strokeWidth={2} />
+                    </a>
+                  ) : (
+                    <a href={links.job(item.id)} className="btn btn-sm btn-outline">
+                      View<span className="sr-only"> {item.title}</span>
+                    </a>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
         </section>
-        <section className="card card-pad stack gap-12">
-          <h2>Recent decisions</h2>
-          {queue && queue.recent.length === 0 && <p className="muted small">No decisions yet.</p>}
-          {queue?.recent.map((r, i) => (
-            <a key={i} href={links.job(r.job_id)} className="recent-row">
-              <Icon
-                name={r.decision === 'approved' ? 'check' : 'arrowLeft'}
-                size={16}
-                strokeWidth={2.2}
-                color={r.decision === 'approved' ? 'var(--green-dark)' : 'var(--red-dark)'}
-              />
-              <span className="stack grow">
-                <span className="recent-title">{r.job_title}</span>
-                <span className="muted small">
-                  {r.decision === 'approved' ? 'Approved' : 'Sent back'} by {r.by} · {shortTime(r.created_at)}
+
+        <div className="stack gap-20">
+          {queue && (
+            <section className="card card-pad stack gap-12" aria-labelledby="key-title">
+              <div className="row gap-12">
+                <span className="stat-icon tone-green" aria-hidden="true">
+                  <Icon name="usb" size={20} />
                 </span>
-              </span>
-              <span className="mono muted">#{r.job_id}</span>
-            </a>
-          ))}
-        </section>
+                <span className="stack grow">
+                  <h2 id="key-title">{queue.signer.kind === 'test' ? 'Signing key' : 'DSC token'}</h2>
+                  <span className="muted small">{queue.signer.label} · {queue.signer.holder}</span>
+                </span>
+                <span className={queue.signer.ready ? 'chip chip-green chip-xs' : 'chip chip-red chip-xs'}>{queue.signer.ready ? 'Ready' : 'Not ready'}</span>
+              </div>
+              <dl className="facts-table">
+                {queue.signer.key_id && (
+                  <div>
+                    <dt>Key fingerprint</dt>
+                    <dd className="mono">{queue.signer.key_id}</dd>
+                  </div>
+                )}
+                <div>
+                  <dt>Signing count today</dt>
+                  <dd>{queue.stats.signed_today} kits</dd>
+                </div>
+              </dl>
+              {queue.signer.error && <p className="small over-limit">{queue.signer.error}</p>}
+            </section>
+          )}
+          <section className="card card-pad stack gap-12" aria-labelledby="today-title">
+            <div className="row">
+              <h2 id="today-title" className="grow">
+                Signed today
+              </h2>
+              <a href={links.records} className="btn btn-link">
+                All records
+                <Icon name="arrowRight" size={16} strokeWidth={2} />
+              </a>
+            </div>
+            {queue && queue.signed_today.length === 0 && <p className="muted small">Nothing signed yet today.</p>}
+            <ul className="clean-list-plain">
+              {queue?.signed_today.map((r) => (
+                <li key={r.record_no} className="signed-row">
+                  <Icon name="award" size={18} color="var(--green-dark)" />
+                  <span className="grow">{r.title}</span>
+                  <span className="mono small muted">{r.record_no}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
       </div>
     </main>
-  )
-}
-
-function Stat(props: { icon: 'history' | 'check' | 'arrowLeft'; tone: string; label: string; value: number; note: string }) {
-  return (
-    <section className="card stat-card">
-      <div className={`stat-icon tone-${props.tone}`}>
-        <Icon name={props.icon} size={22} />
-      </div>
-      <div className="stack gap-2">
-        <span className="stat-label">{props.label}</span>
-        <span className="stat-value">{props.value}</span>
-        <span className="stat-note">{props.note}</span>
-      </div>
-    </section>
-  )
-}
-
-function QueueRow({ item, now }: { item: QueueItem; now: number }) {
-  const problems = [
-    !item.fact_sheet_ok && 'Fact sheet does not match the source',
-    !item.numbers_match && 'Numbers differ between outputs',
-    item.warnings > 0 && `${item.warnings} sentence${item.warnings === 1 ? '' : 's'} not linked to the source`,
-  ].filter(Boolean) as string[]
-  return (
-    <article className="queue-row">
-      <div className="stack gap-6 grow">
-        <div className="row gap-10 wrap">
-          {item.tlp && <TlpLabel tlp={item.tlp} />}
-          <strong className="queue-title">
-            {item.title}
-            {item.version > 1 && ` · v${item.version}`}
-          </strong>
-        </div>
-        <div className="row gap-12 wrap muted small">
-          <span>From {item.submitted_by ?? item.owner ?? 'unknown'}</span>
-          <span>
-            {item.outputs.length} output{item.outputs.length === 1 ? '' : 's'}
-          </span>
-          {item.quality_score !== null && <span>Quality {item.quality_score}/100</span>}
-          {problems.length === 0 ? (
-            <span className="chip chip-green chip-xs">
-              <Icon name="check" size={12} strokeWidth={2.4} />
-              All checks passed
-            </span>
-          ) : (
-            <span className="chip chip-yellow chip-xs" title={problems.join('\n')}>
-              <Icon name="warning" size={12} strokeWidth={2.4} />
-              {problems.length} to check
-            </span>
-          )}
-        </div>
-        {item.submit_notes && <p className="muted small">“{item.submit_notes}”</p>}
-        {!item.can_review && <p className="small queue-own">{item.why_not}</p>}
-      </div>
-      <div className="stack gap-6 end-items">
-        <span className="muted small">Waiting {waitingFor(item.submitted_at, now)}</span>
-        <a href={links.job(item.id)} className="btn btn-green-outline btn-sm">
-          {item.can_review ? 'Review' : 'View'}
-          <Icon name="arrowRight" size={16} strokeWidth={2} />
-        </a>
-      </div>
-    </article>
   )
 }

@@ -68,6 +68,12 @@ export function RecordsPage({ admin }: { admin: boolean }) {
           </p>
         </div>
         <div className="grow" />
+        {book && book.records.length > 0 && (
+          <a className="btn btn-outline" href={csvHref(book.records)} download="pramaan-signed-records.csv">
+            <Icon name="download" size={18} strokeWidth={2} />
+            Export list
+          </a>
+        )}
         <button type="button" className={admin ? 'btn btn-navy' : 'btn btn-green'} onClick={verify} disabled={checking}>
           <Icon name="shieldCheck" size={18} strokeWidth={2} />
           {checking ? 'Checking…' : 'Check the whole chain'}
@@ -261,6 +267,17 @@ export function RecordsPage({ admin }: { admin: boolean }) {
       )}
     </main>
   )
+}
+
+// "Export list" (design 29): the records on screen as a CSV file, made in the browser (no server call).
+// Titles of TLP:RED / AMBER records are included: this file is for the office, like this page.
+function csvHref(records: RecordItem[]): string {
+  const cell = (value: string | number | null) => `"${String(value ?? '').replace(/"/g, '""')}"`
+  const rows = [
+    ['Record', 'Title', 'Signed by', 'Issued at', 'Files', 'Sharing', 'Status', 'Replaces', 'Fingerprint'],
+    ...records.map((r) => [r.record_no, r.title, r.approved_by, r.issued_at, r.files_count, r.tlp ? `TLP:${r.tlp}` : '', r.status, r.replaces, r.fingerprint]),
+  ]
+  return `data:text/csv;charset=utf-8,${encodeURIComponent(rows.map((row) => row.map(cell).join(',')).join('\n'))}`
 }
 
 function Stat(props: { icon: 'shieldCheck' | 'cross' | 'hash'; tone: string; label: string; value: string; note: string }) {

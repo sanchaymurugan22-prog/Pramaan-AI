@@ -27,6 +27,8 @@ import { OperatorDashboard } from './pages/OperatorDashboard'
 import { OutputsStep } from './pages/OutputsStep'
 import { Results } from './pages/Results'
 import { ReviewQueue } from './pages/ReviewQueue'
+import { ReviewJob, Signed } from './pages/ReviewJob'
+import { SendBack } from './pages/SendBack'
 import { SafetyCheck } from './pages/SafetyCheck'
 import { links, navigate, useRoute, type Route } from './router'
 
@@ -34,7 +36,7 @@ import { links, navigate, useRoute, type Route } from './router'
 // (Only for convenience: the backend refuses other roles' requests with 403.)
 const ROLE_PAGES: Record<Role, Route['page'][]> = {
   operator: ['dashboard', 'new', 'safety', 'outputs', 'jobs', 'job', 'check', 'password', 'notifications', 'watch', 'emergency', 'progress', 'kit', 'compare', 'profile', 'help'],
-  reviewer: ['review', 'job', 'records', 'check', 'password', 'notifications', 'kit', 'compare', 'profile', 'help'],
+  reviewer: ['review', 'review-job', 'send-back', 'signed', 'job', 'records', 'check', 'password', 'notifications', 'kit', 'compare', 'profile', 'help'],
   admin: ['users', 'audit', 'record-book', 'check', 'password', 'notifications', 'profile', 'help'],
 }
 const HOME: Record<Role, string> = { operator: links.dashboard, reviewer: links.review, admin: links.users }
@@ -153,6 +155,9 @@ export default function App() {
           {page?.page === 'jobs' && <JobsList />}
           {page?.page === 'job' && <Results key={page.id} jobId={page.id} />}
           {page?.page === 'review' && <ReviewQueue />}
+          {page?.page === 'review-job' && <ReviewJob key={page.id} jobId={page.id} />}
+          {page?.page === 'send-back' && <SendBack key={page.id} jobId={page.id} />}
+          {page?.page === 'signed' && <Signed key={page.id} jobId={page.id} />}
           {page?.page === 'users' && <Users />}
           {page?.page === 'audit' && <AuditTrail />}
           {page?.page === 'records' && <RecordsPage admin={false} />}

@@ -335,6 +335,7 @@ export type JobDetail = JobSummary & {
   switched_off: Record<string, string> // output type -> why the TLP label does not allow it
   settings: JobSettings
   public_check: PublicCheck // Stage 9A: panic wording or shouting in the public outputs
+  comments: ReviewComment[] // Stage 9B: the Reviewers' line comments, every version
   quality_score: number | null
   consistency: Consistency | null
   sources: { id: string; filename: string; kind: string; pages: number; chars: number; sha256: string }[]
@@ -557,6 +558,9 @@ export type QueueItem = {
   numbers_match: boolean
   fact_sheet_ok: boolean
   fast_track: boolean // Stage 9A emergency alert: reviewed first
+  leaks: number
+  public_problems: number
+  languages: string[]
   alert: AlertInfo | null
   can_review: boolean
   why_not: string | null
@@ -565,14 +569,46 @@ export type QueueItem = {
 export type ReviewQueue = {
   waiting: QueueItem[]
   recent: (ReviewEvent & { job_id: number; job_title: string })[]
+  // Stage 9B (design 24)
+  stats: {
+    waiting: number
+    oldest_submitted_at: string | null
+    signed_today: number
+    files_in_last_kit: number
+    average_review_minutes: number | null
+    sent_back_this_week: number
+  }
+  signed_today: { record_no: string; title: string; job_id: number | null }[]
+  signer: { ready: boolean; kind: string; label: string; error?: string; key_id?: string; certificate_class?: string; holder: string; dsc_holder: boolean }
+  reasons: string[]
 }
+
+// ---- line comments (Stage 9B, backend/app/routes/comments.py) -----------------------------------
+
+export type ReviewComment = {
+  id: number
+  job_version: number
+  output_id: number | null
+  output_label: string | null
+  sentence_id: string | null
+  path: Path | null
+  quote: string
+  text: string
+  author: string | null
+  author_id: number
+  created_at: string
+}
+export const addComment = (jobId: number, comment: { output_id?: number | null; sentence_id?: string | null; path?: Path | null; quote?: string; text: string }) =>
+  request<ReviewComment>(`/api/jobs/${jobId}/comments`, sendJson('POST', comment))
+export const takeBackComment = (jobId: number, commentId: number) =>
+  request<{ ok: true }>(`/api/jobs/${jobId}/comments/${commentId}`, { method: 'DELETE' })
 
 export const getReviewQueue = () => request<ReviewQueue>('/api/review/queue')
 export const submitForReview = (jobId: number, notes: string) =>
   request<JobDetail>(`/api/jobs/${jobId}/submit`, sendJson('POST', { notes }))
 // Approve also signs (Stage 7). pin: only for a DSC token.
-export const reviewJob = (jobId: number, decision: 'approve' | 'send_back', notes: string, pin = '') =>
-  request<JobDetail>(`/api/jobs/${jobId}/review`, sendJson('POST', { decision, notes, pin }))
+export const reviewJob = (jobId: number, decision: 'approve' | 'send_back', notes: string, pin = '', reasons: string[] = []) =>
+  request<JobDetail>(`/api/jobs/${jobId}/review`, sendJson('POST', { decision, notes, pin, reasons }))
 
 // ---- signing (Stage 7) ----------------------------------------------------------------------
 

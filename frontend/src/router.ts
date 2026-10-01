@@ -9,7 +9,7 @@
 //   #/jobs/12/kit        campaign kit: choose and download the files
 //   #/jobs/12/compare    version compare (v1 against v2)
 //   #/watch     watch folder     #/emergency   emergency alert     #/notifications   notifications (everyone)
-//   #/review    review queue (Reviewer)
+//   #/review    review queue (Reviewer); #/review/12 review job 12, /send-back, /signed (Stage 9B)
 //   #/admin/users, #/admin/audit   users & access requests, audit trail (Admin)
 //   #/records   signed records (Reviewer)     #/admin/records   the record book (Admin)
 //   #/password  change my password (everyone)
@@ -33,6 +33,9 @@ export type Route =
   | { page: 'emergency' }
   | { page: 'notifications' }
   | { page: 'review' }
+  | { page: 'review-job'; id: number }
+  | { page: 'send-back'; id: number }
+  | { page: 'signed'; id: number }
   | { page: 'users' }
   | { page: 'audit' }
   | { page: 'records' }
@@ -62,6 +65,9 @@ export const links = {
   emergency: '#/emergency',
   notifications: '#/notifications',
   review: '#/review',
+  reviewJob: (id: number) => `#/review/${id}`,
+  sendBack: (id: number) => `#/review/${id}/send-back`,
+  signed: (id: number) => `#/review/${id}/signed`,
   users: '#/admin/users',
   audit: '#/admin/audit',
   records: '#/records',
@@ -108,6 +114,8 @@ function parse(hash: string): Route {
   if (step) return { page: step[2] as 'safety' | 'outputs', id: Number(step[1]) }
   const match = path.match(/^\/jobs\/(\d+)$/)
   if (match) return { page: 'job', id: Number(match[1]) }
+  const review = path.match(/^\/review\/(\d+)(?:\/(send-back|signed))?$/)
+  if (review) return review[2] ? { page: review[2] as 'send-back' | 'signed', id: Number(review[1]) } : { page: 'review-job', id: Number(review[1]) }
   const sub = path.match(/^\/jobs\/(\d+)\/(progress|kit|compare)$/)
   if (sub) return { page: sub[2] as 'progress' | 'kit' | 'compare', id: Number(sub[1]) }
   return { page: 'dashboard' }

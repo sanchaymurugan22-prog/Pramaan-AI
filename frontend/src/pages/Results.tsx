@@ -258,6 +258,7 @@ export function Results({ jobId }: { jobId: number }) {
         </div>
       )}
       <ReviewPanel job={job} onChange={setJob} />
+      {user.role === 'operator' && <ReviewerComments job={job} onOpen={openSentence} />}
 
       <div className="tab-bar" role="tablist" aria-label="Outputs">
         {tabs.map((t, index) => {
@@ -382,6 +383,41 @@ export function Results({ jobId }: { jobId: number }) {
         </aside>
       </div>
     </main>
+  )
+}
+
+// Stage 9B: the Reviewer's line comments on the version that was sent back, each with a link to its sentence
+function ReviewerComments({ job, onOpen }: { job: JobDetail; onOpen: (outputId: number, sentenceId: string, factId: string | null) => void }) {
+  if (job.status !== 'sent_back') return null
+  const comments = job.comments.filter((c) => c.job_version === job.version)
+  if (comments.length === 0) return null
+  return (
+    <section className="card card-pad stack gap-12" aria-labelledby="comments-title">
+      <h2 id="comments-title">
+        Line comments from the Reviewer ({comments.length})
+      </h2>
+      <ul className="clean-list-plain stack gap-10">
+        {comments.map((c) => (
+          <li key={c.id} className="comment comment-card">
+            <span className="comment-icon" aria-hidden="true">
+              <Icon name="pencil" size={18} />
+            </span>
+            <span className="stack gap-2 grow">
+              <span className="small muted">
+                {c.author} · {c.output_label ?? 'Whole job'}
+              </span>
+              {c.quote && <q className="comment-quote">{c.quote}</q>}
+              <span>{c.text}</span>
+            </span>
+            {c.output_id && c.sentence_id && (
+              <button type="button" className="btn btn-outline btn-xs" onClick={() => onOpen(c.output_id!, c.sentence_id!, null)}>
+                Show the line
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 

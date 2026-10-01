@@ -35,7 +35,7 @@ function mainNav(role: Role, watchDrafts: number): NavItem[] {
   }
   if (role === 'reviewer') {
     return [
-      { label: 'Review queue', icon: 'history', href: links.review, pages: ['review', 'job', 'compare', 'kit'] },
+      { label: 'Review queue', icon: 'history', href: links.review, pages: ['review', 'review-job', 'send-back', 'signed', 'job', 'compare', 'kit'] },
       { label: 'Signed records', icon: 'shieldCheck', href: links.records, pages: ['records'] },
       check,
     ]
