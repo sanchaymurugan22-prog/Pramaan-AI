@@ -146,9 +146,10 @@ can be fetched once with `~/llama/llama-server -hf sarvamai/sarvam-30b-gguf:Q4_K
 
 4. On the dashboard, **Test AI** says namaste when the model answers.
 
-**Speed:** on the 2017 Intel MacBook Pro (16 GB, no GPU) the model writes about 1.3 tokens a second, so
-the sample report with an X thread and a LinkedIn post takes about 25 minutes (measured numbers in the
-[test report](docs/TEST_REPORT.md#performance-real-sarvam-30b)). Jobs run in the background: leave the
+**Speed:** on the 2017 Intel MacBook Pro (16 GB, no GPU) the model writes about 1–1.3 tokens a second, so
+the sample report with an X thread and a LinkedIn post takes 25–35 minutes, most of it the fact sheet
+(measured numbers in the [test report](docs/TEST_REPORT.md#performance-real-sarvam-30b) and
+[docs/sarvam-runs/](docs/sarvam-runs/)). Jobs run in the background: leave the
 page, and a notification says when it is done. On an office server with a GPU it is many times faster
 ([scaling](docs/ARCHITECTURE.md#scaling-to-an-office-server)).
 
@@ -219,8 +220,8 @@ Details: [ARCHITECTURE.md · Security model](docs/ARCHITECTURE.md#security-model
 - **Inputs:** text, .txt, .pdf (with a text layer) and .docx. Scanned images, audio and video need OCR /
   speech-to-text (not built).
 - **Video package:** script, storyboard and subtitles; no rendered MP4.
-- **Speed:** the local 30B model is slow on a 16 GB laptop without a GPU (about 25 minutes for two short
-  outputs). One job runs at a time.
+- **Speed:** the local 30B model is slow on a 16 GB laptop without a GPU (25–35 minutes for two short
+  outputs, 39 minutes for three). One job runs at a time.
 - **Signing:** the test key on this computer works end to end; signing with a Class 3 DSC USB token
   (PKCS#11) is designed but not tested with a real token.
 - **Accounts:** no recovery codes; a forgotten Admin password needs another Admin, so make two Admins.
@@ -234,7 +235,7 @@ Details: [ARCHITECTURE.md · Security model](docs/ARCHITECTURE.md#security-model
 |---|---|
 | **"Address already in use"** / `[Errno 48]` / "Port 5173 is already in use" | Another program uses the port. `./scripts/start.sh` stops an old Pramaan AI by itself; for anything else, find it and stop it: `lsof -nP -iTCP:8000 -sTCP:LISTEN` (or 5173, 8081, 8090), then `kill <PID>`. |
 | `start-ai.sh` says port 8081 is in use | An earlier `llama-server` is still running. Use it, or stop it with Ctrl+C in its terminal (or `kill <PID>`). |
-| **The AI is very slow** | Expected on a laptop: about 1.3 tokens/s, 5–11 minutes per output. Generate fewer outputs (X thread and LinkedIn post first), use "Short" detail, close other apps (the model needs the memory), lower `MAX_TOKENS_...` in `.env`. The progress page shows tokens being written. Use `AI_MODE=mock` to demo instantly. |
+| **The AI is very slow** | Expected on a laptop: about 1–1.3 tokens/s; the fact sheet 11–24 minutes, then 3–7 minutes per short output. Generate fewer outputs (X thread and LinkedIn post first), use "Short" detail, close other apps (the model needs the memory), lower `MAX_TOKENS_...` in `.env`. The progress page shows tokens being written. Use `AI_MODE=mock` to demo instantly. |
 | "Could not reach the AI" / jobs fail at once | `./scripts/start-ai.sh` is not running, or still loading (wait for `server is listening`). Then **Try again** on the job: finished parts are kept. |
 | `start-ai.sh`: model not installed | Run `./scripts/install.sh` with a bundle that has the model, or download it once (see Full start). |
 | The page says "The backend is not running" | Start `./scripts/start.sh` and watch its messages; a Python error there is the cause. |

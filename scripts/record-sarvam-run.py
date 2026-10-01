@@ -1,6 +1,6 @@
 """Record a REAL Sarvam 30B run before a demo (Stage 10).
 
-The local model needs about 25 minutes for the sample report on the dev laptop, too long to show live.
+The local model needs 25–40 minutes for the sample report on the dev laptop, too long to show live.
 Run this the evening before: it makes the job through the normal API (so it appears in My jobs, marked
 "AI used: Sarvam 30B local"), follows it to the end, and writes a timing record to docs/sarvam-runs/.
 

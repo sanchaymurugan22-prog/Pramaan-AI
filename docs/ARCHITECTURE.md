@@ -117,7 +117,7 @@ and are recorded in the audit trail.
 - **Offline installation.** `scripts/make-offline-bundle.sh` collects every Python wheel, npm package,
   llama.cpp and the model on a connected machine, with SHA-256 fingerprints; `scripts/install.sh` checks and
   installs them on the offline machine (`pip --no-index`, `npm ci --offline`).
-- **Slow hardware is expected.** On a 16 GB laptop the 30B model writes about 1.3 tokens a second, so:
+- **Slow hardware is expected.** On a 16 GB laptop the 30B model writes about 1–1.3 tokens a second, so:
   prompts are short; the source is read once into the fact sheet and reused (prompt-prefix caching);
   answers are streamed with progress; short outputs are written first; token limits are set per output;
   jobs run in the background, survive restarts, and resume only the parts that failed.

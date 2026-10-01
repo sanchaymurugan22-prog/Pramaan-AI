@@ -1,0 +1,142 @@
+{
+ "job": "Ransomware attack on hospital networks (real Sarvam 30B run)",
+ "started": "2026-10-01T20:41:11+05:30",
+ "total_seconds": 2351,
+ "ai_mode": "local",
+ "quality_score": 93,
+ "fact_quotes_found": "8/8",
+ "steps": [
+  {
+   "step": "Fact sheet",
+   "seconds": 1441,
+   "llama_server": {
+    "prompt_tokens": 1295,
+    "prompt_seconds": 276,
+    "prompt_tps": 4.69,
+    "written_tokens": 1111,
+    "written_seconds": 1165,
+    "written_tps": 0.95
+   }
+  },
+  {
+   "step": "X thread",
+   "seconds": 340,
+   "llama_server": {
+    "prompt_tokens": 870,
+    "prompt_seconds": 159,
+    "prompt_tps": 5.46,
+    "written_tokens": 191,
+    "written_seconds": 180,
+    "written_tps": 1.05
+   }
+  },
+  {
+   "step": "LinkedIn post",
+   "seconds": 211,
+   "llama_server": {
+    "prompt_tokens": 112,
+    "prompt_seconds": 36,
+    "prompt_tps": 3.07,
+    "written_tokens": 171,
+    "written_seconds": 174,
+    "written_tps": 0.98
+   }
+  },
+  {
+   "step": "Executive summary",
+   "seconds": 343,
+   "llama_server": {
+    "prompt_tokens": 170,
+    "prompt_seconds": 41,
+    "prompt_tps": 4.17,
+    "written_tokens": 338,
+    "written_seconds": 302,
+    "written_tps": 1.12
+   }
+  }
+ ],
+ "outputs": [
+  {
+   "type": "x_thread",
+   "quality_score": 87,
+   "fields": [
+    {
+     "label": "Post 1",
+     "text": "A ransomware group called NightLedger is encrypting patient-record and billing systems at hospitals. This is a high-severity attack on critical healthcare infrastructure. #CyberSecurity"
+    },
+    {
+     "label": "Post 2",
+     "text": "The attack exploits an unpatched remote-access gateway, causing disruption at 42 hospitals across five states. We are working to mitigate the threat. #Healthcare"
+    },
+    {
+     "label": "Post 3",
+     "text": "Affected hospitals are advised to apply the vendor patch immediately, block attacker IP addresses, and reset all remote-access passwords. Do not pay the ransom. #IncidentResponse"
+    }
+   ]
+  },
+  {
+   "type": "linkedin_post",
+   "quality_score": 93,
+   "fields": [
+    {
+     "label": "Paragraph 1",
+     "text": "A recent attack by the ransomware group 'NightLedger' is disrupting patient-record and billing systems at 42 hospitals across five states. The attack exploits an unpatched remote-access gateway, causing significant operational disruption."
+    },
+    {
+     "label": "Paragraph 2",
+     "text": "Immediate action is critical. We recommend applying the vendor's patch to all remote-access gateways, blocking known attacker IP addresses, and resetting all administrator passwords."
+    },
+    {
+     "label": "Paragraph 3",
+     "text": "Recovery takes time; maintain offline backups and test restoration procedures. Report any signs of infection to the national cyber incident response team within 6 hours."
+    },
+    {
+     "label": "Hashtag 1",
+     "text": "CyberSecurity"
+    },
+    {
+     "label": "Hashtag 2",
+     "text": "HospitalSecurity"
+    },
+    {
+     "label": "Hashtag 3",
+     "text": "Ransomware"
+    }
+   ]
+  },
+  {
+   "type": "executive_summary",
+   "quality_score": 100,
+   "fields": [
+    {
+     "label": "Title",
+     "text": "Executive Summary: NightLedger Ransomware Attack"
+    },
+    {
+     "label": "Bottom line",
+     "text": "A ransomware group named 'NightLedger' is actively encrypting patient-record and billing systems at 42 hospitals across five states, posing a high-severity threat to critical healthcare infrastructure."
+    },
+    {
+     "label": "Key point 1",
+     "text": "The attack exploits an unpatched remote-access gateway, first exploited on 22 September 2026."
+    },
+    {
+     "label": "Key point 2",
+     "text": "As of 28 September, 42 hospitals in five states reported disruption, with recovery taking an average of 4 days."
+    },
+    {
+     "label": "Key point 3",
+     "text": "The ransomware demands payment in cryptocurrency within 72 hours and threatens to publish stolen data."
+    },
+    {
+     "label": "Action needed 1",
+     "text": "Apply the vendor's September patch to every remote-access gateway immediately."
+    },
+    {
+     "label": "Action needed 2",
+     "text": "Block the attacker IP addresses at the network edge and review connection logs since 22 September."
+    }
+   ]
+  }
+ ]
+}
