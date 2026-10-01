@@ -63,7 +63,7 @@ def test_read_one_and_read_all_only_touch_my_own():
     unread_only = operator.get("/api/notifications?unread=true").json()["items"]
     assert all(not n["read"] for n in unread_only)
     assert operator.post("/api/notifications/read-all").json() == {"unread": 0}
-    assert operator.get("/api/notifications/count").json() == {"unread": 0}
+    assert operator.get("/api/notifications/count").json()["unread"] == 0
 
 
 def test_job_list_has_the_new_fields_and_filters():

@@ -61,6 +61,10 @@ MATRIX = [
     ("POST", "/api/notifications/999999/read", ANYONE, None),
     ("GET", "/api/search?q=ransomware", ANYONE, None),
     ("GET", "/api/dashboard", {OP}, None),
+    ("GET", "/api/watch", {OP}, None),
+    ("PUT", "/api/watch", {OP}, {}),
+    ("POST", "/api/watch/folders", {OP}, {"name": "matrix"}),
+    ("POST", "/api/watch/check", {OP}, None),
     # admin
     ("GET", "/api/admin/users", {AD}, None),
     ("POST", "/api/admin/users", {AD}, {"username": "matrix.made", "full_name": "Matrix Made", "role": "operator"}),

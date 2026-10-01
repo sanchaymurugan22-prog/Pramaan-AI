@@ -1,7 +1,8 @@
 """Notification routes (Stage 9A). Everyone sees only their own notifications.
 
 GET  /api/notifications              {"items": [...newest first], "unread": 3}   ?unread=true for unread only
-GET  /api/notifications/count        {"unread": 3}   (the bell polls this)
+GET  /api/notifications/count        {"unread": 3, "watch_drafts": 2}   (the bell and the menu poll this;
+                                     watch_drafts: my drafts from the watch folder that wait at the Safety check)
 POST /api/notifications/{id}/read    mark one as read
 POST /api/notifications/read-all     mark all of mine as read
 """
@@ -11,7 +12,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.auth.deps import signed_in
-from app.db import Notification, User, as_utc, get_session, utc_now
+from app.db import Job, Notification, User, as_utc, get_session, utc_now
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
@@ -37,7 +38,9 @@ def list_notifications(unread: bool = False, db: Session = Depends(get_session),
 
 @router.get("/count")
 def count(db: Session = Depends(get_session), user: User = Depends(signed_in)):
-    return {"unread": _unread(db, user)}
+    drafts = db.scalar(select(func.count()).select_from(Job).where(
+        Job.owner_id == user.id, Job.created_via == "watch", Job.status == "draft")) or 0
+    return {"unread": _unread(db, user), "watch_drafts": drafts}
 
 
 @router.post("/read-all")

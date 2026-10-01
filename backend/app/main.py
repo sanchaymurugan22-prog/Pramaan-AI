@@ -11,10 +11,11 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app import watch
 from app.config import settings
 from app.db import init_db
 from app.pipeline import runner
-from app.routes import admin, auth, dashboard, jobs, notifications, outputs, records, review, safety, search, system
+from app.routes import admin, auth, dashboard, jobs, notifications, outputs, records, review, safety, search, system, watch as watch_routes
 
 
 @asynccontextmanager
@@ -23,7 +24,9 @@ async def lifespan(app: FastAPI):
     # still running when the server last stopped.
     init_db()
     runner.resume_unfinished()
+    watch.start_timer()  # Stage 9A: new files in watch folders become draft jobs
     yield
+    watch.stop_timer()
 
 
 app = FastAPI(title="Pramaan AI", version="0.6.0", lifespan=lifespan)
@@ -75,3 +78,4 @@ app.include_router(records.checker_router)
 app.include_router(notifications.router)
 app.include_router(search.router)
 app.include_router(dashboard.router)
+app.include_router(watch_routes.router)

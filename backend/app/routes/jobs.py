@@ -97,14 +97,39 @@ async def create_job(
     if not extracted:
         raise HTTPException(400, "Paste some text or upload a file (.txt, .pdf or .docx).")
 
-    # --- safety scan (fast: patterns only) ---
-    report = scan_sources([ScanSource(f"S{n}", s.filename, s.pages, s.notes) for n, s in enumerate(extracted, start=1)])
+    # --- safety scan and save as a draft ---
+    report = _scan(extracted)
     if selected:  # one step: the suggested label must allow the chosen outputs
         _check_allowed(selected, report["suggested_tlp"])
+    job = save_draft(db, extracted, title, user, job_settings, report=report)
 
-    # --- save the job ---
+    if selected:
+        job.tlp = report["suggested_tlp"]
+        record(db, job, "tlp", f"TLP:{job.tlp} used as suggested (started in one step, without the Safety check "
+                               f"screen). {report['tlp_reason']}", by=user, value=job.tlp)
+        start_outputs(db, job, selected, job_settings, user)
+    db.commit()
+
+    log_created(job, user)
+    if selected:
+        runner.submit(job.id)
+    return job_detail(job)
+
+
+def _scan(extracted: list[ingest.ExtractedSource]) -> dict:
+    """The safety scan (fast: patterns only, no AI)."""
+    return scan_sources([ScanSource(f"S{n}", s.filename, s.pages, s.notes) for n, s in enumerate(extracted, start=1)])
+
+
+def save_draft(db: Session, extracted: list[ingest.ExtractedSource], title: str, owner: User,
+               job_settings: dict | None = None, created_via: str = "manual",
+               suggested_outputs: list[str] | None = None, report: dict | None = None) -> Job:
+    """Scan the sources and save them as a DRAFT job that waits for the Safety check (no AI, no commit).
+    Used by "New transformation" step 1 and by the watch folder (Stage 9A)."""
+    report = report or _scan(extracted)
     job = Job(title=(title.strip() or _guess_title(extracted[0]))[:200], status="draft", step="",
-              settings_json=job_settings, safety_json=report, owner_id=user.id)
+              settings_json=job_settings or dict(DEFAULT_SETTINGS), safety_json=report, owner_id=owner.id,
+              created_via=created_via, suggested_outputs=suggested_outputs)
     db.add(job)
     db.flush()  # gives the job its id
 
@@ -114,22 +139,16 @@ async def create_job(
         db.add(Source(job=job, source_key=key, filename=source.filename, kind=source.kind, sha256=source.sha256,
                       text_path=str(pages_path), pages=len(source.pages), chars=source.chars))
     record(db, job, "scan", scan_summary(report), by=None)
+    return job
 
-    if selected:
-        job.tlp = report["suggested_tlp"]
-        record(db, job, "tlp", f"TLP:{job.tlp} used as suggested (started in one step, without the Safety check "
-                               f"screen). {report['tlp_reason']}", by=user, value=job.tlp)
-        start_outputs(db, job, selected, job_settings, user)
-    db.commit()
 
+def log_created(job: Job, user: User, how: str = "") -> None:
+    """The audit line for a new job (after the commit)."""
     names = ", ".join(s.filename for s in job.sources)
     audit.log("content", "job_created", f"Created job #{job.id} “{job.title}” from {len(job.sources)} "
-                                        f"source{'s' if len(job.sources) != 1 else ''} ({names})",
+                                        f"source{'s' if len(job.sources) != 1 else ''} ({names}){how}",
               actor=user, target=f"job {job.id}")
     audit.log_decisions(user, job, job.safety_decisions)
-    if selected:
-        runner.submit(job.id)
-    return job_detail(job)
 
 
 class StartRequest(BaseModel):

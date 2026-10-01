@@ -94,6 +94,10 @@ class Settings:
     )
 
 
+    # --- watch folder (Stage 9A) ---
+    # How often switched-on watch folders (inside data/watch/) are checked for new files. 0 = never.
+    watch_interval_seconds: float = float(_get("WATCH_INTERVAL_SECONDS", "60"))
+
     # --- signing and verification (Stage 7) ---
     # The public "Is this real?" page. The QR code on every signed file holds <this>/?r=<record number>.
     # To scan it with a phone on the same Wi-Fi, use this Mac's address, e.g. http://192.168.1.20:8090

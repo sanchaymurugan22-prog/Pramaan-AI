@@ -9,6 +9,7 @@ import tempfile
 
 os.environ["AI_MODE"] = "mock"
 os.environ["MOCK_DELAY_SECONDS"] = "0"
+os.environ["WATCH_INTERVAL_SECONDS"] = "0"  # tests run the watch folder check themselves
 os.environ["DATA_DIR"] = tempfile.mkdtemp(prefix="pramaan-test-")
 # Test-only secrets, so the tests never write new ones into the real .env
 os.environ["APP_SECRET_KEY"] = "test-" + "0" * 59
