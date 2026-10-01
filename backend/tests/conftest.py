@@ -10,6 +10,10 @@ import tempfile
 os.environ["AI_MODE"] = "mock"
 os.environ["MOCK_DELAY_SECONDS"] = "0"
 os.environ["WATCH_INTERVAL_SECONDS"] = "0"  # tests run the watch folder check themselves
+# Stage 8: the mock language engines (instant, no models); tests/test_real_models.py tries the real ones
+os.environ["TRANSLATE_ENGINE"] = "mock"
+os.environ["TTS_ENGINE"] = "mock"
+os.environ["STT_ENGINE"] = "mock"
 os.environ["DATA_DIR"] = tempfile.mkdtemp(prefix="pramaan-test-")
 # Test-only secrets, so the tests never write new ones into the real .env
 os.environ["APP_SECRET_KEY"] = "test-" + "0" * 59

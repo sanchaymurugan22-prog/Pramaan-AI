@@ -94,6 +94,17 @@ class Settings:
     )
 
 
+    # --- languages and voice (Stage 8) ---
+    # Where the downloaded models live (scripts/download-models.py puts them there).
+    models_dir: Path = (PROJECT_ROOT / _get("MODELS_DIR", "./models")).resolve()
+    # indictrans2 = AI4Bharat IndicTrans2 on this computer | llm = through the AI model (llm.py) | mock = tests
+    translate_engine: str = _get("TRANSLATE_ENGINE", "indictrans2").lower()
+    translate_threads: int = int(_get("TRANSLATE_THREADS", "4"))
+    # piper = Piper voices (sherpa-onnx), macOS "say" for languages without one | say = macOS only | mock = tests
+    tts_engine: str = _get("TTS_ENGINE", "piper").lower()
+    # onnx = IndicConformer (Hindi, Tamil) and Whisper small (English) | mock = tests
+    stt_engine: str = _get("STT_ENGINE", "onnx").lower()
+
     # --- watch folder (Stage 9A) ---
     # How often switched-on watch folders (inside data/watch/) are checked for new files. 0 = never.
     watch_interval_seconds: float = float(_get("WATCH_INTERVAL_SECONDS", "60"))

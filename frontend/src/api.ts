@@ -901,7 +901,7 @@ export type AiInfo = {
   model: string
   base_url: string
   timeout_seconds: number
-  models: { name: string; job: string; made_by: string; runtime: string; status: 'in_use' | 'standby' | 'off' | 'planned'; detail: string }[]
+  models: { name: string; job: string; made_by: string; runtime: string; status: 'in_use' | 'standby' | 'off' | 'missing'; detail: string }[]
   performance: {
     ai_mode: string
     label: string

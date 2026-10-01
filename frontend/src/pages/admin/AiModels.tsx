@@ -9,7 +9,7 @@ const STATUS: Record<string, { label: string; className: string }> = {
   in_use: { label: 'In use', className: 'chip chip-green chip-xs' },
   standby: { label: 'Set up, not in use', className: 'chip chip-neutral chip-xs' },
   off: { label: 'Off', className: 'chip chip-neutral chip-xs' },
-  planned: { label: 'Stage 8', className: 'chip chip-yellow chip-xs' },
+  missing: { label: 'Not installed', className: 'chip chip-yellow chip-xs' },
 }
 
 export function AiModels() {
@@ -123,7 +123,7 @@ export function AiModels() {
                         <td>{m.job}</td>
                         <td>{m.made_by}</td>
                         <td>
-                          <span className={STATUS[m.status].className}>{STATUS[m.status].label}</span>
+                          <span className={(STATUS[m.status] ?? STATUS.off).className}>{(STATUS[m.status] ?? STATUS.off).label}</span>
                         </td>
                       </tr>
                     ))}

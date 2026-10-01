@@ -25,6 +25,7 @@ from app.auth.passwords import (
     PasswordRuleError, check_rules, hash_password, needs_rehash, temporary_password, verify_password,
     waste_time_like_a_check,
 )
+from app.lang import languages
 from app.db import AccountRequest, User, as_utc, utc_now
 
 ROLES = ("operator", "reviewer", "admin")
@@ -40,14 +41,9 @@ _EMPLOYEE_ID = re.compile(r"^[A-Z0-9][A-Z0-9-]{1,29}$")
 _EMAIL = re.compile(r"^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$")
 
 # Stage 9B: the divisions offered in the forms (anything else can be typed by an Admin), and the 23
-# languages of the language screen (the app's own words are English until Stage 8).
+# languages of the language screen.
 DIVISIONS = ["Cyber operations", "Public communication", "Research and analysis", "Administration", "Other"]
-LANGUAGES = {
-    "en": "English", "hi": "हिन्दी", "bn": "বাংলা", "te": "తెలుగు", "mr": "मराठी", "ta": "தமிழ்", "ur": "اردو",
-    "gu": "ગુજરાતી", "kn": "ಕನ್ನಡ", "or": "ଓଡ଼ିଆ", "ml": "മലയാളം", "pa": "ਪੰਜਾਬੀ", "as": "অসমীয়া", "mai": "मैथिली",
-    "sat": "ᱥᱟᱱᱛᱟᱲᱤ", "ks": "کٲشُر", "ne": "नेपाली", "sd": "سنڌي", "doi": "डोगरी", "kok": "कोंकणी", "mni": "ꯃꯤꯇꯩꯂꯣꯟ",
-    "brx": "बड़ो", "sa": "संस्कृतम्",
-}
+LANGUAGES = {code: lang.native for code, lang in languages.LANGUAGES.items()}  # Stage 8: app/lang/languages.py
 _setup_lock = threading.Lock()
 
 

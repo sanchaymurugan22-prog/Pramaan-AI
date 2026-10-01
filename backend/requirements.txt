@@ -25,5 +25,18 @@ sqlcipher3==0.6.2        # encrypted SQLite database (SQLCipher 4, built in)
 qrcode==8.2              # QR codes on signed files (uses Pillow)
 # Optional, only for SIGNER=dsc (Class 3 DSC USB token, design only, not tested):  pip install PyKCS11
 
+# languages and voice (Stage 8) - all have ready-made wheels for Intel Macs, no PyTorch
+ctranslate2==4.8.2       # runs IndicTrans2 (translation)
+sentencepiece==0.2.2     # IndicTrans2 word pieces
+sacremoses==0.2.0        # IndicTrans2 English preparation (as AI4Bharat's IndicTransToolkit)
+sherpa-onnx==1.13.8      # Piper voices (text to speech)
+onnxruntime==1.23.2      # IndicConformer and Whisper (speech to text)
+onnx-asr==0.12.0
+numpy==2.5.3
+imageio-ffmpeg==0.6.0    # ffmpeg inside a wheel: audio files, MP3 and MP4 (no Homebrew)
+# only to prepare models once (scripts/convert-indictrans2.py, scripts/convert-piper-voice.py)
+safetensors==0.8.0
+onnx==1.23.1
+
 # for running tests (backend/tests)
 pytest==9.1.1

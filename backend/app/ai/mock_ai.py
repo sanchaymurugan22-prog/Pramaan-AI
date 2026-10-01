@@ -28,6 +28,8 @@ def answer(kind: str, messages: list[dict]) -> dict:
     if kind == "factsheet":
         source = _fenced(messages[-1]["content"], "SOURCE") or messages[-1]["content"]
         return fact_sheet(source)
+    if kind == "translate":  # Stage 8: TRANSLATE_ENGINE=llm with AI_MODE=mock
+        return translation(messages[-1]["content"])
     text = "\n".join(m["content"] for m in messages if m["role"] == "system")
     sheet = _parse_fact_sheet(_fenced(text, "FACT SHEET") or "")
     return BUILDERS[kind](sheet)
@@ -47,6 +49,7 @@ LIST_MARKER = re.compile(r"^\s*(?:[-•*▪]|\d{1,2}[.)])\s+")
 LABEL_LINE = re.compile(r"^\s*[A-Za-z][\w/()'.-]*(?: [\w/()'.-]+){0,3}:\s")
 SENTENCE_END = re.compile(r"(?<=[.!?])[\"'”’)]?\s+(?=[A-Z0-9\[\"“(])")
 PLACEHOLDER = re.compile(r"\[[A-Z]+(?:-[A-Z]+)*-\d+\]")
+DISCLAIMER = re.compile(r"(?i)^\W*(?:sample|specimen)\s*[-–—:]?\s*(?:fictional|fictitious|not real)\b")
 ACTION_HEADING = re.compile(r"(?i)^(?:\d+[.)]\s*)?(?:recommended actions?|recommendations|what (?:to|you should) do|actions? to take|next steps)\b")
 VERBS = set("""apply patch update upgrade block reset report keep save sign please do don't never avoid check
 review install turn enable disable change contact call back remove isolate share use follow verify ensure make
@@ -117,7 +120,8 @@ def fact_sheet(source: str) -> dict:
     from app.pipeline.values import find_values  # imported here: values.py imports modules that import this one
     from app.safety.shield import find_instructions
 
-    units = [u for number, text in _pages(source) for u in _units(number, text)]
+    # A "SAMPLE - FICTIONAL" note (and the paragraph it starts) only says the file is made up: never a fact.
+    units = [u for number, text in _pages(source) for u in _units(number, text) if not DISCLAIMER.match(u.text)]
     actions = _actions(units, find_instructions)
     action_texts = {a.lower() for a in actions}
 
@@ -437,3 +441,20 @@ BUILDERS = {
     "x_thread": x_thread, "linkedin_post": linkedin_post, "executive_summary": executive_summary,
     "infographic": infographic, "advisory": advisory, "presentation": presentation, "video_package": video_package,
 }
+
+
+# ---- Stage 8: translation (TRANSLATE_ENGINE=llm) ----------------------------------------------------------
+
+
+def translation(user_message: str) -> dict:
+    """Each text with the language's name in front (the same as TRANSLATE_ENGINE=mock)."""
+    import json
+
+    from app.lang import languages
+    from app.lang.translate import mock_translation
+
+    texts = json.loads(_fenced(user_message, "TEXTS") or "[]")
+    code = re.search(r"Language code: (\w+)", user_message)
+    lang = languages.get(code.group(1) if code else "hi")
+    return {"translations": [mock_translation(t, lang) if t.strip() else t for t in texts]}
+

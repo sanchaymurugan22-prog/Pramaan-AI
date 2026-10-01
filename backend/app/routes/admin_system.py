@@ -122,6 +122,38 @@ def performance(db: Session) -> list[dict]:
     return result
 
 
+def language_models() -> list[dict]:
+    """Stage 8: translation, voices and speech-to-text, with whether each is installed and in use."""
+    from app.lang import stt, translate, tts
+
+    t, v, s = translate.status(), tts.status(), stt.status()
+    voices = v["voices"]
+    piper = [f"{code}: {x['name']}" for code, x in voices.items() if x["engine"] == "piper"]
+    say = [f"{code}: {x['name']}" for code, x in voices.items() if x["engine"] == "say"]
+
+    def state(in_use: bool, ready: bool) -> str:
+        return ("in_use" if ready else "missing") if in_use else ("standby" if ready else "off")
+
+    return [
+        {"name": "IndicTrans2 (distilled 200M)", "job": "Translation into 22 Indian languages", "made_by": "AI4Bharat (IIT Madras)",
+         "runtime": "CTranslate2 on this computer", "status": state(t["engine"] == "indictrans2", t["engine"] != "indictrans2" or t["ready"]),
+         "detail": t["detail"] if t["engine"] == "indictrans2" else f"TRANSLATE_ENGINE={t['engine']}"},
+        {"name": "Piper voices", "job": "Narration: Hindi, Telugu, Malayalam, Urdu", "made_by": "Piper (data: AI4Bharat, IIT Madras)",
+         "runtime": "sherpa-onnx on this computer", "status": state(v["engine"] == "piper", bool(piper)),
+         "detail": ", ".join(piper) or "Not installed: run scripts/download-models.py --only tts"},
+        {"name": "macOS voices", "job": "Narration fallback: Hindi, Indian English", "made_by": "Apple",
+         "runtime": "macOS say", "status": state(v["engine"] in ("piper", "say"), bool(say)),
+         "detail": ", ".join(say) or "Only on a Mac"},
+        {"name": "IndicConformer", "job": "Speech to text: Hindi, Tamil", "made_by": "AI4Bharat (IIT Madras)",
+         "runtime": "onnxruntime on this computer",
+         "status": state(s["engine"] == "onnx", s["languages"]["hi"]["ready"] or s["languages"]["ta"]["ready"]),
+         "detail": ", ".join(c for c in ("hi", "ta") if s["languages"][c]["ready"]) or "Not installed: run scripts/download-models.py --only stt"},
+        {"name": "Whisper small", "job": "Speech to text: English", "made_by": "OpenAI (MIT licence)",
+         "runtime": "onnxruntime on this computer", "status": state(s["engine"] == "onnx", s["languages"]["en"]["ready"]),
+         "detail": "Installed" if s["languages"]["en"]["ready"] else "Not installed: run scripts/download-models.py --only stt"},
+    ]
+
+
 @router.get("/ai")
 def ai_models(db: Session = Depends(get_session), admin: User = Depends(admin_only)):
     mode = settings.ai_mode
@@ -133,12 +165,7 @@ def ai_models(db: Session = Depends(get_session), admin: User = Depends(admin_on
          "runtime": "Internet (not for real data)", "status": "in_use" if mode == "cloud" else "off", "detail": settings.sarvam_model},
         {"name": "Mock AI", "job": "Test answers built from the source by rules", "made_by": "Pramaan AI",
          "runtime": "No model", "status": "in_use" if mode == "mock" else "off", "detail": "For tests and demos"},
-        {"name": "IndicTrans2", "job": "Translation, 22 languages", "made_by": "AI4Bharat (IIT Madras)", "runtime": "Stage 8",
-         "status": "planned", "detail": "Added in Stage 8"},
-        {"name": "IndicConformer", "job": "Speech to text", "made_by": "AI4Bharat (IIT Madras)", "runtime": "Stage 8",
-         "status": "planned", "detail": "Added in Stage 8"},
-        {"name": "Indic Parler-TTS", "job": "Indian voices", "made_by": "AI4Bharat (IIT Madras)", "runtime": "Stage 8",
-         "status": "planned", "detail": "Added in Stage 8"},
+        *language_models(),
     ]
     return {"ai_mode": mode, "label": AI_LABELS.get(mode, mode), "model": info.get("model", ""),
             "base_url": info.get("base_url", ""), "models": models, "performance": performance(db),
