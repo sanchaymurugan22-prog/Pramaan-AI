@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import type { Role } from '../api'
 import { initials, useAuth } from '../auth'
 import { useCounts } from '../counts'
@@ -76,14 +76,19 @@ export function Sidebar({ route, open, onClose }: Props) {
   const { counts } = useCounts()
   const panel = useRef<HTMLElement>(null)
 
-  // The drawer: Escape closes it, and focus moves into it when it opens
+  // The drawer: focus moves into it when it opens; Escape, the close button or a click outside close
+  // it and put focus back on the Menu button
+  const close = useCallback(() => {
+    onClose()
+    document.querySelector<HTMLElement>('.menu-btn')?.focus()
+  }, [onClose])
   useEffect(() => {
     if (!open) return
     panel.current?.querySelector<HTMLElement>('a, button')?.focus()
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close()
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  }, [open, close])
 
   const account: NavItem[] = [
     {
@@ -94,13 +99,13 @@ export function Sidebar({ route, open, onClose }: Props) {
   ]
   return (
     <>
-      {open && <div className="drawer-backdrop" onClick={onClose} aria-hidden="true" />}
+      {open && <div className="drawer-backdrop" onClick={close} aria-hidden="true" />}
       <nav ref={panel} id="main-menu" className={open ? 'sidebar is-open' : 'sidebar'} aria-label="Main">
         <TricolourStrip />
         <div className="sidebar-inner">
           <div className="row">
             <Logo />
-            <button type="button" className="icon-btn drawer-close" aria-label="Close menu" onClick={onClose}>
+            <button type="button" className="icon-btn drawer-close" aria-label="Close menu" onClick={close}>
               <Icon name="cross" size={18} />
             </button>
           </div>

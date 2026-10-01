@@ -617,7 +617,7 @@ details summary { cursor: pointer; font-weight: 600; color: var(--navy); margin-
   background: var(--card); border: 1.5px solid var(--line-2); color: var(--muted);
 }
 .step-done .step-dot { background: var(--green); border-color: var(--green); color: #fff; }
-.step-current .step-dot { background: var(--saffron); border-color: var(--saffron); color: #fff; font-weight: 700; box-shadow: 0 0 0 5px var(--saffron-mid); }
+.step-current .step-dot { background: var(--saffron-dark); border-color: var(--saffron-dark); color: #fff; font-weight: 700; box-shadow: 0 0 0 5px var(--saffron-mid); }
 .step-label { font-size: 15px; font-weight: 500; color: var(--muted); white-space: nowrap; }
 .step-done .step-label { color: var(--ink); }
 .step-current .step-label { color: var(--ink); font-weight: 700; }

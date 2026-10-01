@@ -6,7 +6,15 @@ and every document signed and verifiable.
 
 Smart India Hackathon · Problem Statement 26154 · NTRO.
 
-**Current stage: 7 — Anti-fake.** When a Reviewer approves a job it is **signed**: every final file
+**Current stage: 9A — Operator screens.** Every Operator screen from the designs (08–23) works with real
+data: a dashboard with real numbers, **live progress** while the AI writes, **results tabs** (advisory,
+executive summary as a page, slide viewer with speaker notes, video storyboard, social posts, infographic),
+a **campaign kit** page, **My jobs** with filters, **version compare** (v1 against v2, word by word),
+an **Emergency alert** with fast-track review, and a **watch folder** that turns new reports into
+drafts that wait at the Safety check. A search box across jobs, sources and records, and in-app
+**notifications**. Keyboard and screen-reader friendly (WCAG 2.1 AA / GIGW). See "Operator screens (Stage 9A)".
+
+Stage 7 — Anti-fake: when a Reviewer approves a job it is **signed**: every final file
 gets a QR code and a record number (`PRM-2026-000123`), its SHA-256 fingerprint and the fingerprint of
 every output's text go into a signed manifest, and the job gets an entry in a hash-chained **record
 book** (an Admin can withdraw a record; nothing is ever deleted). A static public **"Is this real?"**
@@ -459,6 +467,61 @@ from the organisation's own server.
    **camera app** at the QR code; tap the link. The phone must be on the same Wi-Fi (not a guest
    network that isolates devices).
 
+## Operator screens (Stage 9A)
+
+Try each one with the mock AI (`AI_MODE=mock` in `.env`, then `./scripts/start.sh`), signed in as an
+Operator. A Reviewer account is needed for the review steps.
+
+| Screen | Where | What to try |
+|---|---|---|
+| Dashboard (08) | **Dashboard** | Numbers are real (jobs this week, outputs approved, hours saved is an *estimate*, languages). "Needs your attention" lists jobs sent back (with the Reviewer's note), private data found, sentences not linked to the source, watch-folder drafts, and jobs ready to send. |
+| New transformation (09–11) | **New transformation** | Unchanged steps, now with the job number; a watch-folder draft shows a **Watch folder** badge and its kit is ticked in advance. **Generate** opens the live progress. |
+| Generating (12) | after Generate, or **See live progress** | The fact sheet, each output (Queued → Writing → Ready, with times), a progress bar, the time left, and a live preview of the latest finished text. You can leave: a notification says when it is done. |
+| Results (13–18) | click a job | Tabs: Advisory, Executive summary (as a page, with words, reading time and "traced x of y"), Presentation (slide viewer, speaker notes, words on slide), Video package (storyboard: scenes, on-screen text, narration, subtitles), Social posts (LinkedIn + X thread as they will look, characters, **Copy**, what was hidden, public-release check), Infographic (image + headline, numbers, steps), Fact sheet. Arrow keys move between tabs. The source trace, warnings and quality score stay on the right for every tab. |
+| Campaign kit (19) | **Campaign kit** on a job | Tick the outputs to put in the .zip; once signed, the file sizes and "Approved and signed by …" show. |
+| My jobs (20) | **My jobs** | Job number, version, status, TLP, AI used (Mock / Sarvam 30B local), quality. Search (title, `#0012`, source file name), status tabs, last 7/30/90 days, sharing level, 10 per page. |
+| Version compare (21) | **Compare versions** on a job with v2 | Send a job back as a Reviewer, edit an output (e.g. change "42 hospitals" to "57"), submit again: the page shows *Hospitals 42 → 57*, list changes, and every changed sentence with added (green, underlined) and removed (red, struck through) words. Pick any two versions, including the first AI draft. |
+| Emergency alert (22) | **Emergency alert** | Type a short alert; the character count (160 = one SMS) and the public-release check (no panic words, no shouting, no private data; helplines like 1930 are fine) update as you type. **Send for fast-track approval** makes a TLP:CLEAR job; when its outputs are ready it goes to the Reviewers by itself, first in their queue. Other languages and voice come in Stage 8. |
+| Watch folder (23) | **Watch folder** | See below. |
+| Notifications (40) | the bell, or **Notifications** | Job finished, sent back (with notes), approved, signed (record number), watch-folder drafts; Reviewers: submitted, emergency alert. All / Unread, Mark all as read. In the app only: nothing is emailed. |
+
+The **search box** at the top finds jobs (title or number), sources (file name, or the first 8+ characters
+of a SHA-256 fingerprint) and records (record number or title). Use ↓ ↑ and Enter, or click.
+
+### Watch folder
+
+1. **Watch folder** → switch it on. The folder is `data/watch/incoming` (make others with **New folder**;
+   only folders inside `data/watch/` are allowed). Pick the **kit to prepare**.
+2. Copy a report into the folder, for example:
+
+```bash
+cp samples/sample-private-data.txt data/watch/incoming/cert-report-0929.txt
+```
+
+3. Within a minute (`WATCH_INTERVAL_SECONDS` in `.env`, default 60), or at once with **Check now**, it
+   shows "Ready for you", the menu shows a badge, and the dashboard lists it.
+4. **Open** it: it is a **draft waiting at the Safety check**. The AI has not run. You check what the
+   scanner found, choose the sharing label (never set automatically) and press Generate yourself.
+
+Files that are not .txt / .pdf / .docx, files still being copied, and (with "Skip duplicates") files that
+are exactly the same as an earlier job's source are listed but not drafted. Pramaan never moves, changes
+or deletes your files; its own copy is encrypted like every source.
+
+### Accessibility (GIGW / WCAG 2.1 AA)
+
+- **Keyboard:** everything works without a mouse. The first Tab shows **Skip to main content**; result
+  tabs use the arrow keys; the search list uses ↓ ↑ Enter Escape; slides and scenes are buttons.
+- **Focus:** a 3-pixel navy ring on every control (at least 3:1 against every background).
+- **Labels:** every field, switch and icon button has a name; badges say "2 drafts waiting", the bell
+  says "Notifications, 3 unread".
+- **Contrast:** all text at least 4.5:1 (large text 3:1); white-on-saffron badges were changed to the
+  darker saffron for this.
+- **200% zoom:** at 200% on a laptop (720 pixels wide) the menu becomes a **Menu** button that opens a
+  drawer (Escape closes it); pages reflow into one column with no sideways scrolling.
+- **Not colour alone:** statuses have an icon and a word, scores a number, unlinked sentences a tag,
+  compare uses underline / strike-through (and "added" / "removed" for screen readers), switches say On / Off.
+- After moving to another page, focus goes to the page, so screen readers start reading there.
+
 ## API (see <http://localhost:8000/docs> for all details)
 
 Every call except `/api/health` and the sign-in calls needs a session cookie, and every
@@ -485,6 +548,11 @@ POST/PUT/DELETE needs an `Origin` header from `ALLOWED_ORIGINS` (browsers send i
 | `POST /api/admin/records/{record_no}/withdraw` | Admin | `{"reason": "..."}`: a signed withdrawal entry |
 | `GET /api/admin/records/verify-bundle.zip` | Admin | the public verify site with the latest records |
 | `POST /api/check-message` | signed in | `{"text": "..."}`: "Is this real?" for a pasted message |
+| `GET /api/notifications` (`?unread=true`) · `/count` · `POST .../{id}/read` · `/read-all` | signed in | my notifications (Stage 9A); `count` also gives `watch_drafts` |
+| `GET /api/search?q=` | signed in | jobs, sources and records (Admins: records only) |
+| `GET /api/dashboard` | Operator | dashboard numbers and "Needs your attention" |
+| `GET/PUT /api/watch`, `POST /api/watch/folders` · `/check` | Operator | watch folder settings, make a folder, check now |
+| `POST /api/alerts/check` · `POST /api/alerts` | Operator | emergency alert: live check; make the alert job (fast-track review) |
 
 Job calls (Operators change jobs; Reviewers may read them and download):
 
@@ -494,7 +562,7 @@ Job calls (Operators change jobs; Reviewers may read them and download):
 | `POST /api/jobs` | step 1: form fields `text` and/or `files`, `title`. Reads the sources and scans them; the job comes back as a `draft` with its `safety` report. (Also send `outputs` — repeat per output — and `audience`, `tone`, `objective`, `style`, `detail_level` to do all 3 steps at once with the suggested label and default choices) |
 | `PUT /api/jobs/{id}/safety` | step 2: JSON `{"tlp": "AMBER", "choices": {"P1": "hide_all"}}` (choices: `hide_public`, `hide_all`, `keep`); logged in `safety_decisions` |
 | `POST /api/jobs/{id}/start` | step 3: JSON `{"outputs": ["advisory"], "settings": {"audience": "Senior officials"}}`; refused (400, with the reason) for public outputs under TLP RED / AMBER |
-| `GET /api/jobs` | list jobs |
+| `GET /api/jobs` | list jobs; filters `?q=` (title, `#0012`, source file), `?status=draft,in_review`, `?tlp=AMBER`, `?days=30` |
 | `GET /api/jobs/{id}` | status, current step, fact sheet, each output as it finishes, its checks (`quality`, including `leaks`), score, version, the job's `consistency` and `quality_score`, and `tlp`, `safety`, `safety_decisions`, `switched_off` |
 | `GET /api/jobs/{id}/sources/{S1}` | the text of one source, page by page (the fact sheet's `start`/`end` are positions in these pages) |
 | `PUT /api/jobs/{id}/outputs/{output_id}` | save edits as a new version: JSON `{"fields": [{"path": ["tweets", 0, "text"], "text": "..."}]}` (the editable paths are in each output's `fields`) |
@@ -502,7 +570,9 @@ Job calls (Operators change jobs; Reviewers may read them and download):
 | `GET /api/jobs/{id}/outputs/{output_id}/versions` | every version (number, who made it, score, time); add `/{n}` for one version's text and checks |
 | `POST /api/jobs/{id}/retry` | run the failed parts of a job again |
 | `GET /api/jobs/{id}/outputs/{output_id}/download?format=pdf` | one file: `docx`, `pdf`, `pptx`, `png`, `srt` or `txt` (each output lists its `formats`); add `&inline=true` to view instead of save |
-| `GET /api/jobs/{id}/kit.zip` | the campaign kit: every finished output in one .zip |
+| `GET /api/jobs/{id}/kit.zip` | the campaign kit: every finished output in one .zip (`?outputs=advisory,x_thread` for some only) |
+| `GET /api/jobs/{id}/kit-info` | what the kit holds (file sizes once signed) |
+| `GET /api/jobs/{id}/compare?left=1&right=2` | two versions side by side (0 = first AI draft); numbers and lists that changed |
 
 Example with curl (from the project folder). First sign in as an Operator; curl keeps the session
 cookie in a file (`-c` saves it, `-b` sends it), and `-H Origin` says which page the request is from.
@@ -573,10 +643,22 @@ verifies, one changed byte fails, QR files, TLP:RED hides the title, new version
 (withdraw; changed, re-hashed or deleted entries and changed signed files are found), `test_messages.py`
 (exact / changed / unknown / scam signs) and `test_verify_page.py`, which builds a real verify site and
 runs the page's own JavaScript with Node (`verify-page/tests/verify.test.mjs`: signatures with and without
-Web Crypto, file checks, tampering, and the message checker giving the same answers as Python):
+Web Crypto, file checks, tampering, and the message checker giving the same answers as Python).
+Stage 9A adds `test_notifications_search.py` (who is told what, read / unread, job filters, search by
+role, dashboard), `test_watch.py` (drafts wait at the Safety check and never start by themselves, folders
+outside `data/watch/` refused, duplicates, other file types, files still being copied, PDF / DOCX, hidden
+instructions found), `test_compare.py` (word diff, numbers like "five" → "six", v1 against v2 after a
+send-back) and `test_alerts_kit_polish.py` (public-release check, fast-track review, choosing kit outputs,
+captions, long titles in footers):
 
 ```bash
 cd backend && .venv/bin/python -m pytest
+```
+
+Frontend type check (no output means no errors):
+
+```bash
+cd frontend && npx tsc -b
 ```
 
 ## AI provider switch
@@ -598,11 +680,13 @@ backend/        FastAPI app (app/main.py), settings (app/config.py), database (a
   app/auth/       passwords.py (argon2id, rules), accounts.py, sessions.py, deps.py (role checks) (Stage 6B)
   app/ai/         llm.py (the only file that talks to the model), prompts/*.md, mock_ai.py (the mock AI)
   app/pipeline/   ingest.py, factsheet.py, generate.py, checks.py, output_types.py, runner.py,
-                  trace.py, values.py, segments.py, versions.py (Stage 5 checks and versions)
+                  trace.py, values.py, segments.py, versions.py (Stage 5 checks and versions), compare.py (Stage 9A)
   app/exporters/  real files: docx.py, pdf.py, pptx.py, infographic.py, srt.py, text.py, kit.py
   app/assets/fonts/  Poppins, Hind, IBM Plex Mono (TTF, OFL)
-  app/safety/     scanner.py, shield.py, masking.py, tlp.py, decisions.py (Stage 6A, no AI)
-  app/routes/     system.py (health, AI ping), jobs.py (jobs API), outputs.py (edit, regenerate, versions, downloads),
+  app/safety/     scanner.py, shield.py, masking.py, tlp.py, decisions.py (Stage 6A, no AI), public_check.py (9A)
+  app/notifications.py, app/watch.py   in-app notifications, the watch folder (Stage 9A)
+  app/routes/     system.py (health, AI ping), jobs.py (jobs API), outputs.py (edit, regenerate, versions, downloads,
+                  kit, compare), notifications.py, search.py, dashboard.py, watch.py, alerts.py (Stage 9A),
                   safety.py (the Safety check), auth.py (sign-in pages), review.py (submit / approve /
                   send back), admin.py (users, requests, audit trail), records.py (record book,
                   verify bundle, "Is this real?")
@@ -615,6 +699,6 @@ verify-page/    public "Is this real?" page (Stage 7): index.html, app.js (page)
 scripts/        start.sh (app), start-ai.sh (AI model), serve-verify.sh (public verify page on port 8090)
 samples/        fictional test files: sample-ransomware-report.txt, sample-private-data.txt (fake
                 Aadhaar/PAN/phone/email/IPs/password), sample-injection.txt (hidden instruction)
-models/, data/  model files and app data (never committed)
+models/, data/  model files and app data (never committed); data/watch/ holds the watch folders
 Designs/        screen designs and clickable prototype (reference only)
 ```

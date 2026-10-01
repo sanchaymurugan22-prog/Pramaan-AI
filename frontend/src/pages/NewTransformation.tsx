@@ -125,6 +125,7 @@ export function NewTransformation() {
               type="file"
               multiple
               accept=".txt,.pdf,.docx"
+              aria-label="Choose source files (.txt, .pdf, .docx)"
               hidden
               onChange={(e) => addFiles(e.target.files)}
             />
