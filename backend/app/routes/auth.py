@@ -15,6 +15,7 @@ POST /api/auth/change-password
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import audit
@@ -35,6 +36,15 @@ def user_json(user: User) -> dict:
         "role": user.role,
         "role_label": ROLE_LABELS[user.role],
         "must_change_password": user.must_change_password,
+        # Stage 9B
+        "employee_id": user.employee_id,
+        "email": user.email,
+        "division": user.division or "",
+        "language": user.language or "en",
+        "dsc_holder": bool(user.dsc_holder),
+        "emergency_duty": bool(user.emergency_duty),
+        "prefs": user.prefs or {},
+        "created_at": user.created_at.isoformat() if user.created_at else None,
     }
 
 
@@ -161,10 +171,14 @@ def setup(form: SetupForm, request: Request, response: Response, db: Session = D
 
 
 class AccessForm(BaseModel):
-    username: str
+    username: str = ""
+    employee_id: str = ""
+    email: str = ""
+    division: str = ""
+    language: str = "en"
     full_name: str
     role: str
-    reason: str
+    reason: str = ""
     password: str
 
 
@@ -173,14 +187,20 @@ def request_access(form: AccessForm, db: Session = Depends(get_session)):
     if accounts.needs_setup(db):
         raise HTTPException(409, "This computer is not set up yet. The first Admin must finish First-time setup.")
     try:
-        request = accounts.request_access(db, form.username, form.full_name, form.role, form.reason, form.password)
+        request = accounts.request_access(db, form.username, form.full_name, form.role, form.reason, form.password,
+                                          employee_id=form.employee_id, email=form.email, division=form.division,
+                                          language=form.language)
     except AccountError as exc:
         raise HTTPException(400, str(exc))
-    audit.log("users", "access_requested", f"Asked for a {ROLE_LABELS[request.role]} account ({request.username}): "
-                                           f"“{request.reason}”", actor_name=request.full_name,
-              target=f"user {request.username}")
+    why = f": “{request.reason}”" if request.reason else ""
+    audit.log("users", "access_requested", f"Asked for a {ROLE_LABELS[request.role]} account ({request.username}){why}",
+              actor_name=request.full_name, target=f"user {request.username}")
+    admins = db.scalars(select(User).where(User.role == "admin", User.is_active.is_(True))).all()
     return {"username": request.username, "full_name": request.full_name, "role": request.role,
-            "role_label": ROLE_LABELS[request.role], "created_at": request.created_at.isoformat()}
+            "role_label": ROLE_LABELS[request.role], "created_at": request.created_at.isoformat(),
+            "employee_id": request.employee_id, "division": request.division,
+            # the design says who was told (their names only; nothing else about them)
+            "admins": [a.full_name for a in admins]}
 
 
 class ForgotForm(BaseModel):

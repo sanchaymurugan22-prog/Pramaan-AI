@@ -56,6 +56,9 @@ MATRIX = [
     ("POST", "/api/admin/records/{record}/withdraw", {AD}, {"reason": "Permission test"}),
     ("GET", "/api/admin/records/verify-bundle.zip", {AD}, None),
     ("POST", "/api/check-message", ANYONE, {"text": "Is this real?"}),
+    # Stage 9B: profile
+    ("GET", "/api/profile", ANYONE, None),
+    ("PUT", "/api/profile", ANYONE, {}),
     # Stage 9A: notifications, search, dashboard
     ("GET", "/api/notifications", ANYONE, None),
     ("GET", "/api/notifications/count", ANYONE, None),
@@ -90,6 +93,8 @@ PUBLIC = [
     ("POST", "/api/auth/logout"),
     ("POST", "/api/auth/request-access"),
     ("POST", "/api/auth/forgot"),
+    ("GET", "/api/auth/options"),
+    ("GET", "/api/auth/computer"),
 ]
 
 CLIENTS = {role: signed_in_client(role, f"matrix.{role}") for role in ANYONE}

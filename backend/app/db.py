@@ -301,6 +301,15 @@ class User(Base):
     last_login: Mapped[datetime | None] = mapped_column(default=None)
     failed_attempts: Mapped[int] = mapped_column(default=0)   # wrong passwords in a row
     locked_until: Mapped[datetime | None] = mapped_column(default=None)
+    # Stage 9B (designs 04, 31, 32, 41): can also sign in with the employee ID or the official email
+    employee_id: Mapped[str | None] = mapped_column(String(30), default=None, index=True)  # EMP-20311 (upper case)
+    email: Mapped[str | None] = mapped_column(String(120), default=None, index=True)       # lower case
+    division: Mapped[str] = mapped_column(String(80), default="")
+    language: Mapped[str] = mapped_column(String(10), default="en")   # preferred language (app and outputs)
+    dsc_holder: Mapped[bool] = mapped_column(default=False)           # holds a Class 3 DSC token (signs)
+    emergency_duty: Mapped[bool] = mapped_column(default=False)       # on the emergency duty roster
+    # Profile & settings: text_size, high_contrast, output_languages, notify_* (see routes/profile.py)
+    prefs: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
 class AccountRequest(Base):
@@ -316,6 +325,11 @@ class AccountRequest(Base):
     full_name: Mapped[str] = mapped_column(String(100), default="")
     role: Mapped[str | None] = mapped_column(String(20), default=None)   # access: operator | reviewer
     reason: Mapped[str] = mapped_column(Text, default="")                # why / message to the Admin
+    # Stage 9B (design 04): the same details the account will get
+    employee_id: Mapped[str | None] = mapped_column(String(30), default=None)
+    email: Mapped[str | None] = mapped_column(String(120), default=None)
+    division: Mapped[str] = mapped_column(String(80), default="")
+    language: Mapped[str] = mapped_column(String(10), default="en")
     password_hash: Mapped[str | None] = mapped_column(String(200), default=None)  # access only
     status: Mapped[str] = mapped_column(String(10), default="pending")   # pending | approved | rejected | done
     created_at: Mapped[datetime] = mapped_column(default=utc_now)

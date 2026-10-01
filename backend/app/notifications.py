@@ -18,6 +18,10 @@ from sqlalchemy.orm import Session
 from app.db import Job, Notification, User
 
 KINDS = {"finished", "failed", "submitted", "sent_back", "approved", "signed", "watch", "alert"}
+# Profile & settings (Stage 9B): kinds a person may switch off. The rest (approved, signed, alerts ...)
+# are always shown.
+PREF_FOR_KIND = {"finished": "notify_ready", "failed": "notify_ready", "sent_back": "notify_sent_back",
+                 "watch": "notify_watch"}
 
 
 def notify(db: Session, user_id: int | None, kind: str, title: str, detail: str = "", job: Job | None = None) -> None:
@@ -25,13 +29,24 @@ def notify(db: Session, user_id: int | None, kind: str, title: str, detail: str 
     assert kind in KINDS, kind
     if user_id is None:
         return
+    pref = PREF_FOR_KIND.get(kind)
+    if pref:
+        user = db.get(User, user_id)
+        if user is not None and (user.prefs or {}).get(pref) is False:
+            return  # switched off in Profile & settings
     db.add(Notification(user_id=user_id, kind=kind, title=title[:200], detail=detail[:1000],
                         job_id=job.id if job is not None else None))
 
 
 def notify_reviewers(db: Session, kind: str, title: str, detail: str, job: Job, except_user: int | None) -> None:
-    """The same notification for every active Reviewer (except the person who caused it)."""
-    reviewers = db.scalars(select(User.id).where(User.role == "reviewer", User.is_active.is_(True)))
+    """The same notification for every active Reviewer (except the person who caused it). Emergency alerts go
+    to the Reviewers on the emergency duty roster (Stage 9B), or to all of them if nobody is on it."""
+    query = select(User.id).where(User.role == "reviewer", User.is_active.is_(True))
+    if kind == "alert":
+        on_duty = db.scalars(query.where(User.emergency_duty.is_(True))).all()
+        if on_duty:
+            query = query.where(User.emergency_duty.is_(True))
+    reviewers = db.scalars(query)
     for reviewer_id in reviewers:
         if reviewer_id != except_user:
             notify(db, reviewer_id, kind, title, detail, job)

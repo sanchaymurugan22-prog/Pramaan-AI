@@ -15,7 +15,7 @@ from app import watch
 from app.config import settings
 from app.db import init_db
 from app.pipeline import runner
-from app.routes import admin, alerts, auth, dashboard, jobs, notifications, outputs, records, review, safety, search, system, watch as watch_routes
+from app.routes import admin, alerts, auth, dashboard, jobs, notifications, outputs, profile, records, review, safety, search, system, watch as watch_routes
 
 
 @asynccontextmanager
@@ -80,3 +80,4 @@ app.include_router(search.router)
 app.include_router(dashboard.router)
 app.include_router(watch_routes.router)
 app.include_router(alerts.router)
+app.include_router(profile.router)

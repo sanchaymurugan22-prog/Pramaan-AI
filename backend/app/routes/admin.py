@@ -42,6 +42,11 @@ def admin_user_json(user: User) -> dict:
         "failed_attempts": user.failed_attempts,
         "created_at": _time(user.created_at),
         "last_login": _time(user.last_login),
+        "employee_id": user.employee_id,
+        "email": user.email,
+        "division": user.division or "",
+        "dsc_holder": bool(user.dsc_holder),
+        "emergency_duty": bool(user.emergency_duty),
     }
 
 
@@ -55,6 +60,9 @@ def request_json(db: Session, request: AccountRequest) -> dict:
         "role": request.role,
         "role_label": ROLE_LABELS.get(request.role or "", ""),
         "reason": request.reason,
+        "employee_id": request.employee_id,
+        "email": request.email,
+        "division": request.division or "",
         "status": request.status,
         # reset requests: does this username exist? (the person asking was not told)
         "user_exists": accounts.find_user(db, request.username) is not None,
@@ -77,15 +85,22 @@ def list_users(db: Session = Depends(get_session), admin: User = Depends(admin_o
 
 
 class NewUser(BaseModel):
-    username: str
+    username: str = ""
     full_name: str
     role: str
+    employee_id: str = ""
+    email: str = ""
+    division: str = ""
+    dsc_holder: bool = False
+    emergency_duty: bool = False
 
 
 @router.post("/users", status_code=201)
 def add_user(form: NewUser, db: Session = Depends(get_session), admin: User = Depends(admin_only)):
     try:
-        user, temporary = accounts.create_user(db, admin, form.username, form.full_name, form.role)
+        user, temporary = accounts.create_user(db, admin, form.username, form.full_name, form.role,
+                                               employee_id=form.employee_id, email=form.email, division=form.division,
+                                               dsc_holder=form.dsc_holder, emergency_duty=form.emergency_duty)
     except AccountError as exc:
         raise HTTPException(400, str(exc))
     audit.log("users", "user_created", f"Added {user.full_name} ({user.username}) as {ROLE_LABELS[user.role]}, "
@@ -99,6 +114,11 @@ class UserChange(BaseModel):
     role: str | None = None
     is_active: bool | None = None
     unlock: bool = False
+    employee_id: str | None = None
+    email: str | None = None
+    division: str | None = None
+    dsc_holder: bool | None = None
+    emergency_duty: bool | None = None
 
 
 @router.put("/users/{user_id}")
@@ -106,7 +126,9 @@ def change_user(user_id: int, form: UserChange, db: Session = Depends(get_sessio
     user = _get_user(db, user_id)
     try:
         changes = accounts.update_user(db, admin, user, full_name=form.full_name, role=form.role,
-                                       is_active=form.is_active, unlock=form.unlock)
+                                       is_active=form.is_active, unlock=form.unlock, employee_id=form.employee_id,
+                                       email=form.email, division=form.division, dsc_holder=form.dsc_holder,
+                                       emergency_duty=form.emergency_duty)
     except AccountError as exc:
         raise HTTPException(400, str(exc))
     if changes:

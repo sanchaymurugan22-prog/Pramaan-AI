@@ -36,6 +36,18 @@ LOCK_MINUTES = 15
 MAX_PENDING_REQUESTS = 50  # the sign-in pages are open to anyone; don't let them fill the database
 
 _USERNAME = re.compile(r"^[a-z0-9][a-z0-9._-]{2,39}$")
+_EMPLOYEE_ID = re.compile(r"^[A-Z0-9][A-Z0-9-]{1,29}$")
+_EMAIL = re.compile(r"^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$")
+
+# Stage 9B: the divisions offered in the forms (anything else can be typed by an Admin), and the 23
+# languages of the language screen (the app's own words are English until Stage 8).
+DIVISIONS = ["Cyber operations", "Public communication", "Research and analysis", "Administration", "Other"]
+LANGUAGES = {
+    "en": "English", "hi": "हिन्दी", "bn": "বাংলা", "te": "తెలుగు", "mr": "मराठी", "ta": "தமிழ்", "ur": "اردو",
+    "gu": "ગુજરાતી", "kn": "ಕನ್ನಡ", "or": "ଓଡ଼ିଆ", "ml": "മലയാളം", "pa": "ਪੰਜਾਬੀ", "as": "অসমীয়া", "mai": "मैथिली",
+    "sat": "ᱥᱟᱱᱛᱟᱲᱤ", "ks": "کٲشُر", "ne": "नेपाली", "sd": "سنڌي", "doi": "डोगरी", "kok": "कोंकणी", "mni": "ꯃꯤꯇꯩꯂꯣꯟ",
+    "brx": "बड़ो", "sa": "संस्कृतम्",
+}
 _setup_lock = threading.Lock()
 
 
@@ -82,8 +94,63 @@ def _check_role(role: str, allowed=ROLES) -> str:
     return role
 
 
+def clean_employee_id(raw: str | None) -> str | None:
+    """"emp-20417 " -> "EMP-20417"; empty -> None."""
+    value = (raw or "").strip().upper()
+    if not value:
+        return None
+    if not _EMPLOYEE_ID.match(value):
+        raise AccountError("The employee ID may have letters, numbers and dashes only (for example EMP-20417).")
+    return value
+
+
+def clean_email(raw: str | None) -> str | None:
+    value = (raw or "").strip().lower()
+    if not value:
+        return None
+    if len(value) > 120 or not _EMAIL.match(value):
+        raise AccountError("Please enter a valid official email address (for example name@org.gov.in).")
+    return value
+
+
+def clean_division(raw: str | None) -> str:
+    return " ".join((raw or "").split())[:80]
+
+
+def clean_language(raw: str | None) -> str:
+    value = (raw or "en").strip().lower()
+    if value not in LANGUAGES:
+        raise AccountError("Choose a language from the list.")
+    return value
+
+
 def find_user(db: Session, username: str) -> User | None:
     return db.scalar(select(User).where(User.username == (username or "").strip().lower()))
+
+
+def find_for_sign_in(db: Session, typed: str) -> User | None:
+    """The account for what was typed in the sign-in box: a username, an employee ID or an email."""
+    typed = (typed or "").strip()
+    if not typed:
+        return None
+    return (find_user(db, typed)
+            or db.scalar(select(User).where(User.employee_id == typed.upper()))
+            or db.scalar(select(User).where(User.email == typed.lower())))
+
+
+def _detail_taken(db: Session, employee_id: str | None, email: str | None, except_user: int | None = None) -> str | None:
+    """Is this employee ID or email already used by another account or a waiting request?"""
+    for field, value, words in ((User.employee_id, employee_id, "employee ID"), (User.email, email, "email")):
+        if value is None:
+            continue
+        other = db.scalar(select(User).where(field == value))
+        if other is not None and other.id != except_user:
+            return f"This {words} is already used by another account."
+        request_field = AccountRequest.employee_id if words == "employee ID" else AccountRequest.email
+        if except_user is None and db.scalar(select(AccountRequest.id).where(
+                AccountRequest.kind == "access", AccountRequest.status == "pending", request_field == value)):
+            return f"This {words} is already in a waiting access request."
+    return None
 
 
 def _username_taken(db: Session, username: str) -> bool:
@@ -127,12 +194,14 @@ def sign_in(db: Session, username: str, password: str) -> User:
     """Check the username and password. Returns the user, or raises SignInError (already saved:
     wrong-password counts and locks are committed)."""
     wrong = "Wrong username or password."
-    user = find_user(db, username)
+    user = find_for_sign_in(db, username)
     if user is None:
         waste_time_like_a_check(password)
+        typed = (username or "").strip()
         pending = db.scalar(select(AccountRequest).where(
             AccountRequest.kind == "access", AccountRequest.status == "pending",
-            AccountRequest.username == (username or "").strip().lower(),
+            (AccountRequest.username == typed.lower()) | (AccountRequest.employee_id == typed.upper())
+            | (AccountRequest.email == typed.lower()),
         ))
         if pending is not None and pending.password_hash and verify_password(pending.password_hash, password):
             raise SignInError("Your access request is still waiting for an Admin to approve it.", "pending")
@@ -188,19 +257,28 @@ def _too_many_pending(db: Session) -> bool:
     return count >= MAX_PENDING_REQUESTS
 
 
-def request_access(db: Session, username: str, full_name: str, role: str, reason: str, password: str) -> AccountRequest:
-    username, full_name = clean_username(username), clean_name(full_name)
+def request_access(db: Session, username: str, full_name: str, role: str, reason: str, password: str,
+                   employee_id: str | None = None, email: str | None = None, division: str = "",
+                   language: str = "en") -> AccountRequest:
+    """Stage 9B: the username may be left out; then the employee ID (lower case) is the username."""
+    employee_id, email = clean_employee_id(employee_id), clean_email(email)
+    if not (username or "").strip() and employee_id is None:
+        raise AccountError("Please enter your employee ID.")
+    username = clean_username(username or (employee_id or "").lower())
+    full_name = clean_name(full_name)
     role = _check_role(role, REQUESTABLE_ROLES)
     reason = " ".join((reason or "").split())[:500]
-    if len(reason) < 5:
-        raise AccountError("Please say in a few words why you need access.")
     _check_password(password, username, full_name)
+    taken = _detail_taken(db, employee_id, email)
+    if taken:
+        raise AccountError(taken)
     if _username_taken(db, username):
         raise AccountError("This username is already used. Choose another one.")
     if _too_many_pending(db):
         raise AccountError("Too many requests are waiting. Please ask your Admin in person.")
     request = AccountRequest(kind="access", username=username, full_name=full_name, role=role, reason=reason,
-                             password_hash=hash_password(password))
+                             password_hash=hash_password(password), employee_id=employee_id, email=email,
+                             division=clean_division(division), language=clean_language(language))
     db.add(request)
     db.commit()
     return request
@@ -209,9 +287,11 @@ def request_access(db: Session, username: str, full_name: str, role: str, reason
 def request_reset(db: Session, username: str, message: str) -> AccountRequest | None:
     """"Forgot password". The answer never says whether the username exists; a second request for the
     same username while one is waiting is not stored again."""
-    username = (username or "").strip().lower()[:40]
-    if not username:
-        raise AccountError("Please enter your username.")
+    typed = (username or "").strip()[:120]
+    if not typed:
+        raise AccountError("Please enter your username or employee ID.")
+    user = find_for_sign_in(db, typed)
+    username = user.username if user is not None else typed.lower()[:40]
     already = db.scalar(select(AccountRequest).where(
         AccountRequest.kind == "reset", AccountRequest.status == "pending", AccountRequest.username == username,
     ))
@@ -231,9 +311,13 @@ def approve_access(db: Session, request: AccountRequest, admin: User, role: str 
         raise AccountError("This request has already been handled.")
     if find_user(db, request.username) is not None:
         raise AccountError("A user with this username already exists. Reject this request.")
+    for field, value in ((User.employee_id, request.employee_id), (User.email, request.email)):
+        if value is not None and db.scalar(select(User.id).where(field == value)) is not None:
+            raise AccountError("Another account already has this employee ID or email. Reject this request.")
     user = User(username=request.username, full_name=request.full_name,
                 role=_check_role(role or request.role or "", REQUESTABLE_ROLES),
-                password_hash=request.password_hash)
+                password_hash=request.password_hash, employee_id=request.employee_id, email=request.email,
+                division=request.division or "", language=request.language or "en")
     db.add(user)
     request.status, request.decided_at, request.decided_by = "approved", utc_now(), admin.id
     request.password_hash = None  # now kept on the user only
@@ -249,14 +333,25 @@ def reject_request(db: Session, request: AccountRequest, admin: User) -> None:
     db.commit()
 
 
-def create_user(db: Session, admin: User, username: str, full_name: str, role: str) -> tuple[User, str]:
-    """A new account with a temporary password (shown once to the Admin; changed at first sign-in)."""
-    username, full_name, role = clean_username(username), clean_name(full_name), _check_role(role)
+def create_user(db: Session, admin: User, username: str, full_name: str, role: str, *,
+                employee_id: str | None = None, email: str | None = None, division: str = "",
+                dsc_holder: bool = False, emergency_duty: bool = False) -> tuple[User, str]:
+    """A new account with a temporary password (shown once to the Admin; changed at first sign-in).
+    Stage 9B: the username may be left out; then the employee ID (lower case) is the username."""
+    employee_id, email = clean_employee_id(employee_id), clean_email(email)
+    if not (username or "").strip() and employee_id is None:
+        raise AccountError("Enter a username or an employee ID.")
+    username = clean_username(username or (employee_id or "").lower())
+    full_name, role = clean_name(full_name), _check_role(role)
+    taken = _detail_taken(db, employee_id, email)
+    if taken:
+        raise AccountError(taken)
     if _username_taken(db, username):
         raise AccountError("This username is already used (or waiting in an access request).")
     password = temporary_password()
     user = User(username=username, full_name=full_name, role=role, password_hash=hash_password(password),
-                must_change_password=True)
+                must_change_password=True, employee_id=employee_id, email=email, division=clean_division(division),
+                dsc_holder=dsc_holder and role == "reviewer", emergency_duty=emergency_duty)
     db.add(user)
     db.commit()
     return user, password
@@ -267,9 +362,27 @@ def _active_admins(db: Session) -> int:
 
 
 def update_user(db: Session, admin: User, user: User, *, full_name: str | None = None, role: str | None = None,
-                is_active: bool | None = None, unlock: bool = False) -> list[str]:
-    """Change a user. Returns what changed, in plain words (for the audit trail)."""
+                is_active: bool | None = None, unlock: bool = False, employee_id: str | None = None,
+                email: str | None = None, division: str | None = None, dsc_holder: bool | None = None,
+                emergency_duty: bool | None = None) -> list[str]:
+    """Change a user. Returns what changed, in plain words (for the audit trail).
+    employee_id / email: None = unchanged, "" = remove."""
     changes: list[str] = []
+    new_id = clean_employee_id(employee_id) if employee_id is not None else user.employee_id
+    new_email = clean_email(email) if email is not None else user.email
+    taken = _detail_taken(db, new_id if new_id != user.employee_id else None,
+                          new_email if new_email != user.email else None, except_user=user.id)
+    if taken:
+        raise AccountError(taken)
+    for label, attr, value in (("employee ID", "employee_id", new_id), ("email", "email", new_email),
+                               ("division", "division", clean_division(division) if division is not None else user.division)):
+        if value != getattr(user, attr):
+            changes.append(f"{label} {getattr(user, attr) or '—'} → {value or '—'}")
+            setattr(user, attr, value)
+    for label, attr, value in (("DSC token holder", "dsc_holder", dsc_holder), ("emergency duty", "emergency_duty", emergency_duty)):
+        if value is not None and value != getattr(user, attr):
+            changes.append(f"{label} {'on' if value else 'off'}")
+            setattr(user, attr, value)
     role = _check_role(role) if role is not None else None
     if full_name is not None and clean_name(full_name) != user.full_name:
         changes.append(f"name {user.full_name} → {clean_name(full_name)}")
