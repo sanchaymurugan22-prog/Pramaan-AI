@@ -156,3 +156,25 @@ textarea.input { min-height: 180px; line-height: 1.55; resize: vertical; }
 @media (min-width: 640px) {
   .hero h1 { font-size: 52px; }
 }
+
+/* Stage 9B: scanning with the camera (design 43) */
+.btn-saffron { background: var(--saffron-dark, #A34A00); color: #fff; border-color: var(--saffron-dark, #A34A00); }
+.camera { position: relative; border-radius: 18px; overflow: hidden; background: #111827; aspect-ratio: 3 / 4; max-height: 70vh; }
+.camera video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.camera-frame {
+  position: absolute; inset: 22% 15%; border-radius: 14px; pointer-events: none;
+  border: 4px solid transparent;
+  border-image: linear-gradient(180deg, #F28C28 0 50%, #3DBA4A 50% 100%) 1;
+}
+.camera-hint {
+  position: absolute; left: 50%; bottom: 76px; transform: translateX(-50%); white-space: nowrap;
+  background: rgba(17, 24, 39, 0.85); color: #fff; padding: 8px 16px; border-radius: 999px; font-size: 15px;
+}
+.camera-stop { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); }
+@media (prefers-reduced-motion: no-preference) {
+  .camera-frame::after {
+    content: ""; position: absolute; left: 6%; right: 6%; height: 2px; background: #F28C28; top: 50%;
+    box-shadow: 0 0 12px #F28C28; animation: scanline 2s ease-in-out infinite alternate;
+  }
+  @keyframes scanline { from { top: 12%; } to { top: 88%; } }
+}

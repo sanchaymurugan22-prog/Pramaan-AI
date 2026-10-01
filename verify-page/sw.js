@@ -1,7 +1,7 @@
 // Offline copy of Pramaan Verify. Everything is fetched fresh when there is a connection (so new
 // records, withdrawals and page updates show up at once) and taken from the saved copy when there is not.
 // (Browsers allow this only on https:// pages and on localhost.)
-const CACHE = 'pramaan-verify-v2'
+const CACHE = 'pramaan-verify-v3'
 const SHELL = [
   './', 'index.html', 'style.css', 'app.js', 'verify.js', 'icon.svg',
   'fonts/hind-latin-400-normal.woff2', 'fonts/hind-latin-600-normal.woff2',

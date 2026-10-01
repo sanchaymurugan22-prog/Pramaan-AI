@@ -1,6 +1,7 @@
 // Pramaan Verify: the page. The checking itself is in verify.js.
 //   ./?r=PRM-2026-000001   what a QR code opens: is this record genuine, withdrawn or unknown?
-//   #scan                  how to scan (the phone's own camera app opens the ?r= address)
+//   #scan                  scan with the camera here (where the browser can read QR codes), or with the
+//                          phone's own camera app, which opens the ?r= address
 //   #file                  drop a file: its SHA-256 is worked out here and compared with the records
 //   #message               paste a forwarded message: genuine, changed, or signs of a scam
 // Labels in English and Hindi (the button at the top right). Nothing is uploaded anywhere.
@@ -19,8 +20,8 @@ const WORDS = {
     lead: 'Check any government alert or advisory before you trust it or share it.',
     scanTitle: 'Scan the QR code',
     scanNote: 'On the printed or shared document',
-    fileTitle: 'Check a file',
-    fileNote: 'PDF, slides, image or Word file',
+    fileTitle: 'Upload the file',
+    fileNote: 'PDF, image or Word file',
     privacy: 'Checks happen on your phone. Nothing is uploaded.',
     helplineTitle: 'Cyber fraud? Call 1930',
     helplineNote: 'National cybercrime helpline · cybercrime.gov.in',
@@ -33,6 +34,16 @@ const WORDS = {
       'This page opens and shows whether the document is genuine.',
     ],
     orType: 'Or type the record number printed under the QR code',
+    cameraOpen: 'Scan with this phone’s camera',
+    cameraHint: 'Point at the QR code on the document',
+    cameraStop: 'Stop the camera',
+    cameraNo: 'This browser cannot read QR codes here. Use your phone’s camera app instead:',
+    cameraDenied: 'The camera could not be opened. Allow camera access, or use your phone’s camera app:',
+    cameraNotOurs: 'This QR code is not from Pramaan Verify: {value}',
+    changedSince: 'Changed since?',
+    no: 'No',
+    warn: 'Warn my family and friends',
+    warnText: 'Warning: a message going around is a scam. Do not click its links, share OTPs or reply. Check messages at {url} and report fraud on 1930.',
     recordPlaceholder: 'PRM-2026-000001',
     check: 'Check',
     genuine: 'Genuine',
@@ -116,8 +127,8 @@ const WORDS = {
     lead: 'किसी भी सरकारी चेतावनी या सलाह पर भरोसा करने या उसे आगे भेजने से पहले उसकी जाँच करें।',
     scanTitle: 'QR कोड स्कैन करें',
     scanNote: 'छपे या भेजे गए दस्तावेज़ पर',
-    fileTitle: 'फ़ाइल जाँचें',
-    fileNote: 'PDF, स्लाइड, चित्र या Word फ़ाइल',
+    fileTitle: 'फ़ाइल अपलोड करें',
+    fileNote: 'PDF, चित्र या Word फ़ाइल',
     privacy: 'जाँच आपके फ़ोन पर ही होती है। कुछ भी अपलोड नहीं होता।',
     helplineTitle: 'साइबर धोखाधड़ी? 1930 पर कॉल करें',
     helplineNote: 'राष्ट्रीय साइबर अपराध हेल्पलाइन · cybercrime.gov.in',
@@ -130,6 +141,16 @@ const WORDS = {
       'यह पेज खुलेगा और बताएगा कि दस्तावेज़ असली है या नहीं।',
     ],
     orType: 'या QR कोड के नीचे छपा रिकॉर्ड नंबर लिखें',
+    cameraOpen: 'इस फ़ोन के कैमरे से स्कैन करें',
+    cameraHint: 'दस्तावेज़ पर बने QR कोड की ओर रखें',
+    cameraStop: 'कैमरा बंद करें',
+    cameraNo: 'यह ब्राउज़र यहाँ QR कोड नहीं पढ़ सकता। अपने फ़ोन का कैमरा ऐप इस्तेमाल करें:',
+    cameraDenied: 'कैमरा नहीं खुल सका। कैमरे की अनुमति दें, या फ़ोन का कैमरा ऐप इस्तेमाल करें:',
+    cameraNotOurs: 'यह QR कोड Pramaan Verify का नहीं है: {value}',
+    changedSince: 'तब से बदला गया?',
+    no: 'नहीं',
+    warn: 'परिवार और दोस्तों को सावधान करें',
+    warnText: 'सावधान: एक संदेश धोखाधड़ी है। उसके लिंक न खोलें, OTP न दें, जवाब न दें। संदेश {url} पर जाँचें और धोखाधड़ी की शिकायत 1930 पर करें।',
     recordPlaceholder: 'PRM-2026-000001',
     check: 'जाँचें',
     genuine: 'असली',
@@ -266,7 +287,7 @@ function resultCard(tone, iconName, title, text) {
   </section>`
 }
 
-function recordDetails(record, matchedSha = '') {
+function recordDetails(record, matchedSha = '', unchanged = false) {
   const rows = []
   if (record.restricted) {
     rows.push(`<p class="note info">${icon('lock')}<span><strong>${t('restricted')}.</strong> ${t('restrictedText')}</span></p>`)
@@ -278,6 +299,7 @@ function recordDetails(record, matchedSha = '') {
     !record.restricted && [t('signedBy'), escapeHtml(t('role_' + record.approved_by?.role))],
     [t('signedOn'), escapeHtml(formatDate(record.issued_at))],
     !record.restricted && record.tlp && [t('sharing'), `TLP:${escapeHtml(record.tlp)}`],
+    unchanged && [t('changedSince'), `<strong>${t('no')}</strong>`],
   ].filter(Boolean)
   rows.push(`<dl class="details">${list.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`)
   const files = (record.files || [])
@@ -353,6 +375,88 @@ function wireShare() {
   })
 }
 
+// "Warn my family and friends": a short warning (not the scam message itself) to share or copy
+function wireWarn() {
+  const button = document.getElementById('warn')
+  if (!button) return
+  button.addEventListener('click', async () => {
+    const text = t('warnText', { url: location.origin + location.pathname })
+    try {
+      if (navigator.share) await navigator.share({ text })
+      else {
+        await navigator.clipboard.writeText(text)
+        button.textContent = t('copied')
+      }
+    } catch {
+      // cancelled
+    }
+  })
+}
+
+// ---- camera scanning (scan view) ----------------------------------------------------------------
+
+let stream = null
+function stopCamera() {
+  stream?.getTracks().forEach((track) => track.stop())
+  stream = null
+}
+
+function wireCamera() {
+  const open = document.getElementById('camera-open')
+  if (!open) return
+  const box = document.getElementById('camera')
+  const video = document.getElementById('camera-video')
+  const note = document.getElementById('camera-note')
+  const show = (message) => {
+    note.textContent = message
+    note.hidden = false
+  }
+  document.getElementById('camera-stop').addEventListener('click', () => {
+    stopCamera()
+    box.hidden = true
+    open.hidden = false
+  })
+  open.addEventListener('click', async () => {
+    note.hidden = true
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+    } catch {
+      show(t('cameraDenied'))
+      return
+    }
+    video.srcObject = stream
+    await video.play()
+    box.hidden = false
+    open.hidden = true
+    const detector = new window.BarcodeDetector({ formats: ['qr_code'] })
+    const look = async () => {
+      if (!stream) return
+      try {
+        const [code] = await detector.detect(video)
+        if (code) {
+          let recordNo = ''
+          try {
+            recordNo = new URL(code.rawValue, location.href).searchParams.get('r') || ''
+          } catch {
+            recordNo = ''
+          }
+          if (recordNo) {
+            stopCamera()
+            history.pushState(null, '', `?r=${encodeURIComponent(cleanRecordNo(recordNo))}`)
+            render()
+            return
+          }
+          show(t('cameraNotOurs', { value: code.rawValue.slice(0, 80) }))
+        }
+      } catch {
+        // a frame that could not be read: try the next one
+      }
+      setTimeout(look, 300)
+    }
+    look()
+  })
+}
+
 // ---- views -------------------------------------------------------------------------------------
 
 const VIEWS = {
@@ -369,7 +473,18 @@ const VIEWS = {
 
   scan() {
     const steps = WORDS[lang].scanSteps.map((s) => `<li>${escapeHtml(s)}</li>`).join('')
+    // Live scanning where the browser can read QR codes (BarcodeDetector, e.g. Chrome on Android) and a
+    // camera is allowed (https:// or localhost). Elsewhere: the phone's camera app, as before.
+    const canScan = 'BarcodeDetector' in window && navigator.mediaDevices?.getUserMedia && window.isSecureContext
     return `<h1 class="page-title">${t('scanPageTitle')}</h1>
+      ${canScan ? `<button type="button" class="btn btn-saffron" id="camera-open">${icon('scan')} ${t('cameraOpen')}</button>
+      <div class="camera" id="camera" hidden>
+        <video id="camera-video" playsinline muted aria-label="${t('cameraHint')}"></video>
+        <span class="camera-frame" aria-hidden="true"></span>
+        <span class="camera-hint">${t('cameraHint')}</span>
+        <button type="button" class="btn btn-outline camera-stop" id="camera-stop">${t('cameraStop')}</button>
+      </div>
+      <p class="note warn" id="camera-note" hidden></p>` : `<p class="small muted">${t('cameraNo')}</p>`}
       <section class="card"><ol class="steps">${steps}</ol></section>
       <form class="field" id="record-form">
         <label for="record-no">${t('orType')}</label>
@@ -408,7 +523,7 @@ const VIEWS = {
     const replacedLink =
       status === 'replaced' ? `<a class="btn btn-navy" href="?r=${encodeURIComponent(record.replaced_by)}">${t('record')} ${escapeHtml(record.replaced_by)}</a>` : ''
     return `${dataNotes()}${card}${reason}${replacedLink}
-      ${record ? recordDetails(record) : ''}
+      ${record ? recordDetails(record, '', status === 'genuine') : ''}
       ${record ? dropZone('record-drop', t('fileCheckRecord')) + '<div id="file-result"></div>' : ''}
       ${!usingWebCrypto() ? `<p class="small muted">${t('builtIn')}</p>` : ''}
       ${shareButton()}`
@@ -444,6 +559,9 @@ function messageResult(result) {
     parts.push(`<section class="card"><h2 class="card-title">${t('why')}</h2><ul class="list-x">${items}</ul></section>`)
   }
   parts.push(`<a class="btn btn-red" href="tel:1930">${t('report')}</a><p class="small muted" style="margin:0;text-align:center">${t('reportText')}</p>`)
+  if (result.verdict === 'scam' || result.verdict === 'changed' || result.verdict === 'withdrawn') {
+    parts.push(`<button type="button" class="btn btn-outline" id="warn">${icon('share')} ${t('warn')}</button>`)
+  }
   return parts.join('')
 }
 
@@ -467,9 +585,11 @@ async function render() {
   document.getElementById('lang').setAttribute('aria-label', t('langLabel'))
   document.getElementById('back').hidden = view.name === 'home'
   document.getElementById('back').setAttribute('aria-label', t('back'))
+  stopCamera() // leaving the scan view switches the camera off
   main.innerHTML = VIEWS[view.name](view.recordNo)
 
   wireShare()
+  wireCamera()
   const form = document.getElementById('record-form')
   if (form) {
     form.addEventListener('submit', (e) => {
@@ -493,6 +613,7 @@ async function render() {
       const result = await checkMessage(document.getElementById('message-text').value, book ? publishedRecords(book) : [])
       const box = document.getElementById('message-result')
       box.innerHTML = messageResult(result)
+      wireWarn()
       box.focus()
       box.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
