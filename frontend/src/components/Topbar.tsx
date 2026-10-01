@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode 
 import { search, type Health, type SearchResults } from '../api'
 import { useAuth } from '../auth'
 import { useCounts } from '../counts'
-import { aiLabel, jobNo } from '../pages/format'
+import { aiLabel, jobNo, LANGUAGE_NAMES } from '../pages/format'
 import { links, navigate } from '../router'
 import { Icon } from './Icon'
 import { StatusChip } from './StatusChip'
@@ -186,6 +186,8 @@ function SearchBox() {
 
 export function Topbar({ health, onMenu, menuOpen }: Props) {
   const { counts } = useCounts()
+  const { user } = useAuth()
+  const language = user.language || 'en'
   const unread = counts.unread
   return (
     <header className="topbar">
@@ -202,10 +204,10 @@ export function Topbar({ health, onMenu, menuOpen }: Props) {
       <SearchBox />
       <div className="grow" />
       <ModelChip health={health} />
-      <span className="chip chip-neutral topbar-lang" title="More languages come in Stage 8">
+      <a href={links.profile} className="btn btn-outline btn-sm topbar-lang" aria-label={`Language: ${LANGUAGE_NAMES[language] ?? language}. Change it in Profile and settings`}>
         <Icon name="globe" size={16} color="var(--muted)" strokeWidth={1.8} />
-        English
-      </span>
+        <span lang={language}>{LANGUAGE_NAMES[language] ?? language}</span>
+      </a>
       <a
         href={links.notifications}
         className="icon-btn"

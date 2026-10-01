@@ -1517,3 +1517,36 @@ button.number-tile { border: 1px solid var(--line); text-align: left; font-famil
   .toggle-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 760px) { .admin-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* =====================================================================================
+   Stage 9B: profile & settings, help, no access
+   ===================================================================================== */
+/* Text size (Profile & settings): the whole app is drawn larger. Sizes in this file are in pixels,
+   so the app is zoomed rather than the root font size changed. */
+.app.text-large { zoom: 1.125; }
+.app.text-xlarge { zoom: 1.25; }
+/* High contrast: darker text, borders and icons everywhere; links always underlined */
+.app.high-contrast {
+  --muted: #2E3240; --ink-2: #1B1D26; --icon: #2E3240; --line: #A89C86; --line-2: #6F6553;
+  --neutral-chip: #E2DBCD; --table-head: #EFE8DA;
+}
+.app.high-contrast a { text-decoration: underline; }
+.app.high-contrast .btn, .app.high-contrast .nav-link { text-decoration: none; }
+
+.profile-grid { display: grid; grid-template-columns: minmax(260px, 360px) minmax(0, 1fr); gap: 20px; align-items: start; }
+.profile-card { overflow: hidden; }
+.profile-banner { height: 90px; background: var(--role-light); position: relative; overflow: hidden; display: flex; justify-content: flex-end; align-items: center; }
+.profile-body { padding: 0 22px 22px; }
+.profile-avatar { width: 72px; height: 72px; font-size: 24px; margin-top: -36px; border: 4px solid #fff; }
+.profile-name { font-size: 24px; }
+.profile-pair { gap: 20px; align-items: start; }
+.input-static { display: flex; align-items: center; background: var(--table-head); }
+.pill-remove { border: 0; background: transparent; color: inherit; display: flex; padding: 2px; margin-left: 2px; border-radius: 50%; cursor: pointer; }
+.add-language { width: auto; min-height: 40px; border-radius: 999px; }
+.help-topic summary { font-family: var(--font-heading); font-size: 17px; color: var(--ink); margin: 0; }
+.help-body { margin-top: 10px; line-height: 1.6; }
+.help-body p { margin: 0; }
+.no-access { max-width: 560px; justify-self: center; margin-top: 40px; padding: 40px 32px; }
+.no-access-icon { width: 80px; height: 80px; border-radius: 50%; background: var(--navy-light); display: flex; align-items: center; justify-content: center; }
+.no-access h1 { font-size: 26px; }
+@media (max-width: 1100px) { .profile-grid { grid-template-columns: minmax(0, 1fr); } }

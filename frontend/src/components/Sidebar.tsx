@@ -104,7 +104,8 @@ export function Sidebar({ route, open, onClose }: Props) {
       label: 'Notifications', icon: 'bell', href: links.notifications, pages: ['notifications'],
       badge: counts.unread || undefined, badgeLabel: `${counts.unread} unread`,
     },
-    { label: 'Change password', icon: 'key', href: links.password, pages: ['password'] },
+    { label: 'Profile & settings', icon: 'sliders', href: links.profile, pages: ['profile', 'password'] },
+    { label: 'Help', icon: 'summary', href: links.help, pages: ['help'] },
   ]
   return (
     <>

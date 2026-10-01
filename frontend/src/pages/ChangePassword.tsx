@@ -1,5 +1,5 @@
-// Change password. Shown on its own (forced) after signing in with a temporary password from the
-// Admin, and inside the app from the sidebar (Change password). Other computers are signed out.
+// Change password, shown on its own (forced) after signing in with a temporary password from the Admin.
+// Inside the app, the password is changed on Profile & settings (Stage 9B). Other computers are signed out.
 import { useState, type FormEvent } from 'react'
 import { changePassword, type User } from '../api'
 import { Icon } from '../components/Icon'
@@ -85,15 +85,5 @@ export function ForcedPasswordChange({ onDone, onSignOut }: { onDone: (user: Use
         Sign out
       </button>
     </CentredLayout>
-  )
-}
-
-export function ChangePasswordPage({ onDone }: { onDone: (user: User) => void }) {
-  return (
-    <main className="page">
-      <section className="card card-pad narrow-card">
-        <PasswordForm forced={false} onDone={onDone} />
-      </section>
-    </main>
   )
 }

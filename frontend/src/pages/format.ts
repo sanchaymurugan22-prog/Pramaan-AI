@@ -56,6 +56,13 @@ export function aiShort(mode: string | null | undefined): string {
 
 export const LANGUAGE_LABELS: Record<string, string> = { en: 'EN', hi: 'हि', ta: 'த', bn: 'বা', te: 'తె' }
 
+// Each language's own name (the same list as backend/app/auth/accounts.py LANGUAGES)
+export const LANGUAGE_NAMES: Record<string, string> = {
+  en: 'English', hi: 'हिन्दी', bn: 'বাংলা', te: 'తెలుగు', mr: 'मराठी', ta: 'தமிழ்', ur: 'اردو', gu: 'ગુજરાતી', kn: 'ಕನ್ನಡ',
+  or: 'ଓଡ଼ିଆ', ml: 'മലയാളം', pa: 'ਪੰਜਾਬੀ', as: 'অসমীয়া', mai: 'मैथिली', sat: 'ᱥᱟᱱᱛᱟᱲᱤ', ks: 'کٲشُر', ne: 'नेपाली', sd: 'سنڌي',
+  doi: 'डोगरी', kok: 'कोंकणी', mni: 'ꯃꯤꯇꯩꯂꯣꯟ', brx: 'बड़ो', sa: 'संस्कृतम्',
+}
+
 // "Today", "Yesterday" or "28 Sep", for grouping lists by day
 export function dayLabel(iso: string): string {
   const date = new Date(iso)

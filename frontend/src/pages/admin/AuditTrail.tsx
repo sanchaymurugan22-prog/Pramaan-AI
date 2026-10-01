@@ -1,7 +1,8 @@
 // Design 33 · Audit trail. Admin only. Every row carries the SHA-256 of the row before it;
 // "Verify chain" works every hash out again and shows the first row that was changed or deleted.
 import { useEffect, useState } from 'react'
-import { getAudit, verifyAuditChain, type AuditCategory, type AuditPage, type ChainCheck } from '../../api'
+import { getAudit, verifyAuditChain, type AuditCategory, type AuditEntry,
+  type AuditPage, type ChainCheck } from '../../api'
 import { Icon, type IconName } from '../../components/Icon'
 
 const PAGE_SIZE = 50
@@ -83,6 +84,12 @@ export function AuditTrail() {
           <p className="muted">A permanent record of every action. Entries cannot be edited or deleted.</p>
         </div>
         <div className="grow" />
+        {page && page.entries.length > 0 && (
+          <a className="btn btn-outline" href={csvHref(page.entries)} download="pramaan-audit-log.csv">
+            <Icon name="download" size={18} strokeWidth={2} />
+            Export log with hashes
+          </a>
+        )}
         <button type="button" className="btn btn-navy" onClick={verify} disabled={checking}>
           <Icon name="shieldCheck" size={18} strokeWidth={2} />
           {checking ? 'Checking…' : 'Verify chain'}
@@ -204,3 +211,15 @@ export function AuditTrail() {
     </main>
   )
 }
+
+// Stage 9B (design 33): the rows on screen as a CSV file, with each row's hash and the hash before it,
+// so the chain can be checked again outside the app. Made in the browser.
+function csvHref(entries: AuditEntry[]): string {
+  const cell = (value: string | number | null) => `"${String(value ?? '').replace(/"/g, '""')}"`
+  const rows = [
+    ['Row', 'Time (UTC)', 'Who', 'Category', 'Action', 'Target', 'Detail', 'Previous hash', 'Entry hash'],
+    ...entries.map((e) => [e.seq, e.created_at, e.actor, e.category, e.action, e.target, e.detail, e.prev_hash, e.entry_hash]),
+  ]
+  return `data:text/csv;charset=utf-8,${encodeURIComponent(rows.map((row) => row.map(cell).join(',')).join('\n'))}`
+}
+

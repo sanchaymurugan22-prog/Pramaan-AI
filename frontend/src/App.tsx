@@ -19,7 +19,9 @@ import { Setup } from './pages/auth/Setup'
 import { SignIn } from './pages/auth/SignIn'
 import { LanguagePicker, Splash } from './pages/auth/Welcome'
 import { welcomed } from './localPrefs'
-import { ChangePasswordPage, ForcedPasswordChange } from './pages/ChangePassword'
+import { ForcedPasswordChange } from './pages/ChangePassword'
+import { Profile } from './pages/Profile'
+import { Help, NoAccess } from './pages/Help'
 import { JobsList } from './pages/JobsList'
 import { Notifications } from './pages/Notifications'
 import { WatchFolder } from './pages/WatchFolder'
@@ -109,9 +111,12 @@ export default function App() {
 
   const auth = useMemo(() => (user ? { user, setUser, signOut } : null), [user, signOut])
 
-  // Send each role to a page it may see.
+  // The start address (#/) and the sign-in pages lead each role to its own home page. Any other page a
+  // role may not open shows "You don't have access" (Stage 9B); the backend refuses its data anyway (403).
   useEffect(() => {
-    if (user && !user.must_change_password && !ROLE_PAGES[user.role].includes(route.page)) navigate(HOME[user.role])
+    if (!user || user.must_change_password) return
+    const start = route.page === 'dashboard' && user.role !== 'operator'
+    if (start || SIGNED_OUT_PAGES.includes(route.page) || route.page === 'language') navigate(HOME[user.role])
   }, [user, route.page])
 
   if (needsSetup === undefined) {
@@ -137,7 +142,16 @@ export default function App() {
   return (
     <AuthContext.Provider value={auth}>
       <CountsProvider>
-      <div className={`app role-${ROLE_TONE[user.role]}`}>
+      <div
+        className={[
+          'app',
+          `role-${ROLE_TONE[user.role]}`,
+          user.prefs?.text_size && user.prefs.text_size !== 'normal' && `text-${user.prefs.text_size}`,
+          user.prefs?.high_contrast && 'high-contrast',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
         {/* GIGW / WCAG 2.4.1: the first Tab stop jumps straight to the page, past the menu */}
         <a
           href="#/"
@@ -173,7 +187,12 @@ export default function App() {
           {page?.page === 'audit' && <AuditTrail />}
           {page?.page === 'records' && <RecordsPage admin={false} />}
           {page?.page === 'record-book' && <RecordsPage admin />}
-          {(page?.page === 'password' || page?.page === 'profile') && <ChangePasswordPage onDone={setUser} />}
+          {(page?.page === 'password' || page?.page === 'profile') && <Profile onChanged={setUser} />}
+          {page?.page === 'help' && <Help />}
+          {route.page === 'not-found' && <NoAccess notFound />}
+          {!page && route.page !== 'not-found' && !SIGNED_OUT_PAGES.includes(route.page) && !(route.page === 'dashboard' && user.role !== 'operator') && (
+            <NoAccess />
+          )}
           {page?.page === 'check' && <IsThisReal />}
           {page?.page === 'notifications' && <Notifications />}
           {page?.page === 'progress' && <Progress key={page.id} jobId={page.id} />}

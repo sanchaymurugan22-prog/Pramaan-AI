@@ -56,6 +56,7 @@ export type Route =
   | { page: 'request-access' }
   | { page: 'forgot' }
   | { page: 'pending' }
+  | { page: 'not-found' }
 
 export const links = {
   dashboard: '#/',
@@ -136,7 +137,7 @@ function parse(hash: string): Route {
   if (review) return review[2] ? { page: review[2] as 'send-back' | 'signed', id: Number(review[1]) } : { page: 'review-job', id: Number(review[1]) }
   const sub = path.match(/^\/jobs\/(\d+)\/(progress|kit|compare)$/)
   if (sub) return { page: sub[2] as 'progress' | 'kit' | 'compare', id: Number(sub[1]) }
-  return { page: 'dashboard' }
+  return path === '/' || path === '' ? { page: 'dashboard' } : { page: 'not-found' }
 }
 
 export function useRoute(): Route {
