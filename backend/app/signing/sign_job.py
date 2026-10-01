@@ -19,6 +19,7 @@ new signature; the new record says which record it replaces.
 import dataclasses
 import hashlib
 import io
+import json
 import os
 import zipfile
 from pathlib import Path
@@ -160,7 +161,6 @@ def signed_kit(db: Session, job: Job) -> ExportedFile | None:
     entry = records.find_issue(db, job.record_no) if job.status == "approved" and job.record_no else None
     if entry is None:
         return None
-    import json
     manifest = json.loads(entry.manifest)
     folder = signed_dir(job.id, job.record_no)
     lines = [

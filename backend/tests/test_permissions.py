@@ -48,6 +48,10 @@ MATRIX = [
     ("POST", "/api/jobs/{job}/new-version", {OP}, None),
     ("GET", "/api/records/{record}", ANYONE, None),
     ("GET", "/api/records/{record}/qr.png", ANYONE, None),
+    ("GET", "/api/records", {RV, AD}, None),
+    ("POST", "/api/records/verify", {RV, AD}, None),
+    ("GET", "/api/records/public-key.pem", ANYONE, None),
+    ("POST", "/api/admin/records/{record}/withdraw", {AD}, {"reason": "Permission test"}),
     # admin
     ("GET", "/api/admin/users", {AD}, None),
     ("POST", "/api/admin/users", {AD}, {"username": "matrix.made", "full_name": "Matrix Made", "role": "operator"}),

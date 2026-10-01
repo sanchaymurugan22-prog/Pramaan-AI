@@ -528,3 +528,52 @@ export const getAudit = (filters: { category?: string; q?: string; actor?: strin
   return request<AuditPage>(`/api/admin/audit?${params}`)
 }
 export const verifyAuditChain = () => request<ChainCheck>('/api/admin/audit/verify', { method: 'POST' })
+
+// ---- record book (Stage 7, backend/app/routes/records.py) ---------------------------------------
+
+export type RecordStatus = 'active' | 'withdrawn' | 'replaced'
+export type RecordItem = {
+  seq: number
+  record_no: string
+  job_id: number | null
+  job_version: number | null
+  title: string
+  tlp: Tlp | null
+  issued_at: string
+  issuing_office: string
+  approved_by: string
+  replaces: string | null
+  replaced_by: string | null
+  status: RecordStatus
+  files_count: number
+  texts_count: number
+  verify_url: string
+  fingerprint: string
+  withdrawn: { reason: string; at: string } | null
+}
+export type ChainEntry = {
+  seq: number
+  kind: 'issue' | 'withdraw'
+  record_no: string
+  created_at: string
+  entry_hash: string
+  prev_hash: string
+  title: string | null
+}
+export type RecordBook = {
+  records: RecordItem[]
+  counts: Record<RecordStatus, number>
+  entries: number
+  last_check: { at: string; by: string; detail: string } | null
+  chain: ChainEntry[]
+}
+export type BookCheck =
+  | { ok: true; checked: number; files_checked: number; last_hash: string }
+  | { ok: false; checked: number; files_checked: number; broken: { seq: number; record_no: string; kind: string; reason: string } }
+
+export const listRecords = (q = '', status = '') =>
+  request<RecordBook>(`/api/records?${new URLSearchParams({ q, status })}`)
+export const verifyRecordBook = () => request<BookCheck>('/api/records/verify', { method: 'POST' })
+export const withdrawRecord = (recordNo: string, reason: string) =>
+  request<RecordItem>(`/api/admin/records/${recordNo}/withdraw`, sendJson('POST', { reason }))
+export const publicKeyUrl = '/api/records/public-key.pem'

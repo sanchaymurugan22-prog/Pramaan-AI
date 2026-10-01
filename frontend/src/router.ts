@@ -7,6 +7,7 @@
 //   #/jobs/12   results of job 12 (Operators and Reviewers)
 //   #/review    review queue (Reviewer)
 //   #/admin/users, #/admin/audit   users & access requests, audit trail (Admin)
+//   #/records   signed records (Reviewer)     #/admin/records   the record book (Admin)
 //   #/password  change my password (everyone)
 // Before signing in: #/login, #/request-access, #/forgot, #/pending
 // Using "#" means the backend never has to know about these pages (works offline as plain files).
@@ -23,6 +24,8 @@ export type Route =
   | { page: 'review' }
   | { page: 'users' }
   | { page: 'audit' }
+  | { page: 'records' }
+  | { page: 'record-book' }
   | { page: 'password' }
   | { page: 'login' }
   | { page: 'request-access' }
@@ -39,6 +42,8 @@ export const links = {
   review: '#/review',
   users: '#/admin/users',
   audit: '#/admin/audit',
+  records: '#/records',
+  recordBook: '#/admin/records',
   password: '#/password',
   login: '#/login',
   requestAccess: '#/request-access',
@@ -52,6 +57,8 @@ const SIMPLE: Record<string, Route> = {
   '/review': { page: 'review' },
   '/admin/users': { page: 'users' },
   '/admin/audit': { page: 'audit' },
+  '/records': { page: 'records' },
+  '/admin/records': { page: 'record-book' },
   '/password': { page: 'password' },
   '/login': { page: 'login' },
   '/request-access': { page: 'request-access' },

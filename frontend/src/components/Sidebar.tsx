@@ -21,7 +21,7 @@ const MAIN_NAV: Record<Role, NavItem[]> = {
   ],
   reviewer: [
     { label: 'Review queue', icon: 'history', href: links.review, pages: ['review', 'job'] },
-    { label: 'Signed records', icon: 'shieldCheck' },
+    { label: 'Signed records', icon: 'shieldCheck', href: links.records, pages: ['records'] },
     { label: 'Is this real?', icon: 'scan' },
   ],
   admin: [
@@ -29,7 +29,7 @@ const MAIN_NAV: Record<Role, NavItem[]> = {
     { label: 'Audit trail', icon: 'hash', href: links.audit, pages: ['audit'] },
     { label: 'AI models', icon: 'chip' },
     { label: 'Security & policies', icon: 'shield' },
-    { label: 'Record book', icon: 'box' },
+    { label: 'Record book', icon: 'box', href: links.recordBook, pages: ['record-book'] },
   ],
 }
 

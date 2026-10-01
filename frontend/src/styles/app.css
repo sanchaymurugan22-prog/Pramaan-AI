@@ -969,3 +969,21 @@ details summary { cursor: pointer; font-weight: 600; color: var(--navy); margin-
 @media (max-width: 900px) {
   .record-box { flex-direction: column; align-items: stretch; }
 }
+
+.eyebrow-green { color: var(--green-dark); }
+.chain-banner {
+  display: flex; align-items: center; gap: 16px; padding: 18px 22px; border-radius: 18px;
+  background: var(--green-light); border: 1px solid var(--green-mid); color: var(--green-dark);
+}
+.chain-banner strong { font-family: var(--font-heading); font-size: 18px; color: var(--ink); }
+.chain-banner-icon { width: 48px; height: 48px; border-radius: 50%; background: var(--card); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.chain-cards { display: flex; gap: 8px; align-items: stretch; overflow-x: auto; padding-bottom: 4px; }
+.chain-card-wrap { gap: 8px; align-items: center; flex: 1 0 220px; }
+.chain-card {
+  flex-grow: 1; display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: 14px;
+  border: 1px solid var(--line); min-width: 0;
+}
+.chain-card.is-latest { border: 2px solid var(--green); background: var(--green-light); }
+.chain-card-title { font-weight: 600; line-height: 1.35; }
+.withdraw-link { color: var(--red-dark); }
+.withdraw-link:hover { background: var(--red-light); color: var(--red-dark); }

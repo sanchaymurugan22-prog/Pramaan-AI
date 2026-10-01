@@ -26,6 +26,7 @@ from datetime import datetime
 from typing import Annotated
 
 import copy
+import json
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
@@ -316,7 +317,6 @@ def record_summary(job: Job) -> dict | None:
     entry = records.find_issue(db, job.record_no) if db else None
     if entry is None:
         return None
-    import json
     manifest = json.loads(entry.manifest)
     withdrawn = records.withdrawal_of(db, entry.record_no)
     return {
