@@ -1,6 +1,7 @@
 # secrets
 .env
-# models and data
+# models, data and the offline bundle
+offline-bundle/
 models/
 *.gguf
 data/
