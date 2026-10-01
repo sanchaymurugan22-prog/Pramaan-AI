@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getAuthStatus, getHealth, setSignedOutHandler, signOut as apiSignOut, type Health, type Role, type User } from './api'
 import { AuthContext, ROLE_TONE } from './auth'
+import { CountsProvider } from './counts'
 import { Sidebar } from './components/Sidebar'
 import { Topbar } from './components/Topbar'
 import { AuditTrail } from './pages/admin/AuditTrail'
@@ -13,6 +14,7 @@ import { Setup } from './pages/auth/Setup'
 import { SignIn } from './pages/auth/SignIn'
 import { ChangePasswordPage, ForcedPasswordChange } from './pages/ChangePassword'
 import { JobsList } from './pages/JobsList'
+import { Notifications } from './pages/Notifications'
 import { NewTransformation } from './pages/NewTransformation'
 import { OperatorDashboard } from './pages/OperatorDashboard'
 import { OutputsStep } from './pages/OutputsStep'
@@ -24,9 +26,9 @@ import { links, navigate, useRoute, type Route } from './router'
 // The pages each role may open. Anything else sends them to their home page.
 // (Only for convenience: the backend refuses other roles' requests with 403.)
 const ROLE_PAGES: Record<Role, Route['page'][]> = {
-  operator: ['dashboard', 'new', 'safety', 'outputs', 'jobs', 'job', 'check', 'password'],
-  reviewer: ['review', 'job', 'records', 'check', 'password'],
-  admin: ['users', 'audit', 'record-book', 'check', 'password'],
+  operator: ['dashboard', 'new', 'safety', 'outputs', 'jobs', 'job', 'check', 'password', 'notifications'],
+  reviewer: ['review', 'job', 'records', 'check', 'password', 'notifications'],
+  admin: ['users', 'audit', 'record-book', 'check', 'password', 'notifications'],
 }
 const HOME: Record<Role, string> = { operator: links.dashboard, reviewer: links.review, admin: links.users }
 const SIGNED_OUT_PAGES: Route['page'][] = ['login', 'request-access', 'forgot', 'pending']
@@ -37,7 +39,22 @@ export default function App() {
   const [needsSetup, setNeedsSetup] = useState<boolean | undefined>(undefined)
   const [user, setUser] = useState<User | null>(null)
   const [notice, setNotice] = useState('') // e.g. "You were signed out after 30 minutes without activity."
+  const [menuOpen, setMenuOpen] = useState(false) // the menu as a drawer (narrow screens, 200% zoom)
+  const content = useRef<HTMLDivElement>(null)
   const route = useRoute()
+  const routeKey = 'id' in route ? `${route.page}/${route.id}` : route.page
+
+  // A new page: close the drawer and move keyboard focus to the page, so screen readers start there
+  const firstRoute = useRef(true)
+  useEffect(() => {
+    setMenuOpen(false)
+    if (firstRoute.current) {
+      firstRoute.current = false
+      return
+    }
+    content.current?.focus({ preventScroll: true })
+  }, [routeKey])
+  const closeMenu = useCallback(() => setMenuOpen(false), [])
 
   useEffect(() => {
     getHealth()
@@ -102,10 +119,23 @@ export default function App() {
   const page = ROLE_PAGES[user.role].includes(route.page) && !SIGNED_OUT_PAGES.includes(route.page) ? route : null
   return (
     <AuthContext.Provider value={auth}>
+      <CountsProvider>
       <div className={`app role-${ROLE_TONE[user.role]}`}>
-        <Sidebar route={route} />
+        {/* GIGW / WCAG 2.4.1: the first Tab stop jumps straight to the page, past the menu */}
+        <a
+          href="#/"
+          className="skip-link"
+          onClick={(e) => {
+            e.preventDefault() // the address after "#" is the page, so do not change it
+            content.current?.focus()
+          }}
+        >
+          Skip to main content
+        </a>
+        <Sidebar route={route} open={menuOpen} onClose={closeMenu} />
         <div className="main-col">
-          <Topbar health={health} />
+          <Topbar health={health} onMenu={() => setMenuOpen((open) => !open)} menuOpen={menuOpen} />
+          <div ref={content} id="content" tabIndex={-1} className="content">
           {page?.page === 'dashboard' && <OperatorDashboard health={health} />}
           {page?.page === 'new' && <NewTransformation />}
           {page?.page === 'safety' && <SafetyCheck key={page.id} jobId={page.id} />}
@@ -119,8 +149,11 @@ export default function App() {
           {page?.page === 'record-book' && <RecordsPage admin />}
           {page?.page === 'password' && <ChangePasswordPage onDone={setUser} />}
           {page?.page === 'check' && <IsThisReal />}
+          {page?.page === 'notifications' && <Notifications />}
+          </div>
         </div>
       </div>
+      </CountsProvider>
     </AuthContext.Provider>
   )
 }

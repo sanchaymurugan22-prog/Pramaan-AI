@@ -243,6 +243,10 @@ export type JobOutput = {
   finished_at: string | null
 }
 
+export type AiMode = 'local' | 'cloud' | 'mock'
+export type CreatedVia = 'manual' | 'watch' | 'emergency'
+export type AlertInfo = { type: string; severity: string; area: string; message: string; chars: number; sms_parts: number }
+
 export type JobSummary = {
   id: number
   title: string
@@ -255,6 +259,17 @@ export type JobSummary = {
   output_types: string[]
   created_at: string
   updated_at: string
+  // Stage 9A
+  tlp: Tlp | null
+  version: number
+  ai_mode: AiMode | null // which AI wrote it; null until the AI starts
+  quality_score: number | null
+  created_via: CreatedVia
+  suggested_outputs: string[] | null // watch folder: the kit ticked in advance on step 3
+  alert: AlertInfo | null // emergency alert form
+  record_no: string | null
+  languages: string[]
+  sources_count: number
 }
 
 export type ReviewEvent = {
@@ -282,15 +297,17 @@ export type JobRecord = {
   current: boolean // false once the job was reopened as a new version
 }
 
+export type PublicProblem = { kind: string; label: string; text: string; where?: string }
+export type PublicCheck = { ok: boolean; problems: PublicProblem[] }
+
 export type JobDetail = JobSummary & {
-  tlp: Tlp | null
   record: JobRecord | null
   reviews: ReviewEvent[] // oldest first
   safety: SafetyReport | null // null for jobs made before Stage 6A
   safety_decisions: SafetyDecision[]
   switched_off: Record<string, string> // output type -> why the TLP label does not allow it
-  version: number
   settings: JobSettings
+  public_check: PublicCheck // Stage 9A: panic wording or shouting in the public outputs
   quality_score: number | null
   consistency: Consistency | null
   sources: { id: string; filename: string; kind: string; pages: number; chars: number; sha256: string }[]
@@ -339,7 +356,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const getHealth = () => request<Health>('/api/health')
 export const pingAi = () => request<AiPing>('/api/ai/ping')
 export const getOptions = () => request<Options>('/api/options')
-export const listJobs = () => request<JobSummary[]>('/api/jobs')
+export type JobFilters = { q?: string; status?: string; tlp?: string; days?: number }
+export const listJobs = (filters: JobFilters = {}) => {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(filters)) if (value !== undefined && value !== '' && value !== 0) params.set(key, String(value))
+  const query = params.toString()
+  return request<JobSummary[]>(`/api/jobs${query ? `?${query}` : ''}`)
+}
 export const getJob = (id: number) => request<JobDetail>(`/api/jobs/${id}`)
 export const retryJob = (id: number) => request<JobDetail>(`/api/jobs/${id}/retry`, { method: 'POST' })
 
@@ -391,7 +414,60 @@ export const startJob = (jobId: number, outputs: string[], settings: JobSettings
 export const downloadUrl = (jobId: number, outputId: number, format: string, inline = false) =>
   `/api/jobs/${jobId}/outputs/${outputId}/download?format=${format}${inline ? '&inline=true' : ''}`
 
-export const kitUrl = (jobId: number) => `/api/jobs/${jobId}/kit.zip`
+// outputs: only these output types (Stage 9A "What is inside" ticks); empty = all
+export const kitUrl = (jobId: number, outputs: string[] = []) =>
+  `/api/jobs/${jobId}/kit.zip${outputs.length ? `?outputs=${outputs.join(',')}` : ''}`
+
+export type KitInfo = {
+  job_id: number
+  title: string
+  tlp: Tlp | null
+  status: JobStatus
+  record: JobRecord | null
+  outputs: {
+    output_id: number
+    type: string
+    label: string
+    language: string
+    blocked: boolean
+    files: { format: string; name: string; bytes: number | null }[]
+  }[]
+}
+export const getKitInfo = (jobId: number) => request<KitInfo>(`/api/jobs/${jobId}/kit-info`)
+
+// ---- version compare (Stage 9A, backend/app/pipeline/compare.py) -------------------------------
+
+export type DiffPiece = { text: string; kind: 'same' | 'added' | 'removed' }
+export type CompareVersion = { key: number; label: string; status: string; at: string | null }
+export type Comparison = {
+  job_id: number
+  versions: CompareVersion[]
+  left: CompareVersion
+  right: CompareVersion
+  outputs: {
+    output_id: number
+    type: string
+    label: string
+    changed: boolean
+    left: { version: number | null; quality_score: number | null }
+    right: { version: number | null; quality_score: number | null }
+    fields: { label: string; path: Path; changed: boolean; left: DiffPiece[]; right: DiffPiece[] }[]
+  }[]
+  summary: {
+    outputs_changed: number
+    outputs: number
+    words_added: number
+    words_removed: number
+    numbers: { label: string; before: string; after: string }[]
+    lists: { label: string; before: number; after: number; output: string }[]
+  }
+}
+export const compareVersions = (jobId: number, left?: number, right?: number) => {
+  const params = new URLSearchParams()
+  if (left !== undefined) params.set('left', String(left))
+  if (right !== undefined) params.set('right', String(right))
+  return request<Comparison>(`/api/jobs/${jobId}/compare?${params}`)
+}
 
 // ---- sign-in pages (Stage 6B, backend/app/routes/auth.py) --------------------------------------
 
@@ -429,6 +505,8 @@ export type QueueItem = {
   warnings: number
   numbers_match: boolean
   fact_sheet_ok: boolean
+  fast_track: boolean // Stage 9A emergency alert: reviewed first
+  alert: AlertInfo | null
   can_review: boolean
   why_not: string | null
 }
@@ -597,3 +675,93 @@ export type MessageCheck = {
   sha256: string
 }
 export const checkMessage = (text: string) => request<MessageCheck>('/api/check-message', sendJson('POST', { text }))
+
+// ---- notifications, search, dashboard (Stage 9A) ------------------------------------------------
+
+export type NotificationKind = 'finished' | 'failed' | 'submitted' | 'sent_back' | 'approved' | 'signed' | 'watch' | 'alert'
+export type Notification = {
+  id: number
+  kind: NotificationKind
+  title: string
+  detail: string
+  job_id: number | null
+  created_at: string
+  read: boolean
+}
+export type Counts = { unread: number; watch_drafts: number }
+
+export const listNotifications = (unread = false) =>
+  request<{ items: Notification[]; unread: number }>(`/api/notifications${unread ? '?unread=true' : ''}`)
+export const getCounts = () => request<Counts>('/api/notifications/count')
+export const readNotification = (id: number) => request<{ unread: number }>(`/api/notifications/${id}/read`, { method: 'POST' })
+export const readAllNotifications = () => request<{ unread: number }>('/api/notifications/read-all', { method: 'POST' })
+
+export type SearchResults = {
+  jobs: { id: number; title: string; status: JobStatus; tlp: Tlp | null; version: number }[]
+  sources: { job_id: number; job_title: string; id: string; filename: string; kind: string; pages: number }[]
+  records: { record_no: string; title: string; job_id: number | null; tlp: Tlp | null; withdrawn: boolean }[]
+}
+export const search = (q: string) => request<SearchResults>(`/api/search?q=${encodeURIComponent(q)}`)
+
+export type AttentionItem = {
+  kind: 'sent_back' | 'leak' | 'failed' | 'unlinked' | 'watch' | 'ready'
+  job_id: number | null
+  title: string
+  detail: string
+}
+export type Dashboard = {
+  stats: {
+    jobs_this_week: number
+    jobs_last_week: number
+    outputs_approved: number
+    formats_approved: number
+    hours_saved: number
+    languages: string[]
+  }
+  attention: AttentionItem[]
+  watch_drafts: number
+  latest_approval: { id: number; title: string; at: string } | null
+  encrypted: boolean
+}
+export const getDashboard = () => request<Dashboard>('/api/dashboard')
+
+// ---- watch folder (Stage 9A, backend/app/routes/watch.py) ---------------------------------------
+
+export type WatchActivity = {
+  id: number
+  filename: string
+  folder: string
+  status: 'drafted' | 'skipped' | 'failed'
+  detail: string
+  job_id: number | null
+  job_status: JobStatus | null
+  bytes: number
+  found_at: string
+}
+export type WatchState = {
+  enabled: boolean
+  folder: string
+  outputs: string[]
+  skip_duplicates: boolean
+  notify: boolean
+  last_check: string | null
+  interval_seconds: number
+  root: string
+  folders: string[]
+  activity: WatchActivity[]
+  new?: number
+}
+export type WatchUpdate = Partial<Pick<WatchState, 'enabled' | 'folder' | 'outputs' | 'skip_duplicates' | 'notify'>>
+export const getWatch = () => request<WatchState>('/api/watch')
+export const updateWatch = (change: WatchUpdate) => request<WatchState>('/api/watch', sendJson('PUT', change))
+export const makeWatchFolder = (name: string) =>
+  request<{ folder: string; folders: string[] }>('/api/watch/folders', sendJson('POST', { name }))
+export const checkWatchNow = () => request<WatchState>('/api/watch/check', { method: 'POST' })
+
+// ---- emergency alert (Stage 9A, backend/app/routes/alerts.py) -----------------------------------
+
+export type AlertCheck = PublicCheck & { chars: number; sms_parts: number; max_chars: number; fits_one_sms: boolean }
+export type NewAlert = { type: string; severity: string; area: string; message: string; outputs: string[] }
+export const checkAlert = (message: string) => request<AlertCheck>('/api/alerts/check', sendJson('POST', { message }))
+export const createAlert = (alert: NewAlert) => request<JobDetail>('/api/alerts', sendJson('POST', alert))
+

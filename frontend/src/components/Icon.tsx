@@ -42,6 +42,27 @@ const ICONS = {
   card: ['M3 6h18v12H3z', 'M7 10h4M7 14h6', 'M15 10h2v4h-2z'],
   shield: ['M12 3 5 6v6c0 4 3 7 7 9 4-2 7-5 7-9V6l-7-3Z'],
   eyeOff: ['M3 3l18 18', 'M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.2', 'M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.6 9.6 0 0 0 5.4-1.6', 'M9.9 9.9a3 3 0 0 0 4.2 4.2'],
+  // Stage 9A: results tabs, kit, alerts, watch folder, notifications (same line style as the prototype)
+  menu: ['M4 6h16M4 12h16M4 18h16'],
+  send: ['M21 3 3 10.5l7 2.5 2.5 7z', 'M10 13l11-10'],
+  copy: ['M9 9h11v11H9z', 'M5 15H4V4h11v1'],
+  monitor: ['M3 4h18v12H3z', 'M12 16v4M8 20h8'],
+  video: ['M3 6h13v12H3z', 'm16 10 5-3v10l-5-3'],
+  share: ['M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'm8.6 13.5 6.8 4M15.4 6.5l-6.8 4'],
+  image: ['M4 5h16v14H4z', 'm4 16 5-5 4 4 3-3 4 4', 'M15.5 9.5h.01'],
+  summary: ['M4 5a2 2 0 0 1 2-2h14v16H6a2 2 0 0 0-2 2z', 'M4 19V5'],
+  mic: ['M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z', 'M5 11a7 7 0 0 0 14 0', 'M12 18v3'],
+  bolt: ['M13 2 4 14h7l-1 8 9-12h-7z'],
+  volume: ['M4 9h4l5-4v14l-5-4H4z', 'M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11'],
+  award: ['M12 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12z', 'M8.5 13.5 7 21l5-3 5 3-1.5-7.5'],
+  play: ['M7 4v16l13-8z'],
+  filter: ['M4 5h16l-6 8v6l-4-2v-4z'],
+  calendar: ['M4 6h16v14H4z', 'M4 10h16M8 3v4M16 3v4'],
+  chevronDown: ['m6 9 6 6 6-6'],
+  chevronLeft: ['m15 6-6 6 6 6'],
+  compare: ['M8 3v18M16 3v18', 'M3 8h5M16 16h5'],
+  subtitles: ['M3 5h18v14H3z', 'M7 15h4M13 15h4M7 11h10'],
+  usb: ['M9 2h6v6H9z', 'M7 8h10v9a5 5 0 0 1-10 0z', 'M12 13v4'],
 } as const
 
 export type IconName = keyof typeof ICONS

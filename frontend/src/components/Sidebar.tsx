@@ -1,38 +1,15 @@
+import { useEffect, useRef } from 'react'
 import type { Role } from '../api'
 import { initials, useAuth } from '../auth'
+import { useCounts } from '../counts'
 import type { Route } from '../router'
 import { links } from '../router'
 import { Icon, type IconName } from './Icon'
 import { Logo } from './Logo'
 import { TricolourStrip } from './TricolourStrip'
 
-// href = a page that exists; items without one are built in later stages and do nothing yet.
-type NavItem = { label: string; icon: IconName; badge?: number; href?: string; pages?: Route['page'][] }
-
-// Each role sees its own menu (the backend refuses the other roles' pages anyway).
-const MAIN_NAV: Record<Role, NavItem[]> = {
-  operator: [
-    { label: 'Dashboard', icon: 'home', href: links.dashboard, pages: ['dashboard'] },
-    { label: 'New transformation', icon: 'plus', href: links.newJob, pages: ['new', 'safety', 'outputs'] },
-    { label: 'My jobs', icon: 'history', href: links.jobs, pages: ['jobs', 'job'] },
-    { label: 'Emergency alert', icon: 'siren' },
-    { label: 'Watch folder', icon: 'folder' },
-    { label: 'Is this real?', icon: 'scan', href: links.check, pages: ['check'] },
-  ],
-  reviewer: [
-    { label: 'Review queue', icon: 'history', href: links.review, pages: ['review', 'job'] },
-    { label: 'Signed records', icon: 'shieldCheck', href: links.records, pages: ['records'] },
-    { label: 'Is this real?', icon: 'scan', href: links.check, pages: ['check'] },
-  ],
-  admin: [
-    { label: 'Users & access', icon: 'user', href: links.users, pages: ['users'] },
-    { label: 'Audit trail', icon: 'hash', href: links.audit, pages: ['audit'] },
-    { label: 'AI models', icon: 'chip' },
-    { label: 'Security & policies', icon: 'shield' },
-    { label: 'Record book', icon: 'box', href: links.recordBook, pages: ['record-book'] },
-    { label: 'Is this real?', icon: 'scan', href: links.check, pages: ['check'] },
-  ],
-}
+// badge: the number shown on the right, with words for screen readers ("2 drafts waiting")
+type NavItem = { label: string; icon: IconName; href: string; pages: Route['page'][]; badge?: number; badgeLabel?: string }
 
 const WORKSPACE: Record<Role, string> = {
   operator: 'Operator workspace',
@@ -40,73 +17,135 @@ const WORKSPACE: Record<Role, string> = {
   admin: 'Admin workspace',
 }
 
+// Each role sees its own menu (the backend refuses the other roles' pages anyway).
+function mainNav(role: Role, watchDrafts: number): NavItem[] {
+  const check: NavItem = { label: 'Is this real?', icon: 'scan', href: links.check, pages: ['check'] }
+  if (role === 'operator') {
+    return [
+      { label: 'Dashboard', icon: 'home', href: links.dashboard, pages: ['dashboard'] },
+      { label: 'New transformation', icon: 'plus', href: links.newJob, pages: ['new', 'safety', 'outputs', 'progress'] },
+      { label: 'My jobs', icon: 'history', href: links.jobs, pages: ['jobs', 'job', 'kit', 'compare'] },
+      { label: 'Emergency alert', icon: 'siren', href: links.emergency, pages: ['emergency'] },
+      {
+        label: 'Watch folder', icon: 'folder', href: links.watch, pages: ['watch'],
+        badge: watchDrafts || undefined, badgeLabel: `${watchDrafts} draft${watchDrafts === 1 ? '' : 's'} waiting`,
+      },
+      check,
+    ]
+  }
+  if (role === 'reviewer') {
+    return [
+      { label: 'Review queue', icon: 'history', href: links.review, pages: ['review', 'job', 'compare', 'kit'] },
+      { label: 'Signed records', icon: 'shieldCheck', href: links.records, pages: ['records'] },
+      check,
+    ]
+  }
+  return [
+    { label: 'Users & access', icon: 'user', href: links.users, pages: ['users'] },
+    { label: 'Audit trail', icon: 'hash', href: links.audit, pages: ['audit'] },
+    { label: 'Record book', icon: 'box', href: links.recordBook, pages: ['record-book'] },
+    check,
+  ]
+}
+
 function NavLink({ item, route }: { item: NavItem; route: Route }) {
-  const current = item.pages?.includes(route.page) ?? false
+  const current = item.pages.includes(route.page)
   return (
-    <a
-      href={item.href ?? '#'}
-      className={current ? 'nav-link is-current' : 'nav-link'}
-      aria-current={current ? 'page' : undefined}
-      title={item.href ? undefined : 'Coming in a later stage'}
-      onClick={item.href ? undefined : (e) => e.preventDefault()}
-    >
+    <a href={item.href} className={current ? 'nav-link is-current' : 'nav-link'} aria-current={current ? 'page' : undefined}>
       {current && <span className="nav-marker" />}
-      <Icon name={item.icon} color={current ? 'var(--role)' : 'var(--icon)'} />
+      <Icon name={item.icon} color={current ? 'var(--role-dark)' : 'var(--icon)'} />
       {item.label}
-      {item.badge !== undefined && <span className="nav-badge">{item.badge}</span>}
+      {item.badge !== undefined && (
+        <span className="nav-badge">
+          <span aria-hidden="true">{item.badge}</span>
+          <span className="sr-only">{item.badgeLabel}</span>
+        </span>
+      )}
     </a>
   )
 }
 
-export function Sidebar({ route }: { route: Route }) {
+type Props = {
+  route: Route
+  open: boolean // narrow screens / 200% zoom: shown as a drawer over the page
+  onClose: () => void
+}
+
+export function Sidebar({ route, open, onClose }: Props) {
   const { user, signOut } = useAuth()
-  const account: NavItem[] = [{ label: 'Change password', icon: 'key', href: links.password, pages: ['password'] }]
+  const { counts } = useCounts()
+  const panel = useRef<HTMLElement>(null)
+
+  // The drawer: Escape closes it, and focus moves into it when it opens
+  useEffect(() => {
+    if (!open) return
+    panel.current?.querySelector<HTMLElement>('a, button')?.focus()
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
+  const account: NavItem[] = [
+    {
+      label: 'Notifications', icon: 'bell', href: links.notifications, pages: ['notifications'],
+      badge: counts.unread || undefined, badgeLabel: `${counts.unread} unread`,
+    },
+    { label: 'Change password', icon: 'key', href: links.password, pages: ['password'] },
+  ]
   return (
-    <nav className="sidebar" aria-label="Main">
-      <TricolourStrip />
-      <div className="sidebar-inner">
-        <Logo />
-
-        <div className="workspace-pill">
-          <span className="dot" />
-          {WORKSPACE[user.role]}
-        </div>
-
-        <div className="nav-group">
-          {MAIN_NAV[user.role].map((item) => (
-            <NavLink key={item.label} item={item} route={route} />
-          ))}
-        </div>
-
-        <div className="divider" />
-
-        <div className="nav-group">
-          {account.map((item) => (
-            <NavLink key={item.label} item={item} route={route} />
-          ))}
-        </div>
-
-        <div className="grow" />
-
-        <div className="offline-box">
-          <Icon name="wifiOff" size={18} color="var(--green-dark)" strokeWidth={2} />
-          <span className="stack">
-            <span className="offline-title">Fully offline</span>
-            <span className="offline-sub">Nothing leaves this computer</span>
-          </span>
-        </div>
-
-        <div className="user-row">
-          <div className="avatar">{initials(user.full_name)}</div>
-          <div className="stack grow">
-            <span className="user-name">{user.full_name}</span>
-            <span className="user-role">{user.role_label}</span>
+    <>
+      {open && <div className="drawer-backdrop" onClick={onClose} aria-hidden="true" />}
+      <nav ref={panel} id="main-menu" className={open ? 'sidebar is-open' : 'sidebar'} aria-label="Main">
+        <TricolourStrip />
+        <div className="sidebar-inner">
+          <div className="row">
+            <Logo />
+            <button type="button" className="icon-btn drawer-close" aria-label="Close menu" onClick={onClose}>
+              <Icon name="cross" size={18} />
+            </button>
           </div>
-          <button type="button" className="icon-link" aria-label="Sign out" title="Sign out" onClick={() => signOut()}>
-            <Icon name="signOut" size={19} strokeWidth={1.8} />
-          </button>
+
+          <div className="workspace-pill">
+            <span className="dot" aria-hidden="true" />
+            {WORKSPACE[user.role]}
+          </div>
+
+          <div className="nav-group">
+            {mainNav(user.role, counts.watch_drafts).map((item) => (
+              <NavLink key={item.label} item={item} route={route} />
+            ))}
+          </div>
+
+          <div className="divider" />
+
+          <div className="nav-group">
+            {account.map((item) => (
+              <NavLink key={item.label} item={item} route={route} />
+            ))}
+          </div>
+
+          <div className="grow" />
+
+          <div className="offline-box">
+            <Icon name="wifiOff" size={18} color="var(--green-dark)" strokeWidth={2} />
+            <span className="stack">
+              <span className="offline-title">Fully offline</span>
+              <span className="offline-sub">Nothing leaves this computer</span>
+            </span>
+          </div>
+
+          <div className="user-row">
+            <div className="avatar" aria-hidden="true">{initials(user.full_name)}</div>
+            <div className="stack grow">
+              <span className="user-name">{user.full_name}</span>
+              <span className="user-role">{user.role_label}</span>
+            </div>
+            <button type="button" className="icon-link" aria-label="Sign out" title="Sign out" onClick={() => signOut()}>
+              <Icon name="signOut" size={19} strokeWidth={1.8} />
+            </button>
+          </div>
         </div>
-      </div>
-    </nav>
+      </nav>
+    </>
   )
 }

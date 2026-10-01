@@ -41,6 +41,46 @@ export function aiLabel(mode: string | undefined): string {
   return 'AI'
 }
 
+// Job numbers as printed everywhere: 142 -> "#0142"
+export function jobNo(id: number): string {
+  return `#${String(id).padStart(4, '0')}`
+}
+
+// Which AI wrote a job, for the "AI used" column (null: the AI has not started yet)
+export function aiShort(mode: string | null | undefined): string {
+  if (mode === 'local') return 'Sarvam 30B local'
+  if (mode === 'cloud') return 'Sarvam cloud'
+  if (mode === 'mock') return 'Mock'
+  return '—'
+}
+
+export const LANGUAGE_LABELS: Record<string, string> = { en: 'EN', hi: 'हि', ta: 'த', bn: 'বা', te: 'తె' }
+
+// "Today", "Yesterday" or "28 Sep", for grouping lists by day
+export function dayLabel(iso: string): string {
+  const date = new Date(iso)
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(today.getDate() - 1)
+  if (date.toDateString() === today.toDateString()) return 'Today'
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
+  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+// "30 Sep, 10:21"
+export function dateTime(iso: string): string {
+  return new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+}
+
+// 2150000 -> "2.1 MB"
+export function fileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+export { OUTPUT_LABELS }
+
 // One fact sheet item that a sentence can be linked to, with where it is in the source.
 export type TraceItem = {
   id: string

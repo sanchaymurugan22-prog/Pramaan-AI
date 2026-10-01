@@ -5,6 +5,10 @@
 //   #/new/12/outputs   step 3: outputs and settings
 //   #/jobs      my jobs
 //   #/jobs/12   results of job 12 (Operators and Reviewers)
+//   #/jobs/12/progress   live progress while the AI writes (Stage 9A)
+//   #/jobs/12/kit        campaign kit: choose and download the files
+//   #/jobs/12/compare    version compare (v1 against v2)
+//   #/watch     watch folder     #/emergency   emergency alert     #/notifications   notifications (everyone)
 //   #/review    review queue (Reviewer)
 //   #/admin/users, #/admin/audit   users & access requests, audit trail (Admin)
 //   #/records   signed records (Reviewer)     #/admin/records   the record book (Admin)
@@ -22,6 +26,12 @@ export type Route =
   | { page: 'outputs'; id: number }
   | { page: 'jobs' }
   | { page: 'job'; id: number }
+  | { page: 'progress'; id: number }
+  | { page: 'kit'; id: number }
+  | { page: 'compare'; id: number }
+  | { page: 'watch' }
+  | { page: 'emergency' }
+  | { page: 'notifications' }
   | { page: 'review' }
   | { page: 'users' }
   | { page: 'audit' }
@@ -41,6 +51,12 @@ export const links = {
   outputs: (id: number) => `#/new/${id}/outputs`,
   jobs: '#/jobs',
   job: (id: number) => `#/jobs/${id}`,
+  progress: (id: number) => `#/jobs/${id}/progress`,
+  kit: (id: number) => `#/jobs/${id}/kit`,
+  compare: (id: number) => `#/jobs/${id}/compare`,
+  watch: '#/watch',
+  emergency: '#/emergency',
+  notifications: '#/notifications',
   review: '#/review',
   users: '#/admin/users',
   audit: '#/admin/audit',
@@ -57,6 +73,9 @@ export const links = {
 const SIMPLE: Record<string, Route> = {
   '/new': { page: 'new' },
   '/jobs': { page: 'jobs' },
+  '/watch': { page: 'watch' },
+  '/emergency': { page: 'emergency' },
+  '/notifications': { page: 'notifications' },
   '/review': { page: 'review' },
   '/admin/users': { page: 'users' },
   '/admin/audit': { page: 'audit' },
@@ -77,6 +96,8 @@ function parse(hash: string): Route {
   if (step) return { page: step[2] as 'safety' | 'outputs', id: Number(step[1]) }
   const match = path.match(/^\/jobs\/(\d+)$/)
   if (match) return { page: 'job', id: Number(match[1]) }
+  const sub = path.match(/^\/jobs\/(\d+)\/(progress|kit|compare)$/)
+  if (sub) return { page: sub[2] as 'progress' | 'kit' | 'compare', id: Number(sub[1]) }
   return { page: 'dashboard' }
 }
 
