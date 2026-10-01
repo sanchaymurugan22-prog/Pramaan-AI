@@ -1,785 +1,293 @@
 # Pramaan AI (प्रमाण) — Content you can prove.
 
-Offline, Indian-AI platform that turns one source into advisories, summaries, slides, video
-packages, infographics and social posts in Indian languages, with every line traced to its source
-and every document signed and verifiable.
+**One report in, every format out, and every line traceable to its source.** Pramaan AI turns one
+source — a threat report, an advisory, a policy note — into an advisory, an executive summary, a slide
+deck, a video package, an infographic, a LinkedIn post and an X thread. It runs **entirely offline on
+the organisation's own computer** with an Indian AI model (Sarvam 30B). Every sentence it writes is
+linked to the place in the source it came from; a Reviewer approves and digitally signs the result; and
+anyone can check a document or a forwarded message on a public **"Is this real?"** page.
 
-Smart India Hackathon · Problem Statement 26154 · NTRO.
+Smart India Hackathon 2026 · Problem Statement **26154** (NTRO) · Gen AI Platform for Automated Content
+Transformation.
 
-**Current stage: 9B — All screens for every role.** The start screens (splash, language, sign in,
-request access, forgot password, pending, first-time setup), the **Reviewer** screens (dashboard, a
-review page with **comments on single sentences**, sign dialog, Signed, send back with notes, signed
-records), the **Admin** screens (overview, users, audit trail, **AI models and measured speed**,
-**templates and letterhead** — your office name and logo on every exported file — **security policies
-that really apply**, record book, public verify page, **encrypted backups**), and the shared screens
-(notifications, **Profile & settings** with text size and high contrast, Help). Every role sees only
-its own menu; any other page says "You don't have access". See "All screens for every role (Stage 9B)".
+| Read next | |
+|---|---|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How it is built: diagram, data flow, security model, offline design, scaling |
+| [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) | The 2-minute demo, step by step |
+| [docs/TEST_REPORT.md](docs/TEST_REPORT.md) | Every feature, how it was tested, and real Sarvam 30B speed |
+| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | The detailed guide to every screen, check and API call |
 
-Stage 9A — Operator screens: every Operator screen from the designs (08–23) works with real
-data: a dashboard with real numbers, **live progress** while the AI writes, **results tabs** (advisory,
-executive summary as a page, slide viewer with speaker notes, video storyboard, social posts, infographic),
-a **campaign kit** page, **My jobs** with filters, **version compare** (v1 against v2, word by word),
-an **Emergency alert** with fast-track review, and a **watch folder** that turns new reports into
-drafts that wait at the Safety check. A search box across jobs, sources and records, and in-app
-**notifications**. Keyboard and screen-reader friendly (WCAG 2.1 AA / GIGW). See "Operator screens (Stage 9A)".
+## Features
 
-Stage 7 — Anti-fake: when a Reviewer approves a job it is **signed**: every final file
-gets a QR code and a record number (`PRM-2026-000123`), its SHA-256 fingerprint and the fingerprint of
-every output's text go into a signed manifest, and the job gets an entry in a hash-chained **record
-book** (an Admin can withdraw a record; nothing is ever deleted). A static public **"Is this real?"**
-page (`verify-page/`, no backend, works offline) checks a record from its QR code, a dropped file,
-or a pasted WhatsApp / SMS message, in English and Hindi. See "Signing and verification (Stage 7)".
+**Writing**
+- **One fact sheet, seven outputs.** The AI reads the source once into a fact sheet (facts, each with
+  its quote and page; dates; recommended actions; CVEs, IPs and file hashes found by exact patterns).
+  Every output is written from that fact sheet, so all outputs agree.
+- **Seven outputs as real files:** CERT-In style advisory (PDF, Word), executive summary (PDF, Word),
+  presentation with speaker notes (PowerPoint), video package (script and storyboard in Word, subtitles
+  as .srt), infographic (PNG), LinkedIn post and X thread (text). All together as one campaign kit (.zip).
+- Settings per job: audience, tone, objective, style, level of detail.
+- **Emergency alert:** a short public alert with a live public-release check (no panic wording, no
+  private data, SMS length), sent straight to the on-duty Reviewers for fast-track approval.
+- **Watch folder:** reports dropped in a folder become drafts that wait for a person at the Safety check.
 
-Stage 6B — Accounts and data protection: people sign in. There are three roles,
-checked by the backend on every request: **Operator** (makes and changes jobs, submits them for
-review), **Reviewer** (approves or sends back with notes, never their own job) and **Admin** (users,
-access requests, audit trail). Every action goes into a hash-chained audit trail, and the database
-and every stored file are encrypted. See "Accounts and roles (Stage 6B)" and "Encryption at rest
-(Stage 6B)" below.
+**Trust**
+- **Source trace:** click any sentence to see the fact it uses and the quote highlighted in the source.
+- Sentences not linked to a fact are marked in yellow; numbers, dates or names not in the source in red.
+- Consistency check across outputs, a 0–100 quality score per output, every version kept, version compare.
 
-Stage 6A — Safety: a new transformation has 3 steps: *Add sources → Safety
-check → Outputs & settings*. Before any AI reads a source, a rule-based scanner (no AI, offline)
-finds private data (Aadhaar, PAN, phones, emails, bank details, passports, vehicles, GPS, internal
-IPs and host names, passwords and keys, classification markings), attack indicators, and text that
-tries to control the AI. The operator decides what to hide and picks a TLP sharing label; hidden
-values are swapped for placeholders before the AI, and a leak check blocks any output that still
-contains one. See "Safety (Stage 6A)" below.
+**Safety**
+- Before any AI reads a source, a rule-based scanner finds Aadhaar, PAN, phone numbers, emails, bank
+  details, passports, vehicle numbers, GPS, internal IPs and hosts, passwords and keys, classification
+  markings, and **hidden instructions** aimed at the AI (prompt injection, hidden text, hidden characters).
+- The Operator chooses what to hide and a **TLP sharing label**; hidden values become placeholders
+  (`[PHONE-1]`) before the AI, public outputs show `[phone number]`, and a leak check blocks any file
+  that still contains a hidden value. TLP:RED / AMBER switch public outputs off.
 
-Earlier stages: paste text or upload a .txt / .pdf / .docx, and the app builds
-one fact sheet from it, then writes any of 7 outputs from that fact sheet. Every sentence of every
-output is linked to the fact it uses, and one click shows that fact's quote highlighted in the
-source. Sentences with no fact, and numbers or dates that are not in the source, are flagged; a
-consistency check makes sure every output uses the same numbers; each output gets a quality score.
-The operator can edit an output (the checks run again, old versions are kept) or regenerate just
-one output. Every finished output can be downloaded as a real file (Word, PDF, PowerPoint, PNG,
-subtitles, text), or all together as one campaign kit (.zip). See `CLAUDE.md` for the full plan.
+**Accountability**
+- Three roles (Operator, Reviewer, Admin), checked by the backend on every request; separation of duties
+  (nobody reviews their own work); comments on single sentences; send back with reasons.
+- **Signing:** approval signs every file (ECDSA P-256), adds a QR code and a record number, and writes a
+  hash-chained **record book** entry. Records can be withdrawn, never deleted.
+- **Public "Is this real?" page** (static, works offline, English and Hindi): check a record by QR code,
+  a file by its fingerprint, or a pasted WhatsApp / SMS message for changes and scam signs.
+- Hash-chained **audit trail** of every action; **encrypted** database (SQLCipher) and files (AES-256-GCM).
 
-## What you need (already installed on the dev Mac)
+**Running an office**
+- Admin overview, users and access requests, AI models and measured speed, letterhead (office name and
+  logo on every file), security policies, record book, public page update, encrypted backups.
+- In-app notifications, search across jobs, sources and records, Profile & settings (language, text size,
+  high contrast), Help. Keyboard and screen-reader friendly (WCAG 2.1 AA / GIGW), works at 200% zoom.
 
-- Python 3.12 (python.org)
-- Node LTS (nodejs.org)
-- git (Xcode command-line tools)
-- llama.cpp prebuilt binary in `~/llama` (only needed to talk to the AI)
+## Screenshots
 
-## First-time setup
+The screen designs are in [`Designs/Screen images/`](Designs/Screen%20images/) (46 screens) and the
+clickable prototype in `Designs/Clickable prototype (open index.html)/`. The app follows them. For the
+submission, take these screenshots of the running app (mock mode, demo data from the
+[demo script](docs/DEMO_SCRIPT.md)):
 
-(If you set up an earlier stage, run the `pip install` line again: Stage 4 added python-pptx,
-ReportLab and Pillow; Stage 6B adds argon2-cffi, cryptography and sqlcipher3, all with ready-made
-builds for Intel Macs; Stage 7 adds qrcode. New tables and columns are added to your existing database automatically
-when the backend starts; nothing is deleted. On the first Stage 6B start the database and files are
-encrypted — see "Encryption at rest" — and `APP_SECRET_KEY` and `DB_KEY` are made and saved in `.env`.)
+| # | Screen | Address | Design |
+|---|---|---|---|
+| 1 | Splash | `#/welcome` | 01 Splash screen |
+| 2 | Operator dashboard | `#/` | 08 Operator dashboard |
+| 3 | Safety check with findings (sample-private-data.txt) | `#/new/<id>/safety` | 10 Safety check |
+| 4 | Live progress | `#/jobs/<id>/progress` | 12 Generating |
+| 5 | Advisory with source trace (a sentence clicked) | `#/jobs/<id>` | 13 Results · Advisory |
+| 6 | Presentation viewer | `#/jobs/<id>` → Presentation | 14 Presentation viewer |
+| 7 | Social posts with the public-release check | `#/jobs/<id>` → Social posts | 16 Social posts |
+| 8 | Version compare (v1 against v2) | `#/jobs/<id>/compare` | 21 Version compare |
+| 9 | Emergency alert | `#/emergency` | 22 Emergency alert |
+| 10 | Review a kit with a line comment | `#/review/<id>` | 25 Review a kit |
+| 11 | Signed, with the QR code | `#/review/<id>/signed` | 27 Signed successfully |
+| 12 | Admin overview | `#/admin` | 30 Admin overview |
+| 13 | AI models and measured speed | `#/admin/ai` | 34 AI models |
+| 14 | Security & policies | `#/admin/security` | 36 Security and policies |
+| 15 | Public page: genuine result (phone) | `http://localhost:8090/?r=PRM-…` | 45 Result genuine |
+| 16 | Public page: fake message (phone) | `http://localhost:8090/#message` | 46 Result fake |
 
-Run these from the project folder (`cd ~/Documents/"Pramaan AI"`):
+## Quick start (mock AI, no model)
 
-```bash
-cp .env.example .env
-```
+The **mock AI** answers instantly by simple rules from the source (`backend/app/ai/mock_ai.py`), so every
+screen, check, file and signature can be tried without the 18 GB model. You need Python 3.12 and Node LTS.
+
+**1. Install.** With internet, from the project folder (`cd ~/Documents/"Pramaan AI"`):
 
 ```bash
 cd backend && python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt && cd ..
 ```
 
 ```bash
-cd frontend && npm install && cd ..
+cd frontend && npm ci && cd ..
 ```
-
-## Run the app
-
-Use two terminals, both in the project folder (`cd ~/Documents/"Pramaan AI"`).
-
-**Terminal 1: the AI model** (Sarvam 30B on port 8081):
 
 ```bash
-./scripts/start-ai.sh
+cp .env.example .env
 ```
 
-Wait until it prints that the server is listening (loading the model can take a few minutes).
+Without internet, use the offline bundle instead (see [Offline installation](#offline-installation)).
 
-**Terminal 2: the app** (backend on port 8000 + frontend on port 5173):
+**2. Choose the mock AI:** in `.env`, set `AI_MODE=mock` (and `MOCK_DELAY_SECONDS=2` to watch the
+progress page work).
+
+**3. Start:**
 
 ```bash
 ./scripts/start.sh
 ```
 
-Then open <http://localhost:5173>. Press **Ctrl+C** in each terminal to stop.
+Open <http://localhost:5173>. The first time, **First-time setup** creates the first Admin (there are no
+built-in accounts). As that Admin, add an Operator and a Reviewer on **Users & access** (each gets a
+temporary password, shown once).
 
-The very first time, the app shows **First-time setup**: create the first Admin account there (there
-are no built-in or default accounts). Everyone else gets an account from that Admin.
+**4. Try it:** sign in as the Operator → **New transformation** → choose
+`samples/sample-ransomware-report.txt` → **Next: safety check** → **Next** → tick outputs → **Generate**.
+Click any sentence to see its source. **Send for review**; sign in as the Reviewer → **Review** →
+**Approve & sign**. Start `./scripts/serve-verify.sh` and open the record's QR address to check it.
+The [demo script](docs/DEMO_SCRIPT.md) walks through all of it in two minutes.
 
-If an old Pramaan AI is still running on port 8000 or 5173 (for example a terminal closed without
-Ctrl+C), `start.sh` stops it first and says so. If another program uses one of those ports, it
-tells you which one and does not start.
+## Full start (local Sarvam 30B)
+
+Needs the model (Sarvam 30B Q4_K_M GGUF, 6 files, about 18 GB) and llama.cpp's `llama-server`
+(prebuilt, in `~/llama`). The offline installer puts both in place; on a computer with internet the model
+can be fetched once with `~/llama/llama-server -hf sarvamai/sarvam-30b-gguf:Q4_K_M` (Ctrl+C when loaded).
+
+1. In `.env`: `AI_MODE=local`.
+2. Terminal 1 — the AI (port 8081). Wait for `server is listening` (about 2 minutes):
+
+   ```bash
+   ./scripts/start-ai.sh
+   ```
+
+3. Terminal 2 — the app:
+
+   ```bash
+   ./scripts/start.sh
+   ```
+
+4. On the dashboard, **Test AI** says namaste when the model answers.
+
+**Speed:** on the 2017 Intel MacBook Pro (16 GB, no GPU) the model writes about 1.3 tokens a second, so
+the sample report with an X thread and a LinkedIn post takes about 25 minutes (measured numbers in the
+[test report](docs/TEST_REPORT.md#performance-real-sarvam-30b)). Jobs run in the background: leave the
+page, and a notification says when it is done. On an office server with a GPU it is many times faster
+([scaling](docs/ARCHITECTURE.md#scaling-to-an-office-server)).
 
 | Part | Address |
 |---|---|
-| Frontend (the app) | http://localhost:5173 |
-| Backend API | http://localhost:8000 |
-| API docs (auto-generated) | http://localhost:8000/docs |
+| The app | http://localhost:5173 |
+| Backend API, and its docs | http://localhost:8000, http://localhost:8000/docs |
 | AI model (llama-server) | http://localhost:8081 |
-| Public "Is this real?" page (Stage 7, `./scripts/serve-verify.sh`) | http://localhost:8090 |
+| Public "Is this real?" page (`./scripts/serve-verify.sh`) | http://localhost:8090 |
 
-## Try it quickly with the mock AI (no model needed)
+## Offline installation
 
-The mock AI answers instantly, with no model: it builds its answers from the source you give it,
-by simple rules (`backend/app/ai/mock_ai.py`). Like the real AI, it only sees the MASKED text
-(`[PHONE-1]` …) and never the instructions you removed, so masking, the leak check and every trust
-check can be tested with it. Facts: up to 8 informative sentences of the source (with numbers,
-dates, names or placeholders), each quoting its own sentence; dates by pattern; actions from a
-"Recommended actions" list (or sentences starting with a verb like "Please", "Apply"); severity
-from keywords. Outputs: simple templates filled with those facts. One LinkedIn paragraph cites no
-fact on purpose, so the yellow "Not linked to a fact" warning can be seen.
+The target computer needs no internet. On a computer **with** internet, of the same kind (same operating
+system and processor), make the bundle:
 
-1. In `.env`, set `AI_MODE=mock` (optionally `MOCK_DELAY_SECONDS=3` to see the progress display).
-2. Start the app: `./scripts/start.sh` (no need for `start-ai.sh`).
-3. Open <http://localhost:5173> and sign in as an **Operator** (see "Accounts and roles"), click
-   **New transformation**.
-4. Click **Choose files** and pick `samples/sample-ransomware-report.txt` (or paste its text),
-   then **Next: safety check**.
-5. The Safety check shows what was found (for this report: only attack indicators) and suggests
-   TLP:GREEN. Click **Next: outputs and settings**.
-6. Tick some outputs, click **Generate**. The Results page shows the fact sheet, then each output.
-7. Click any sentence: the **Source trace** panel on the right shows the fact it uses and the quote
-   highlighted in the source. (See "Trust" below for everything else to try.)
-8. Under each output, click a **Download** button; at the top, **Download campaign kit (.zip)**.
-
-Set `AI_MODE=local` again (and restart `start.sh`) to use the real model.
-
-## Try it with the real local AI
-
-The real model is slow on the dev laptop (about 1.4 tokens a second), so start small:
-
-1. `.env`: `AI_MODE=local`. Terminal 1: `./scripts/start-ai.sh`. Terminal 2: `./scripts/start.sh`.
-2. **New transformation** → choose `samples/sample-ransomware-report.txt` → **Next: safety check**
-   → **Next** → tick only **X thread** and **LinkedIn post** (the default) → **Generate**.
-3. Measured on the dev laptop with the sample report: fact sheet about 11 minutes (the model first
-   reads the whole report, then writes the facts), X thread about 7 minutes, LinkedIn post about
-   5 minutes — roughly 25 minutes in total. The page shows what is happening
-   and how many tokens have been written. You can leave the page and come back via **My jobs**.
-
-If something fails (for example llama-server was not running), start the model and click
-**Try again** on the Results page: finished parts are kept, only the rest is redone.
-
-## How it works
-
-```
-source (text / .txt / .pdf / .docx)
-  → ingest        plain text per page, saved under data/jobs/<id>/sources/; hidden characters
-                  and hidden Word/PDF text removed (Stage 6A)
-  → safety scan   (no AI) private data, indicators, suspicious instructions → the operator's
-                  choices + TLP label; hidden values become placeholders like [PHONE-1]
-  → fact sheet    ONE model call per chunk (long sources are split to fit the 4096-token context),
-                  merged; each fact has a quote that is checked against the source;
-                  IPs, CVEs and file hashes are found by exact patterns, not by the model
-  → outputs       each written FROM THE FACT SHEET with its own prompt (backend/app/ai/prompts/)
-                  and JSON shape; short outputs first; every part lists the fact ids it uses
-  → checks        (no AI) every sentence linked to a fact; values not in the source flagged;
-                  the same numbers in every output; a 0-100 quality score (Stage 5)
-  → leak check    (no AI) a hidden value in an output blocks its download (Stage 6A)
-  → edit / regenerate one output → checks again; every version kept
-  → review        the Operator submits; a Reviewer approves or sends back with notes (Stage 6B)
-  → sign          approve = final files with a QR code + signed record in the record book (Stage 7)
-  → verify        public page: record (QR), file fingerprint, or pasted message (Stage 7)
+```bash
+./scripts/make-offline-bundle.sh /Volumes/USB/pramaan-bundle
 ```
 
-- `backend/app/ai/llm.py` is the only file that talks to the model. In local mode it sends the
-  JSON shape to llama.cpp, which then *forces* valid JSON; it streams the answer (so long answers
-  don't time out and progress can be shown). If a server can't do that, it finds the JSON in the
-  reply and retries once. If an answer is cut off at the token limit, it keeps what was written.
-- Token limits per output are in `.env` (`MAX_TOKENS_...`); "Short" detail uses 75% of them.
-- The fact sheet keeps at most 8 key facts per model answer and may write up to 1400 tokens
-  (`MAX_TOKENS_FACTSHEET`), so it finishes cleanly instead of being cut off.
-- Jobs run in the background, one at a time. If the backend restarts, unfinished jobs carry on.
+It holds the Python packages, the frontend packages, llama.cpp, the model (add `--no-model` for a
+100 MB mock-only bundle), a manifest and a SHA-256 fingerprint of every file. Copy it and the project
+folder to the offline computer (Python 3.12 and Node must be installed there from their own offline
+installers), then:
 
-## Downloads (Stage 4)
+```bash
+./scripts/install.sh /Volumes/USB/pramaan-bundle
+```
 
-Files are made from the outputs already saved in the database — no AI call, so they take about a
-second even on the slow laptop. They are made again on every download (so they always match the
-output) and saved under `data/jobs/<id>/exports/`.
+The installer checks the platform, Python, Node, memory (warns below 16 GB with the model), free disk
+space and ports 8000 / 5173 / 8081 / 8090, verifies every file against the fingerprints, installs
+everything, makes `.env` (with `AI_MODE=mock` if there is no model), and runs the backend tests.
 
-| Output | Files |
+## Roles
+
+| Role | Colour | Does | Cannot |
+|---|---|---|---|
+| **Operator** | saffron | Adds sources, makes the safety choices and TLP label, generates, edits and regenerates outputs, compares versions, sends for review, emergency alerts, watch folder, downloads the kit | Approve; see users, settings or the audit trail |
+| **Reviewer** | green | Reviews kits, comments on single sentences, approves and signs, sends back with reasons; signed records | Change a job; review a job they worked on |
+| **Admin** | navy | Users and access requests, audit trail, AI models, templates and letterhead, security policies, record book (withdraw), public page update, backups | See job content |
+
+Every role sees only its own menu, and the backend refuses other roles' requests (HTTP 403) on every
+endpoint — `backend/tests/test_permissions.py` tries every endpoint with every role.
+
+## Security
+
+- **Offline by design:** no cloud service, CDN or external font; nothing leaves the computer. The cloud
+  AI mode exists only for development and is never needed.
+- **Before the AI:** private data and hidden instructions are found by rules (no AI); hidden values are
+  replaced by placeholders, so the model never sees them; a leak check blocks any output that still
+  contains one.
+- **Sign-in:** argon2id password hashes, at least 12 characters; HttpOnly SameSite=Strict session cookie
+  (8 hours, sign-out after inactivity, set by the Admin); lockout after wrong passwords; Origin check
+  against cross-site requests; no default accounts.
+- **At rest:** the database is encrypted with SQLCipher and every stored file with AES-256-GCM; the key is
+  only in `.env` (`DB_KEY`), never in the database or backups.
+- **Integrity:** append-only, hash-chained audit trail and record book (the database refuses changes, and
+  "Verify chain" finds any edit); signed manifests with SHA-256 fingerprints of every file and text.
+- **Public page:** holds only the public key and the records list (titles only for TLP:GREEN / CLEAR);
+  checks run in the visitor's browser and nothing is uploaded.
+
+Details: [ARCHITECTURE.md · Security model](docs/ARCHITECTURE.md#security-model).
+
+## Limits (what is not done yet)
+
+- **Indian languages:** outputs are written in English. Translation to the 22 scheduled languages
+  (IndicTrans2), Indian voices (Indic Parler-TTS) and speech-to-text (IndicConformer) are designed
+  (Stage 8 of the plan) but not built; the language choices are saved for when they are.
+- **Inputs:** text, .txt, .pdf (with a text layer) and .docx. Scanned images, audio and video need OCR /
+  speech-to-text (not built).
+- **Video package:** script, storyboard and subtitles; no rendered MP4.
+- **Speed:** the local 30B model is slow on a 16 GB laptop without a GPU (about 25 minutes for two short
+  outputs). One job runs at a time.
+- **Signing:** the test key on this computer works end to end; signing with a Class 3 DSC USB token
+  (PKCS#11) is designed but not tested with a real token.
+- **Accounts:** no recovery codes; a forgotten Admin password needs another Admin, so make two Admins.
+- **Updates:** installing signed update packages from USB is not built (copy the new version and run the
+  installer; make a backup first).
+- The mock AI is a rule-based stand-in for testing, not a language model.
+
+## Troubleshooting
+
+| Problem | What to do |
 |---|---|
-| Advisory, Executive summary | `.pdf` and `.docx` |
-| Presentation | `.pptx` — title slide, one slide per generated slide, closing slide; speaker notes on every slide |
-| Infographic | `.png`, 1080 × 1350, drawn in the layout the AI suggested (number grid, vertical steps or timeline); previewed on the Results page |
-| Video package | `.docx` (script and storyboard) and `.srt` (subtitles) |
-| LinkedIn post, X thread | `.txt` (the thread is numbered 1/4, 2/4 …) |
-| Campaign kit | one `.zip` with every file of every finished output, plus `README.txt` listing each file's SHA-256 fingerprint |
-
-Every file carries the job title, the date, the footer **"AI-assisted · pending human approval"**,
-the TLP label when one is set (Stage 6 sets it), and an empty box where the QR code goes once a
-reviewer signs it (Stage 7). Fact ids (F1, A2 …) are kept out of the files; they stay in the JSON.
-An `.srt` file can only hold subtitles, so its labels are one extra subtitle after the narration.
-
-**Fonts.** Poppins, Hind and IBM Plex Mono (all OFL, licences included) are bundled in
-`backend/app/assets/fonts/`. PDF and PNG files carry the fonts inside them. Word and PowerPoint
-files only *name* the font, so for the exact look install the fonts once on the computer that opens
-them: double-click each `.ttf` file in that folder and click **Install Font**. Without them, Pages /
-Keynote / Word use a similar font; nothing else changes. Indian-script fonts are added in Stage 8
-(see `backend/app/exporters/fonts.py`).
-
-The exporters are in `backend/app/exporters/`: `blocks.py` (the sections of each document, shared
-by Word and PDF), `docx.py`, `pdf.py`, `pptx.py`, `infographic.py`, `srt.py`, `text.py`, `kit.py`.
-
-## Trust (Stage 5)
-
-Everything here is done by rules in code, with **no AI call**, so it is instant and runs again
-after every edit. The code is in `backend/app/pipeline/`: `trace.py` (finding text in the source),
-`values.py` (numbers, dates, CVEs, IPs, hashes), `segments.py` (the text fields of each output),
-`checks.py` (sentences, links, score, consistency) and `versions.py`.
-
-**The Results page** now follows the design *13 · Results · Advisory with source trace*: a tab per
-output (with its score), the output on the left, and on the right the **Source trace**, the
-warnings and the **Quality score**. On a narrow window the Source trace opens at the bottom.
-
-| Feature | What you see | How it works |
-|---|---|---|
-| Source trace | Click a sentence or a chip (F3, A1, D2): the fact, its source (S1), page, *Found / Close match / Not found*, and the source page with the quote in **yellow**, scrolled into view | Each fact's quote (and each action and date) is found in the source word by word when the fact sheet is built, and its character positions are saved (`start`, `end`) |
-| Sentence links | Small chips after every sentence show which facts it uses | Each text field is split into sentences; a sentence must share meaning words with the fact the AI cited, otherwise the best matching fact is used ("matched by its words") |
-| Not linked to a fact | **Yellow underline** and a yellow card listing them | No fact fits the sentence (e.g. an opinion the AI added) |
-| Not in source | **Red wavy underline** on the value, red card | Every number, date, CVE id, IP address, file hash, link, email and phone number in an output must be in the **source text** (the fact sheet does not count: the AI wrote it). `1.2 million` = `1,200,000`, `five` = `5`, `22 Sep` = `22 September` |
-| Fact not found | Fact sheet: the fact in **red**, "Not found in source". Output: sentences that use only such facts get a yellow **Linked fact not verified** | The fact's quote could not be found in the source, so the fact may be made up; those sentences do not count as linked in the score |
-| Fact sheet does not match | Red banner on Results: **"The fact sheet does not match the source. Do not publish."** | Fewer than half of the fact sheet's quotes were found in the source; every output score and the job score are capped at 50 |
-| All clear | The green "Every sentence is linked …" box | Shown only when **every** check passes: no unlinked or unverified sentence, nothing not in the source, all format rules met, no leak, fact sheet matches |
-| Consistency | Panel at the top: "All outputs agree", or each mismatch ("the fact sheet says 42 hospitals, but the X thread says 43 hospitals") with a button that opens that sentence | Numbers are compared with their unit word (42 *hospitals*, 72 *hours*) against the fact each sentence is linked to |
-| Quality score | Badge on each tab and on the job; hover (or Tab to it) for the explanation in plain words; the card shows the parts | 40 points: sentences linked · 25: quotes found in the source (close = half) · 20: values in the source (each missing one costs a third) · 15: length and format rules (X 280 characters, LinkedIn 3,000, slides 15 words a point, narration 40 words a scene, not cut off …). Job score = average. Saved in the database |
-| Edit | **Edit** → a box per text field → **Save and re-check** | Saved as a new version "Edited by human"; all checks run again; empty a box to remove that item; video subtitles are re-timed |
-| Versions | **Versions** → **View** an older one (read only, with its own score) | Table `output_versions`; nothing is ever overwritten |
-| Regenerate | **Regenerate** writes only that output again from the same fact sheet | Uses the AI (local / cloud); mock mode writes the same text again (same fact sheet, same answer) as a new version. If the AI fails, the previous version stays |
-
-Downloads and the campaign kit always use the **latest** version.
-
-Export fixes in this stage: the PowerPoint footer is measured with the real Hind font and a long
-job title is shortened with "…" so the footer stays on one line; in the PDF the indicator table's
-value column is wider (and codes shrink a little if still needed), so a SHA-256 fingerprint stays
-on one line.
-
-## Safety (Stage 6A)
-
-All rule-based and offline, in `backend/app/safety/`: `scanner.py` (detectors), `shield.py`
-(prompt-injection shield), `masking.py` (placeholders and the leak check), `tlp.py` (label rules),
-`decisions.py` (the decision log). Try it with the two fictional samples:
-`samples/sample-private-data.txt` and `samples/sample-injection.txt`.
-
-| Feature | What you see | How it works |
-|---|---|---|
-| Sensitivity scanner | Safety check → **What we found**: one row per value, with how many times, which pages, and a choice | Patterns + checks: Aadhaar (12 digits **and** the Verhoeff checksum), PAN, Indian mobiles (+91 / 0 / spaces), email, bank account (after "A/c No"), IFSC, passport, vehicle numbers, GPS, private IPs (10.x, 172.16–31.x, 192.168.x), `.local/.corp/.internal` hosts, `password:` / API keys / tokens / private keys, SECRET / CONFIDENTIAL / RESTRICTED (capitals, or after "Classification:") and "For official use only". Each finding keeps type, text, source, page, character position and risk (high / medium / low) |
-| Attack indicators | A separate **Attack indicators** card | Public attacker IPs, CVE ids, file hashes are *not* private: kept in the advisory, left out of public posts by default |
-| Choices | Per row: **Hide in public outputs** (default for personal data), **Hide everywhere** (default for passwords/keys), **Keep** | Saved on the job; every change goes into the `safety_decisions` table |
-| Source view | The source with every finding highlighted (red = high, saffron = medium, yellow = low, blue = indicator, wavy red = aimed at the AI). Click a row to jump to it | Positions from the scanner |
-| TLP label | Right-hand card with the suggestion and why; shown on Results and printed on every exported file | RED / AMBER: LinkedIn, X thread, infographic, video package are switched off with the reason; advisory, executive summary, presentation allowed. GREEN / CLEAR: all allowed. Suggestion: SECRET → RED; other markings, ID numbers, secrets or internal network → AMBER; only contact details or indicators → GREEN; nothing → CLEAR |
-| Masking | "What the AI will see" note; the preview line with `[internal address]`; placeholders in the fact sheet | Before **any** AI call, every hidden value becomes a placeholder (`[PHONE-1]`, `[AADHAAR-1]` …). The saved fact sheet keeps them (it shows what the AI saw). After the AI writes, code puts the real value back only in internal outputs for "Hide in public outputs"; public outputs and "Hide everywhere" get a label like `[phone number]` |
-| Leak check | Red **Private data found** box on the output, `!` on its tab, downloads blocked, left out of the kit | After every write and every edit, each hidden value is searched for in the output (any spacing: `9876543210` = `98765 43210`) |
-| Prompt-injection shield | **Suspicious instructions found** (or "No hidden instructions found") | Phrases like "ignore previous instructions", "you are now", "system prompt", "reveal your …", role tags (`<\|system\|>`, `[INST]`); zero-width / bidi / invisible tag characters (removed; kept inside Indian scripts where they are normal); hidden Word text (white, under 4 pt, "Hidden") and PDF text (invisible, white, under 3 pt), left out of what the AI reads. For each instruction sentence you choose **Remove from what the AI reads** (default, shown struck through) or **Keep (AI told to ignore it)**; the choice is saved in `safety_decisions`. All source text is sent inside `<<<SOURCE … SOURCE>>>` / `<<<FACT SHEET … FACT SHEET>>>` and the prompts say it is data, never instructions |
-| Output check | Red wavy underline "Link / Phone number / Email address" | Any link, phone or email in an output that is not in the source itself is flagged |
-| Safety section | Results page: label, counts, switched-off outputs, **Decisions** (who, when, what) | `safety_decisions`: scan, each choice change, label, confirmation, start, with the signed-in user's name (Stage 6B; older rows say "Operator"); values are shown only partly in the log |
-
-Limits: rules can miss unusual formats (e.g. a phone number written in words) and can flag things
-that only look private; the operator sees everything and decides. White PDF text on a coloured box
-can be a false alarm (paste such text in the box instead). A PDF piece that mixes visible and hidden
-text is treated as visible.
-
-## Accounts and roles (Stage 6B)
-
-Code: `backend/app/auth/` (`passwords.py`, `accounts.py`, `sessions.py`, `deps.py`),
-`backend/app/routes/auth.py`, `review.py`, `admin.py`, `backend/app/audit.py`.
-
-| Role | Can | Cannot |
-|---|---|---|
-| **Operator** (saffron) | create jobs, safety check, edit, regenerate, retry, download, **Submit for review** | approve; see users or the audit trail |
-| **Reviewer** (green) | review queue, open any job, download, **Approve** or **Send back** with notes | change a job; review a job they worked on (created, edited, safety choices, submitted) — *separation of duties* |
-| **Admin** (navy) | users, access requests, forgot-password requests, audit trail | see or approve job content |
-
-The roles are checked **in the backend on every request** (`Depends(allow("operator"))` on each
-route): **401** = not signed in, **403** = this role may not. Hiding buttons in the web page is only
-for convenience. `backend/tests/test_permissions.py` tries every endpoint with every role.
-
-Job states: `ready` → **Submit for review** → `in_review` (locked: nobody can edit) → **Approve**
-→ `approved` and **signed** (Stage 7; locked for good), or **Send back** (notes required) →
-`sent_back` → the Operator changes it and submits again as **v2**. To change an approved job:
-**Start a new version** (needs a new review and a new signature; the new record replaces the old one).
-
-**Accounts**
-- *First-time setup*: only while there are no users; makes the first Admin. Then it is closed.
-- *Request access* (sign-in page): name, employee ID (Stage 9B; it becomes the username), official email,
-  division, Operator or Reviewer, preferred language, and a password (stored only as a hash). An Admin approves (can change the role) or rejects it. Admin accounts are
-  made only by an Admin.
-- *Forgot password* (offline, no email): sends a request to the Admin. The Admin checks who you are in
-  person and clicks **Reset password**: a temporary password (like `tulsi-river-7429-kamal`) is shown
-  **once**; you must choose your own at the next sign-in (until then every other request is refused).
-- *Passwords*: at least 12 characters, not a very common one, not containing your username or name;
-  hashed with **argon2id** (argon2-cffi). **5 wrong passwords lock the account for 15 minutes** (an
-  Admin can unlock it sooner). A wrong username takes as long as a wrong password, and the message is
-  the same.
-- The last active Admin cannot be switched off or demoted.
-
-**Sessions**: a random 256-bit token in a cookie that is `HttpOnly` (page scripts cannot read it),
-`SameSite=Strict` (other websites cannot make the browser send it) and `Secure` when served over
-HTTPS. The server stores only an HMAC-SHA256 of it (keyed with `APP_SECRET_KEY`). A session ends
-after **8 hours**, or **30 minutes** without any request; signing out deletes it; switching a user
-off or resetting their password ends all their sessions, and changing your password signs out your
-other computers. Every POST/PUT/DELETE must come from one of our own pages (the `Origin` header,
-checked against `ALLOWED_ORIGINS`), which stops other websites from sending requests as you.
-`APP_SECRET_KEY` is made on first run if empty and saved in `.env`; it is never printed.
-
-**Audit trail** (`audit_log` table, Admin → Audit trail): sign-in, sign-out, failed sign-in,
-lockouts, sessions that ended, password changes and resets, user changes, access requests, job
-created, every safety decision, edits, regenerate, retry, submit, approve, send back, downloads,
-generation finished, and each chain check. Each row stores the SHA-256 of the row before it, and its
-own SHA-256 over that plus its content. The database refuses UPDATE and DELETE on the table
-(triggers). **Verify chain** works every hash out again and shows the first row that was changed,
-removed or added. Limits: someone with the key who deletes the *newest* rows cannot be caught by the
-chain alone (Stage 7's signed record book will anchor it); passwords, keys and tokens are never
-written to it (a test checks this). Filters: category, search, who, last 24 hours / 7 / 30 days.
-
-## Encryption at rest (Stage 6B)
-
-Everything the app stores is encrypted, so a copied `data/` folder (or a stolen laptop disk) is
-unreadable without the key.
-
-| What | How | Code |
-|---|---|---|
-| The database `data/pramaan.db` | **SQLCipher 4** (AES-256, every page of the file) via the `sqlcipher3` package, which ships its own SQLCipher build for Intel Macs | `backend/app/db.py` |
-| Files under `data/jobs/` (uploaded sources, extracted text, exports) | **AES-256-GCM** (`cryptography`): each file starts with `PRMNENC1`, then a fresh 12-byte nonce, then the encrypted bytes and a tag that detects any change | `backend/app/crypto.py` |
-| Downloads | Made in memory and sent to the browser; only the encrypted copy is saved | `backend/app/exporters/` |
-
-**The key:** `DB_KEY` in `.env` (64 hex characters = 256 bits). If it is empty, a random one is
-made on the first start and written to `.env`; it is never printed or logged. Two separate keys are
-derived from it (HKDF-SHA256): one for the database, one for the files.
-
-> **Back up `.env` together with `data/`.** Without `DB_KEY` the data cannot be read by anyone,
-> including you. Never change `DB_KEY` on an existing install.
-
-**Upgrading from Stage 6A:** on the first start, the old unencrypted database is copied into an
-encrypted one (every table's row count is checked), and the old file is kept as
-`data/pramaan.db.plain-backup`. Existing files under `data/jobs/` are encrypted in place (each one
-is decrypted again and compared before moving on). After checking that the app works and your jobs
-are there, **delete the plain backup** — it is not encrypted:
-
-```bash
-rm data/pramaan.db.plain-backup
-```
-
-To see for yourself that the database is encrypted (this should fail with "file is not a
-database"):
-
-```bash
-sqlite3 data/pramaan.db "select count(*) from jobs"
-```
-
-**In production** the key would not sit in a file next to the data. It would be given at start-up:
-typed by an Admin as a passphrase (stretched with a slow KDF such as Argon2id or PBKDF2 into the
-key), or unwrapped by a hardware token (the organisation's HSM / smart card / DSC token via
-PKCS#11, or the Mac's Secure Enclave / TPM), and kept only in memory while the app runs. The code
-already reads the key in one place (`crypto._master_key`), so only that function would change.
-
-## Signing and verification (Stage 7)
-
-Code: `backend/app/signing/` (`signer.py`, `sign_job.py`, `records.py`, `texts.py`, `messages.py`,
-`publish.py`, `qr.py`), `backend/app/routes/records.py`, and the public page in `verify-page/`.
-
-### 1. Signing on Approve (Reviewer)
-
-**Approve & sign** opens the sign dialog (design 26). Then, in one step:
-
-1. The next **record number** is taken: `PRM-<year>-<6 digits>`.
-2. The **final files** of every output are made with a real **QR code** in place of the dashed box,
-   and the footer says "Approved and signed · Record PRM-…". The QR holds only
-   `VERIFY_BASE_URL/?r=<record number>` (`.env`, default `http://localhost:8090`). `.txt` and `.srt`
-   files get a "Check it is genuine: …" line instead.
-3. **SHA-256** of every final file, and of each output's **normalised text** (spaces, capitals,
-   punctuation, emojis and zero-width characters ignored, so a forwarded copy still matches).
-4. A **manifest** (record number, job title, TLP, issuing office `ISSUING_OFFICE`, approver name and
-   role, time, files and fingerprints, text fingerprints) is **signed** (ECDSA P-256, SHA-256). A second,
-   **public** manifest is signed too: for **TLP:RED / AMBER** it has only the record number, date and
-   fingerprints, marked "Restricted" (no title, no names, no text). Public records name the approver's
-   **role**, not the person.
-5. A new, hash-chained entry in the **record book**; the job becomes `approved`.
-
-The signed files are saved encrypted under `data/jobs/<id>/signed/<record>/` and made read-only.
-Downloads of an approved job give exactly these bytes; the **signed kit** (.zip) also holds
-`record.json` and `public-key.pem`, so anyone can check it with no internet.
-
-**Signers** (`SIGNER` in `.env`), one interface:
-- `test` (default): an ECDSA P-256 key made on first use. The private key is stored **encrypted** with
-  the Stage 6B file key (`data/keys/test-signer.key`) and never printed or logged. **Not a legal DSC.**
-- `dsc`: a Class 3 DSC USB token through PKCS#11 (PyKCS11). **Design only, NOT tested** (no token was
-  available): see the notes in `DscSigner` (most Indian DSCs are RSA-2048, the certificate chain must be
-  published, …).
-
-### 2. Record book
-
-Reviewer → **Signed records** (design 29); Admin → **Record book** (design 37). The `records` table is
-append-only (the database refuses UPDATE and DELETE) and **hash-chained**: each entry stores the hash
-of the one before it. **Check the whole chain** re-checks every entry's hash, both signatures, and that
-every signed file on disk still has its fingerprint, and shows the **first broken entry**. The Admin can
-**Withdraw** a record with a reason: a new signed entry (for TLP:RED / AMBER the public reason is only
-"Withdrawn by the issuing office"). A record replaced by a newer version shows "Replaced by …".
-
-### 3. The public "Is this real?" page (`verify-page/`)
-
-Plain HTML + CSS + JS, no backend, no secrets: it reads `records.json` (the public manifests, their
-signatures, and a **signed index** of all entries, so a dropped withdrawal is noticed) and
-`public-key.pem`, and checks every signature in the browser. Mobile-first, large text, English and
-Hindi (हिं button), fonts bundled, works offline once loaded (service worker, on https or localhost).
-
-- `?r=PRM-2026-000001` (what the QR opens): **Genuine** / **Genuine, but replaced** / **Withdrawn** /
-  **Not found**, with title, date, issuing office, approver role and the files with fingerprints
-  (Restricted records: only number, date, fingerprints).
-- **Check a file**: drop it; its SHA-256 is worked out on the device and compared.
-- **Paste a message**: see 4.
-
-Signatures are checked with **Web Crypto** when the browser offers it. Browsers only offer it on
-`https://` or `localhost`, **not** on a plain `http://192.168.x.x` address (how a phone reaches the demo
-laptop), so the page then uses its own built-in SHA-256 and ECDSA P-256 code (`verify.js`). Both paths
-are tested.
-
-**Admin → Record book → Export verify bundle** downloads a .zip of the whole site with the latest
-records, for one-way (USB) transfer to the public web server. For the demo:
-
-```bash
-./scripts/serve-verify.sh
-```
-
-builds `data/verify-site/` and serves it on <http://localhost:8090> (and on this Mac's Wi-Fi address).
-While it runs, every new signature or withdrawal updates it straight away.
-
-### 4. "Is this real?" message checker (in the app and on the public page)
-
-Paste a forwarded message:
-1. **Exact match** (after normalising) with a signed text → "Genuine, matches record X" (or Withdrawn /
-   outdated). If several records hold the same text, the newest decides.
-2. Otherwise **similarity** with the published texts (5-character shingles, Jaccard): 50% or more →
-   "**Changed**: looks like record X", with the **changed words highlighted**.
-3. Otherwise "**Not found** — treat as unverified"; with scam signs, "**Not genuine** — looks like a scam".
-
-**Scam signs** (rules, no AI, English and Hindi): asks for an OTP / password / PIN or payment (not "never
-share your OTP"), urgent threats ("act within 1 hour", "will be blocked"), links that are not government
-sites and not in any record (look-alikes like `gov-alert-update.xyz` are called out), phone numbers not
-in any record (1930 and other helplines are fine), asks to install an app. Always shown: **Report cyber
-fraud: call 1930 or visit cybercrime.gov.in**. The app version (`/api/check-message`) uses the same
-published data, so both give the same answer; a test runs the same messages through the Python and the
-JavaScript checker. Pasted messages are not stored or logged.
-
-**Limits:** the test key is not a legal signature; the DSC signer is untested; similarity only knows
-texts published for TLP:CLEAR / GREEN social posts; rules can miss a cleverly worded scam or flag an
-unusual genuine message (the result says what it found, the person decides); a host could serve an
-*older* complete `records.json` (the signed index shows its date) — in production serve it over HTTPS
-from the organisation's own server.
-
-### Scan a QR code with your phone (same Wi-Fi)
-
-1. Find this Mac's Wi-Fi address: `ipconfig getifaddr en0` (e.g. `192.168.1.20`).
-2. In `.env`, set `VERIFY_BASE_URL=http://192.168.1.20:8090` **before signing** (the address is printed
-   inside every QR code), then restart `./scripts/start.sh`.
-3. Run `./scripts/serve-verify.sh` (allow incoming connections if macOS asks).
-4. Sign a job, open a signed PDF or the infographic on the Mac's screen, and point the iPhone / Android
-   **camera app** at the QR code; tap the link. The phone must be on the same Wi-Fi (not a guest
-   network that isolates devices).
-
-## Operator screens (Stage 9A)
-
-Try each one with the mock AI (`AI_MODE=mock` in `.env`, then `./scripts/start.sh`), signed in as an
-Operator. A Reviewer account is needed for the review steps.
-
-| Screen | Where | What to try |
-|---|---|---|
-| Dashboard (08) | **Dashboard** | Numbers are real (jobs this week, outputs approved, hours saved is an *estimate*, languages). "Needs your attention" lists jobs sent back (with the Reviewer's note), private data found, sentences not linked to the source, watch-folder drafts, and jobs ready to send. |
-| New transformation (09–11) | **New transformation** | Unchanged steps, now with the job number; a watch-folder draft shows a **Watch folder** badge and its kit is ticked in advance. **Generate** opens the live progress. |
-| Generating (12) | after Generate, or **See live progress** | The fact sheet, each output (Queued → Writing → Ready, with times), a progress bar, the time left, and a live preview of the latest finished text. You can leave: a notification says when it is done. |
-| Results (13–18) | click a job | Tabs: Advisory, Executive summary (as a page, with words, reading time and "traced x of y"), Presentation (slide viewer, speaker notes, words on slide), Video package (storyboard: scenes, on-screen text, narration, subtitles), Social posts (LinkedIn + X thread as they will look, characters, **Copy**, what was hidden, public-release check), Infographic (image + headline, numbers, steps), Fact sheet. Arrow keys move between tabs. The source trace, warnings and quality score stay on the right for every tab. |
-| Campaign kit (19) | **Campaign kit** on a job | Tick the outputs to put in the .zip; once signed, the file sizes and "Approved and signed by …" show. |
-| My jobs (20) | **My jobs** | Job number, version, status, TLP, AI used (Mock / Sarvam 30B local), quality. Search (title, `#0012`, source file name), status tabs, last 7/30/90 days, sharing level, 10 per page. |
-| Version compare (21) | **Compare versions** on a job with v2 | Send a job back as a Reviewer, edit an output (e.g. change "42 hospitals" to "57"), submit again: the page shows *Hospitals 42 → 57*, list changes, and every changed sentence with added (green, underlined) and removed (red, struck through) words. Pick any two versions, including the first AI draft. |
-| Emergency alert (22) | **Emergency alert** | Type a short alert; the character count (160 = one SMS) and the public-release check (no panic words, no shouting, no private data; helplines like 1930 are fine) update as you type. **Send for fast-track approval** makes a TLP:CLEAR job; when its outputs are ready it goes to the Reviewers by itself, first in their queue. Other languages and voice come in Stage 8. |
-| Watch folder (23) | **Watch folder** | See below. |
-| Notifications (40) | the bell, or **Notifications** | Job finished, sent back (with notes), approved, signed (record number), watch-folder drafts; Reviewers: submitted, emergency alert. All / Unread, Mark all as read. In the app only: nothing is emailed. |
-
-The **search box** at the top finds jobs (title or number), sources (file name, or the first 8+ characters
-of a SHA-256 fingerprint) and records (record number or title). Use ↓ ↑ and Enter, or click.
-
-### Watch folder
-
-1. **Watch folder** → switch it on. The folder is `data/watch/incoming` (make others with **New folder**;
-   only folders inside `data/watch/` are allowed). Pick the **kit to prepare**.
-2. Copy a report into the folder, for example:
-
-```bash
-cp samples/sample-private-data.txt data/watch/incoming/cert-report-0929.txt
-```
-
-3. Within a minute (`WATCH_INTERVAL_SECONDS` in `.env`, default 60), or at once with **Check now**, it
-   shows "Ready for you", the menu shows a badge, and the dashboard lists it.
-4. **Open** it: it is a **draft waiting at the Safety check**. The AI has not run. You check what the
-   scanner found, choose the sharing label (never set automatically) and press Generate yourself.
-
-Files that are not .txt / .pdf / .docx, files still being copied, and (with "Skip duplicates") files that
-are exactly the same as an earlier job's source are listed but not drafted. Pramaan never moves, changes
-or deletes your files; its own copy is encrypted like every source.
-
-### Accessibility (GIGW / WCAG 2.1 AA)
-
-- **Keyboard:** everything works without a mouse. The first Tab shows **Skip to main content**; result
-  tabs use the arrow keys; the search list uses ↓ ↑ Enter Escape; slides and scenes are buttons.
-- **Focus:** a 3-pixel navy ring on every control (at least 3:1 against every background).
-- **Labels:** every field, switch and icon button has a name; badges say "2 drafts waiting", the bell
-  says "Notifications, 3 unread".
-- **Contrast:** all text at least 4.5:1 (large text 3:1); white-on-saffron badges were changed to the
-  darker saffron for this.
-- **200% zoom:** at 200% on a laptop (720 pixels wide) the menu becomes a **Menu** button that opens a
-  drawer (Escape closes it); pages reflow into one column with no sideways scrolling.
-- **Not colour alone:** statuses have an icon and a word, scores a number, unlinked sentences a tag,
-  compare uses underline / strike-through (and "added" / "removed" for screen readers), switches say On / Off.
-- After moving to another page, focus goes to the page, so screen readers start reading there.
-
-## All screens for every role (Stage 9B)
-
-With the mock AI (`AI_MODE=mock`), start the app and try each role. A test account for each role can be
-made by the Admin on **Users & access** (the person signs in with the temporary password shown once).
-
-**Start (designs 01–07)**
-
-| Screen | What to try |
-|---|---|
-| Splash (01) | Opens once per browser (or at `#/welcome`). The bar fills when the backend answers; **Get started**. |
-| Language (02) | Pick any of the 23 languages. Saved in this browser, and used for "Preferred language" when asking for access. The app's own words stay English until Stage 8. |
-| Sign in (03) | Type your **username, employee ID or official email** (any case). |
-| Request access (04) | Full name, **employee ID**, official email, **division**, role, password, preferred language, the acceptable-use box. The employee ID becomes the username. |
-| Forgot password (05) | Username or employee ID; the Admin resets it. |
-| Pending (06) | Shows your details and which Admin can approve. Sign in with your employee ID once approved. |
-| First-time setup (07) | Shows **this computer's real memory, processors, free disk** and the AI in use; makes the first Admin (with employee ID). |
-
-**Reviewer (designs 24–29)**
-
-| Screen | What to try |
-|---|---|
-| Review queue (24) | Waiting, signed today, **average review time** and sent back this week, all measured. Emergency alerts first; filter All / Emergency / Kits. The signing key card and today's signed records. |
-| Review a kit (25) | **Click any sentence**: its source shows on the right, and you can **comment on that line**. Outputs with notes have a ⚠ mark. **Automatic checks** list what the app already checked. *Take back* a comment while the review is open. |
-| Sign (26) → Signed (27) | **Approve & sign** → tick the box → **Sign N files** → the Signed page with the record's QR code, fingerprint and what happened next. |
-| Send back (28) | Pick reasons, see each line comment next to **what the source says**, add a whole-job comment, write a note. The Operator gets a notification, and on the job a **Line comments from the Reviewer** card with **Show the line** for each. |
-| Signed records (29) | Search, filter, check the chain, **Export list** (CSV). |
-
-**Admin (designs 30–39)**
-
-| Screen | What to try |
-|---|---|
-| Overview (30) | Active users by role, jobs this month, documents signed, fake or edited messages caught by "Is this real?" (counts only, never the messages), **this computer** (processor load, memory, disk, encryption), approve requests here, latest security events. |
-| Users & access (31, 32) | Employee ID, email, division, DSC token, emergency duty, status, last active. **Add user** / **Edit**: the same details; a Reviewer on the **emergency duty roster** is told first about emergency alerts. |
-| Audit trail (33) | Filters as before; **Export log with hashes** (CSV) so the chain can be checked outside the app. |
-| AI models (34) | Which AI is in use (set by `AI_MODE` in `.env`, not from the page), the planned models, and **speeds measured from real jobs** on this computer. **Run a speed test** asks the AI for a short answer and times it. |
-| Templates (35) | The built-in template of each output, and **your letterhead**: type the **office name** and **upload a logo** (PNG / JPEG, up to 2 MB). From then on every PDF, Word, PowerPoint, PNG and text file carries them, and the public verify page says "Issued by" that office. |
-| Security & policies (36) | Switch scanner checks on or off (a warning if you switch one off), add **classification words** (e.g. INTERNAL ONLY: found in every new source), **sign out after 15 / 30 / 60 minutes**, **lock after 3 / 5 / 10 wrong passwords**. These really apply, and every change is in the audit trail. |
-| Record book (37) | As in Stage 7, plus Export list. |
-| Public verify page (38) | Its address, what it holds and never holds, **Export update file** for the USB copy. |
-| Updates & backup (39) | **Back up now**: one .zip in `data/backups/` with a consistent copy of the encrypted database and every (encrypted) file, made while the app runs. **Keep a copy of `.env` separately**: the backup cannot be read without `DB_KEY`. The README in the zip explains how to restore. Installing update packages comes in Stage 10. |
-
-**Everyone**
-
-| Screen | What to try |
-|---|---|
-| Notifications (40) | As in 9A. Switch kinds off on Profile & settings. |
-| Profile & settings (41) | Your details (changed by an Admin), **app language**, **default output languages**, **text size** (whole app larger) and **high contrast**, notification switches, change password, sign out. |
-| Help | A short guide for your role, keyboard keys, what to do if something is wrong. Works offline. |
-| You don't have access | Open a page of another role (e.g. `#/admin/security` as an Operator): a friendly page with a link home. The backend refuses its data anyway (403). Unknown addresses say the page does not exist. |
-
-**Public verify page (42–46, `verify-page/`)**: on a phone browser that can read QR codes (Chrome on
-Android, over https or localhost), **Scan with this phone's camera** reads the QR code live (nothing is
-uploaded); elsewhere the steps for the phone's own camera app are shown. Genuine results show "Changed
-since? No"; fake ones have **Warn my family and friends** (shares a short warning, not the scam message).
-
-## API (see <http://localhost:8000/docs> for all details)
-
-Every call except `/api/health` and the sign-in calls needs a session cookie, and every
-POST/PUT/DELETE needs an `Origin` header from `ALLOWED_ORIGINS` (browsers send it by themselves).
-
-| Call | Who | What it does |
-|---|---|---|
-| `GET /api/auth/status` | anyone | does the app need First-time setup? who is signed in? |
-| `POST /api/auth/setup` | anyone, only while there are no users | `{"username", "full_name", "password"}`: the first Admin, signed in |
-| `POST /api/auth/login` · `/logout` | anyone | `{"username", "password"}` → session cookie; 401 wrong, 423 locked |
-| `POST /api/auth/request-access` · `/forgot` | anyone | ask an Admin for an account / a new password |
-| `GET /api/auth/me` · `POST /api/auth/change-password` | signed in | `{"current_password", "new_password"}` |
-| `POST /api/jobs/{id}/submit` | Operator | `{"notes": ""}`: ready / sent back → in review (refused while an output has private data) |
-| `GET /api/review/queue` | Reviewer | jobs waiting (oldest first) and the latest decisions |
-| `POST /api/jobs/{id}/review` | Reviewer | `{"decision": "approve" \| "send_back", "notes": "..."}` |
-| `GET/POST /api/admin/users`, `PUT /api/admin/users/{id}`, `POST .../reset-password` | Admin | list, add (temporary password shown once), change role / switch off / unlock, reset |
-| `GET /api/admin/requests`, `POST .../{id}/approve` · `/reject` | Admin | access and forgot-password requests |
-| `GET /api/admin/audit?category=&q=&actor=&days=&offset=` · `POST /api/admin/audit/verify` | Admin | the audit trail; check the hash chain |
-| `POST /api/jobs/{id}/review` with `"approve"` | Reviewer | approves **and signs** (Stage 7); optional `"pin"` for a DSC token |
-| `GET /api/jobs/{id}/sign-info` | Reviewer | for the sign dialog: signer, outputs, files |
-| `POST /api/jobs/{id}/new-version` | Operator | reopen an approved job as a new version |
-| `GET /api/records` · `POST /api/records/verify` | Reviewer, Admin | the record book; check chain, signatures and signed files |
-| `GET /api/records/{record_no}` · `/qr.png` · `GET /api/records/public-key.pem` | signed in | one record, its QR code, the public key |
-| `POST /api/admin/records/{record_no}/withdraw` | Admin | `{"reason": "..."}`: a signed withdrawal entry |
-| `GET /api/admin/records/verify-bundle.zip` | Admin | the public verify site with the latest records |
-| `POST /api/check-message` | signed in | `{"text": "..."}`: "Is this real?" for a pasted message |
-| `GET /api/notifications` (`?unread=true`) · `/count` · `POST .../{id}/read` · `/read-all` | signed in | my notifications (Stage 9A); `count` also gives `watch_drafts` |
-| `GET /api/search?q=` | signed in | jobs, sources and records (Admins: records only) |
-| `GET /api/dashboard` | Operator | dashboard numbers and "Needs your attention" |
-| `GET/PUT /api/watch`, `POST /api/watch/folders` · `/check` | Operator | watch folder settings, make a folder, check now |
-| `POST /api/alerts/check` · `POST /api/alerts` | Operator | emergency alert: live check; make the alert job (fast-track review) |
-| `GET /api/auth/options` · `GET /api/auth/computer` | anyone (computer: only before setup) | languages and divisions; this computer's memory, cores, disk and AI |
-| `GET/PUT /api/profile` | signed in | my details; change my language and preferences only |
-| `GET/POST /api/jobs/{id}/comments`, `DELETE .../{cid}` | Operator + Reviewer / Reviewer | line comments (add and take back: Reviewer, while in review) |
-| `POST /api/jobs/{id}/review` with `"reasons"` | Reviewer | send-back reasons: Facts need checking, Language quality, Tone, Sensitive detail, Formatting |
-| `GET /api/admin/overview` · `GET /api/admin/ai` · `POST /api/admin/ai/speed-test` | Admin | overview numbers; AI and measured speed; speed test |
-| `GET/PUT /api/admin/security` | Admin | security policy (scanner switches, classification words, inactivity, lockout) |
-| `GET/PUT /api/admin/letterhead`, `POST/DELETE /api/admin/letterhead/logo`, `GET /api/letterhead/logo.png` | Admin (logo image: signed in) | office name and logo on exported files |
-| `GET /api/admin/public-page` · `GET/POST /api/admin/backups` · `GET /api/admin/backups/{name}` | Admin | public page information; list / make / download backups |
-
-Job calls (Operators change jobs; Reviewers may read them and download):
-
-| Call | What it does |
-|---|---|
-| `GET /api/options` | the 7 output types and the setting choices |
-| `POST /api/jobs` | step 1: form fields `text` and/or `files`, `title`. Reads the sources and scans them; the job comes back as a `draft` with its `safety` report. (Also send `outputs` — repeat per output — and `audience`, `tone`, `objective`, `style`, `detail_level` to do all 3 steps at once with the suggested label and default choices) |
-| `PUT /api/jobs/{id}/safety` | step 2: JSON `{"tlp": "AMBER", "choices": {"P1": "hide_all"}}` (choices: `hide_public`, `hide_all`, `keep`); logged in `safety_decisions` |
-| `POST /api/jobs/{id}/start` | step 3: JSON `{"outputs": ["advisory"], "settings": {"audience": "Senior officials"}}`; refused (400, with the reason) for public outputs under TLP RED / AMBER |
-| `GET /api/jobs` | list jobs; filters `?q=` (title, `#0012`, source file), `?status=draft,in_review`, `?tlp=AMBER`, `?days=30` |
-| `GET /api/jobs/{id}` | status, current step, fact sheet, each output as it finishes, its checks (`quality`, including `leaks`), score, version, the job's `consistency` and `quality_score`, and `tlp`, `safety`, `safety_decisions`, `switched_off` |
-| `GET /api/jobs/{id}/sources/{S1}` | the text of one source, page by page (the fact sheet's `start`/`end` are positions in these pages) |
-| `PUT /api/jobs/{id}/outputs/{output_id}` | save edits as a new version: JSON `{"fields": [{"path": ["tweets", 0, "text"], "text": "..."}]}` (the editable paths are in each output's `fields`) |
-| `POST /api/jobs/{id}/outputs/{output_id}/regenerate` | write one output again from the same fact sheet |
-| `GET /api/jobs/{id}/outputs/{output_id}/versions` | every version (number, who made it, score, time); add `/{n}` for one version's text and checks |
-| `POST /api/jobs/{id}/retry` | run the failed parts of a job again |
-| `GET /api/jobs/{id}/outputs/{output_id}/download?format=pdf` | one file: `docx`, `pdf`, `pptx`, `png`, `srt` or `txt` (each output lists its `formats`); add `&inline=true` to view instead of save |
-| `GET /api/jobs/{id}/kit.zip` | the campaign kit: every finished output in one .zip (`?outputs=advisory,x_thread` for some only) |
-| `GET /api/jobs/{id}/kit-info` | what the kit holds (file sizes once signed) |
-| `GET /api/jobs/{id}/compare?left=1&right=2` | two versions side by side (0 = first AI draft); numbers and lists that changed |
-
-Example with curl (from the project folder). First sign in as an Operator; curl keeps the session
-cookie in a file (`-c` saves it, `-b` sends it), and `-H Origin` says which page the request is from.
-Type the password at the hidden prompt (so it is not saved in your shell history):
-
-```bash
-printf "Password: "; read -s PRAMAAN_PW; echo
-```
-
-```bash
-curl -c /tmp/pramaan-cookies -H "Origin: http://localhost:8000" -H "Content-Type: application/json" -d "{\"username\": \"priya.sharma\", \"password\": \"$PRAMAAN_PW\"}" http://localhost:8000/api/auth/login; unset PRAMAAN_PW
-```
-
-```bash
-curl -b /tmp/pramaan-cookies -H "Origin: http://localhost:8000" -F files=@samples/sample-ransomware-report.txt -F outputs=x_thread -F outputs=linkedin_post http://localhost:8000/api/jobs
-```
-
-Download job 1's campaign kit into the current folder:
-
-```bash
-curl -b /tmp/pramaan-cookies -OJ http://localhost:8000/api/jobs/1/kit.zip
-```
-
-Sign out (deletes the session on the server) and remove the cookie file:
-
-```bash
-curl -b /tmp/pramaan-cookies -H "Origin: http://localhost:8000" -X POST http://localhost:8000/api/auth/logout && rm /tmp/pramaan-cookies
-```
-
-## About the AI model
-
-The app works without the model; the dashboard's **Test AI** button then shows a friendly
-"llama-server is not running" message.
-
-`scripts/start-ai.sh` runs:
-
-```
-llama-server -hf sarvamai/sarvam-30b-gguf:Q4_K_M --offline --port 8081 -c 4096 -t 4 -np 1 -b 512 --reasoning-budget 0
-```
-
-- `--offline` uses the copy already downloaded to `~/.cache/huggingface` and never goes online.
-  On a new computer, download the model (~20 GB) once by running the same command without
-  `--offline`.
-- `-b 512` makes the server report progress while it reads a long prompt (this takes minutes on
-  the laptop), which also stops the backend from giving up while it waits.
-- `--reasoning-budget 0` turns off Sarvam 30B's "thinking", so answers start straight away.
-  `backend/app/ai/llm.py` also switches thinking off for each request.
-- It is slow on the dev Intel Mac (about 1.4 tokens per second), so the backend waits up to
-  `LLM_TIMEOUT_SECONDS` (600 seconds by default, set in `.env`) for the next part of a reply.
-
-## Test it
-
-```bash
-curl http://localhost:8000/api/health
-```
-
-Expected: `{"status":"ok","ai_mode":"local"}`
-
-`/api/ai/ping` now needs a sign-in: use the dashboard's **Test AI** button. Without signing in it
-answers `401 {"detail":"Please sign in."}`.
-
-Backend tests (they always use the mock AI, a temporary folder and test keys, so no model is needed
-and your `data/` folder and `.env` are not touched). Stage 6B adds `test_accounts.py`,
-`test_sessions.py`, `test_review.py`, `test_permissions.py` (every role × every endpoint),
-`test_audit.py` (including changing and deleting rows to prove "Verify chain" finds them),
-`test_encryption.py` and `test_no_secrets_in_logs.py`. Stage 7 adds `test_signing.py` (signature
-verifies, one changed byte fails, QR files, TLP:RED hides the title, new versions), `test_record_book.py`
-(withdraw; changed, re-hashed or deleted entries and changed signed files are found), `test_messages.py`
-(exact / changed / unknown / scam signs) and `test_verify_page.py`, which builds a real verify site and
-runs the page's own JavaScript with Node (`verify-page/tests/verify.test.mjs`: signatures with and without
-Web Crypto, file checks, tampering, and the message checker giving the same answers as Python).
-Stage 9A adds `test_notifications_search.py` (who is told what, read / unread, job filters, search by
-role, dashboard), `test_watch.py` (drafts wait at the Safety check and never start by themselves, folders
-outside `data/watch/` refused, duplicates, other file types, files still being copied, PDF / DOCX, hidden
-instructions found), `test_compare.py` (word diff, numbers like "five" → "six", v1 against v2 after a
-send-back) and `test_alerts_kit_polish.py` (public-release check, fast-track review, choosing kit outputs,
-captions, long titles in footers). Stage 9B adds `test_profile_accounts.py` (employee ID / email sign-in,
-request details, profile changes only language and preferences, notification switches, emergency duty
-roster), `test_review_comments.py` (line comments, separation of duties, send-back reasons, dashboard
-numbers), `test_admin_system.py` (overview, AI speed from real runs, speed test, and the security policy
-really changing the scanner, inactivity sign-out and lockout) and `test_admin_files.py` (letterhead name and
-logo inside real PDF / Word / PowerPoint / PNG / text files and as "Issued by", logo checks, a backup whose
-database opens with the key):
+| **"Address already in use"** / `[Errno 48]` / "Port 5173 is already in use" | Another program uses the port. `./scripts/start.sh` stops an old Pramaan AI by itself; for anything else, find it and stop it: `lsof -nP -iTCP:8000 -sTCP:LISTEN` (or 5173, 8081, 8090), then `kill <PID>`. |
+| `start-ai.sh` says port 8081 is in use | An earlier `llama-server` is still running. Use it, or stop it with Ctrl+C in its terminal (or `kill <PID>`). |
+| **The AI is very slow** | Expected on a laptop: about 1.3 tokens/s, 5–11 minutes per output. Generate fewer outputs (X thread and LinkedIn post first), use "Short" detail, close other apps (the model needs the memory), lower `MAX_TOKENS_...` in `.env`. The progress page shows tokens being written. Use `AI_MODE=mock` to demo instantly. |
+| "Could not reach the AI" / jobs fail at once | `./scripts/start-ai.sh` is not running, or still loading (wait for `server is listening`). Then **Try again** on the job: finished parts are kept. |
+| `start-ai.sh`: model not installed | Run `./scripts/install.sh` with a bundle that has the model, or download it once (see Full start). |
+| The page says "The backend is not running" | Start `./scripts/start.sh` and watch its messages; a Python error there is the cause. |
+| "cannot be opened with DB_KEY from .env" | The `.env` does not belong to this `data/` folder. Put back the right `.env` (keep a copy of it with every backup). |
+| Locked out after wrong passwords | Wait 15 minutes, or ask an Admin to unlock or reset the password (**Users & access**). |
+| A downloaded file is refused (private data found) | The leak check found a hidden value in that output: edit it out, or change the choice at the Safety check. |
+| The phone cannot open the QR link | Set `VERIFY_BASE_URL` in `.env` to this computer's Wi-Fi address before signing, and run `./scripts/serve-verify.sh` (details in the [user guide](docs/USER_GUIDE.md)). |
+| Tests fail after updating | Re-run the installer (or `pip install -r backend/requirements.txt` and `npm ci`). |
+
+## Tests
 
 ```bash
 cd backend && .venv/bin/python -m pytest
 ```
 
-Frontend type check (no output means no errors):
+666 backend tests, always with the mock AI, a temporary data folder and test keys (your `data/` and
+`.env` are never touched); they include the public page's own JavaScript, run with Node. Frontend type
+check (no output means no errors):
 
 ```bash
 cd frontend && npx tsc -b
 ```
 
+The [test report](docs/TEST_REPORT.md) lists every feature, how it was tested, and the real Sarvam runs.
+
 ## AI provider switch
 
-Set `AI_MODE` in `.env`:
-
-- `local` — llama.cpp on this computer (default, offline).
-- `mock` — no model; instant answers built from the source by simple rules, for testing.
-- `cloud` — Sarvam hosted API, for development only. Put your key in `SARVAM_API_KEY` in `.env`
-  (never in code or chat). The hosted API no longer offers `sarvam-30b`; it uses `sarvam-105b`.
-
-Restart the app after changing `.env`.
+`AI_MODE` in `.env`: `local` (llama.cpp on this computer, the real deployment), `mock` (no model, for
+tests and demos), `cloud` (Sarvam hosted API, development only; key in `SARVAM_API_KEY`, never in code).
+All AI calls go through one module, `backend/app/ai/llm.py`; the rest of the app does not know which is in
+use. Restart the app after changing `.env`.
 
 ## Folder map
 
 ```
-backend/        FastAPI app (app/main.py), settings (app/config.py), database (app/db.py, SQLCipher),
-                encryption of stored files (app/crypto.py), audit trail (app/audit.py)
-  app/auth/       passwords.py (argon2id, rules), accounts.py, sessions.py, deps.py (role checks) (Stage 6B)
-  app/ai/         llm.py (the only file that talks to the model), prompts/*.md, mock_ai.py (the mock AI)
-  app/pipeline/   ingest.py, factsheet.py, generate.py, checks.py, output_types.py, runner.py,
-                  trace.py, values.py, segments.py, versions.py (Stage 5 checks and versions), compare.py (Stage 9A)
-  app/exporters/  real files: docx.py, pdf.py, pptx.py, infographic.py, srt.py, text.py, kit.py
-  app/assets/fonts/  Poppins, Hind, IBM Plex Mono (TTF, OFL)
-  app/safety/     scanner.py, shield.py, masking.py, tlp.py, decisions.py (Stage 6A, no AI), public_check.py (9A)
-  app/notifications.py, app/watch.py   in-app notifications, the watch folder (Stage 9A)
-  app/app_settings.py, app/branding.py, app/backup.py   Admin settings and security policy, letterhead, backups (9B)
-  app/routes/     system.py (health, AI ping), jobs.py (jobs API), outputs.py (edit, regenerate, versions, downloads,
-                  kit, compare), notifications.py, search.py, dashboard.py, watch.py, alerts.py (Stage 9A),
-                  profile.py, comments.py, admin_system.py, admin_files.py (Stage 9B),
-                  safety.py (the Safety check), auth.py (sign-in pages), review.py (submit / approve /
-                  send back), admin.py (users, requests, audit trail), records.py (record book,
-                  verify bundle, "Is this real?")
-  app/signing/    signer.py (test key + DSC stub), sign_job.py, records.py (record book), texts.py,
-                  messages.py ("Is this real?"), publish.py (verify bundle), qr.py (Stage 7)
-frontend/       React + TypeScript + Vite app; design tokens in src/styles/tokens.css;
-                sign-in pages in src/pages/auth/, Admin pages in src/pages/admin/
-verify-page/    public "Is this real?" page (Stage 7): index.html, app.js (page), verify.js (checks),
-                sw.js (offline), fonts/, tests/ (Node)
-scripts/        start.sh (app), start-ai.sh (AI model), serve-verify.sh (public verify page on port 8090)
-samples/        fictional test files: sample-ransomware-report.txt, sample-private-data.txt (fake
-                Aadhaar/PAN/phone/email/IPs/password), sample-injection.txt (hidden instruction)
-models/, data/  model files and app data (never committed); data/watch/ holds the watch folders,
-                data/backups/ the backups, data/branding/ the logo (encrypted)
-Designs/        screen designs and clickable prototype (reference only)
+backend/        FastAPI app: app/main.py, config.py (.env), db.py (SQLCipher), crypto.py, audit.py,
+                notifications.py, watch.py, app_settings.py, branding.py, backup.py
+  app/ai/         llm.py (the ONLY place that talks to the model), prompts/*.md, mock_ai.py
+  app/pipeline/   ingest, factsheet, generate, checks, trace, segments, versions, compare, runner
+  app/safety/     scanner, shield (hidden instructions), masking, tlp, decisions, public_check
+  app/exporters/  docx, pdf, pptx, infographic (PNG), srt, text, kit (.zip)
+  app/signing/    signer, sign_job, records (record book), messages ("Is this real?"), publish, qr
+  app/auth/       passwords, accounts, sessions, deps (role checks)
+  app/routes/     one file per area of the API
+  tests/          666 tests
+frontend/       React + TypeScript + Vite; design tokens in src/styles/tokens.css; fonts bundled
+verify-page/    the public "Is this real?" page (static HTML + JS, works offline)
+scripts/        start.sh, start-ai.sh, serve-verify.sh, install.sh, make-offline-bundle.sh
+docs/           ARCHITECTURE, DEMO_SCRIPT, TEST_REPORT, USER_GUIDE
+samples/        fictional test files (ransomware report, private data, hidden instruction)
+Designs/        screen designs and the clickable prototype (reference)
+models/, data/  the model and the app's data (never committed)
 ```
+
+Fonts (Poppins, Hind, Rozha One, IBM Plex Mono, Noto Sans) are bundled under the SIL Open Font Licence.
+Sarvam 30B is used under its model licence (Sarvam AI); llama.cpp under the MIT licence.
