@@ -83,7 +83,10 @@ export function dateTime(iso: string): string {
 export function fileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  if (bytes < 1024 ** 3) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  // memory and disk: "16 GB", "136 GB" (one decimal only for small numbers, e.g. "1.5 GB")
+  const gb = bytes / 1024 ** 3
+  return `${gb < 10 ? gb.toFixed(1) : Math.round(gb)} GB`
 }
 
 export { OUTPUT_LABELS }

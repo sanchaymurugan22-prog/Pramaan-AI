@@ -52,6 +52,13 @@ type SourcePanelProps = {
 export function SourcePanel({ jobId, facts, selection, sentence, where, select, onClose }: SourcePanelProps) {
   const fact = selection.factId ? facts.get(selection.factId) : undefined
   const open = Boolean(sentence || fact)
+  // On narrow screens the open trace floats over the page like a dialog: Escape closes it, as everywhere else.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
   return (
     <section className={open ? 'card side-card trace-card is-open' : 'card side-card trace-card'} aria-live="polite">
       <div className="row gap-8">

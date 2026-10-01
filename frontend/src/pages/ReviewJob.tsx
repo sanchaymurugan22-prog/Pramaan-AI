@@ -139,6 +139,13 @@ export function ReviewJob({ jobId }: { jobId: number }) {
   const active = job?.outputs.find((o) => o.id === outputId) ?? job?.outputs[0]
   const byPath = useMemo(() => sentencesByPath(active?.quality?.sentences), [active?.quality])
 
+  // Narrow screens (and 200% zoom): the source trace opens as a sheet over the bottom half of the page,
+  // so bring the comment box into the top half, where it can be typed in.
+  useEffect(() => {
+    if (!selection.sentenceId || !window.matchMedia('(max-width: 1100px)').matches) return
+    document.querySelector('.comment-box')?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }, [selection.sentenceId])
+
   if (!job || !active) {
     return <main className="page">{error ? <div className="alert alert-red">{error}</div> : <p className="muted">Loading…</p>}</main>
   }
