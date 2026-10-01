@@ -360,6 +360,15 @@ type ScoreBadgeProps = { score: number | null | undefined; explanation?: string;
 
 export function ScoreBadge({ score, explanation, big, inButton }: ScoreBadgeProps) {
   if (score === null || score === undefined) return null
+  if (!explanation) {
+    // nothing to explain: no tooltip, so no extra Tab stop
+    return (
+      <span className={`score-badge score-bg-${scoreTone(score)} ${big ? 'score-badge-big' : ''}`}>
+        {big ? 'Quality ' : <span className="sr-only">Quality </span>}
+        {score}
+      </span>
+    )
+  }
   return (
     <span className="tip" tabIndex={inButton ? undefined : 0} aria-label={`Quality ${score}. ${explanation ?? ''}`}>
       <span className={`score-badge score-bg-${scoreTone(score)} ${big ? 'score-badge-big' : ''}`}>
