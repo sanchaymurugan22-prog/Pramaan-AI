@@ -39,6 +39,7 @@ MATRIX = [
     ("GET", "/api/jobs/{job}/outputs/{output}/versions/1", {OP, RV}, None),
     ("GET", "/api/jobs/{job}/outputs/{output}/download?format=txt", {OP, RV}, None),
     ("GET", "/api/jobs/{job}/kit.zip", {OP, RV}, None),
+    ("GET", "/api/jobs/{job}/compare", {OP, RV}, None),
     # review
     ("POST", "/api/jobs/{job}/submit", {OP}, {}),
     ("POST", "/api/jobs/{job}/review", {RV}, {"decision": "send_back", "notes": "Permission test note"}),

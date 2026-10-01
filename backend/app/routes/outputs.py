@@ -8,6 +8,8 @@ GET  /api/jobs/{id}/outputs/{output_id}/versions/{n}     one old version's text 
 GET /api/jobs/{id}/outputs/{output_id}/download?format=pdf   one file (docx | pdf | pptx | png | srt | txt)
     add &inline=true to show it in the browser instead of saving it (used for the infographic preview)
 GET /api/jobs/{id}/kit.zip                                     every finished output of the job in one .zip
+GET /api/jobs/{id}/compare?left=1&right=2                      Stage 9A: two versions of the job side by side
+    (0 = the first AI draft; without left/right: the version before the latest, and the latest)
 
 Files are made from the LATEST version, in memory, on each download; an encrypted copy is kept under
 data/jobs/<id>/exports/.
@@ -30,6 +32,7 @@ from app.exporters import MEDIA_TYPES, ExportedFile, ExportError, export_output
 from app.exporters.kit import build_kit
 from app.pipeline import runner
 from app.pipeline.checks import recheck_job
+from app.pipeline.compare import CompareError, compare
 from app.pipeline.generate import add_timings
 from app.pipeline.output_types import OUTPUT_TYPES
 from app.pipeline.segments import EditError, apply_edits
@@ -170,6 +173,18 @@ def download_kit(job_id: int, db: Session = Depends(get_session), user: User = D
     audit.log("content", "download", f"Downloaded the campaign kit (.zip) of job #{job.id}", actor=user,
               target=f"job {job.id}")
     return _file_response(kit, MEDIA_TYPES["zip"])
+
+
+@router.get("/jobs/{job_id}/compare")
+def compare_versions(job_id: int, left: int | None = None, right: int | None = None, db: Session = Depends(get_session),
+                     user: User = Depends(allow("operator", "reviewer"))):
+    job = db.get(Job, job_id)
+    if job is None:
+        raise HTTPException(404, f"Job {job_id} not found.")
+    try:
+        return compare(job, left, right)
+    except CompareError as exc:
+        raise HTTPException(404, str(exc))
 
 
 def _file_response(exported: ExportedFile, media_type: str, inline: bool = False) -> Response:
