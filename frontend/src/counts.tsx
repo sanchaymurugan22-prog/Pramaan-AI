@@ -8,10 +8,10 @@ const POLL_MS = 20000
 
 type CountsState = { counts: Counts; refresh: () => void }
 
-const CountsContext = createContext<CountsState>({ counts: { unread: 0, watch_drafts: 0 }, refresh: () => {} })
+const CountsContext = createContext<CountsState>({ counts: { unread: 0, watch_drafts: 0, requests: 0 }, refresh: () => {} })
 
 export function CountsProvider({ children }: { children: ReactNode }) {
-  const [counts, setCounts] = useState<Counts>({ unread: 0, watch_drafts: 0 })
+  const [counts, setCounts] = useState<Counts>({ unread: 0, watch_drafts: 0, requests: 0 })
   const refresh = useCallback(() => {
     getCounts()
       .then(setCounts)

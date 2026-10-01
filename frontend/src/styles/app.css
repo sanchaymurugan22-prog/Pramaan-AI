@@ -1463,3 +1463,57 @@ button.number-tile { border: 1px solid var(--line); text-align: left; font-famil
   .review-outputs { position: static; }
   .signed-card { padding: 22px; }
 }
+
+/* =====================================================================================
+   Stage 9B: admin screens (designs 30-39)
+   ===================================================================================== */
+.hero-navy { background: var(--navy-light); border-color: var(--navy-mid); }
+.tone-navy.stat-icon { background: var(--navy-light); color: var(--navy); }
+.admin-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: start; }
+.admin-two { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.request-mini { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.request-mini:last-child { border-bottom: none; }
+.request-mini .note-icon { width: 36px; height: 36px; }
+.mt-4 { margin-top: 4px; }
+.mode-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.mode-card.is-on { border: 2px solid var(--navy); background: var(--navy-light); }
+.mode-title { font-family: var(--font-heading); font-size: 17px; }
+.toggle-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; }
+.word-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
+  background: var(--red-light); color: var(--red-dark); font-family: var(--font-mono); font-size: 13px;
+}
+.word-chip.is-fixed { background: var(--neutral-chip); color: var(--ink-2); }
+.word-chip button { border: 0; background: transparent; color: inherit; cursor: pointer; display: flex; padding: 2px; border-radius: 50%; }
+.letterhead-card { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+.letterhead-preview { margin: 0; flex: 0 1 360px; border: 1px solid var(--line-2); border-radius: 12px; overflow: hidden; background: #fff; }
+.letterhead-preview-head { padding: 14px 16px 8px; }
+.letterhead-preview img { max-width: 160px; object-fit: contain; }
+.letterhead-lines { display: flex; flex-direction: column; gap: 8px; padding: 8px 16px 14px; }
+.letterhead-lines span { height: 8px; border-radius: 4px; background: var(--line); }
+.letterhead-lines span:first-child { width: 60%; height: 12px; background: var(--ink-2); opacity: 0.6; }
+.letterhead-preview figcaption { padding: 0 16px 12px; }
+.template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
+.template-card { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.template-art { height: 130px; border-radius: 10px; border: 1px solid var(--line); padding: 14px; display: flex; flex-direction: column; gap: 8px; background: #fff; }
+.template-art span { height: 8px; border-radius: 4px; background: var(--line); }
+.template-art span:first-child { width: 40%; background: var(--saffron); height: 4px; }
+.template-art span:nth-child(2) { width: 75%; background: var(--ink-2); opacity: 0.7; height: 10px; }
+.art-slides { background: var(--navy-dark); }
+.art-slides span:nth-child(2) { background: #fff; }
+.art-poster span:nth-child(3), .art-poster span:nth-child(4) { height: 28px; background: var(--navy-mid); }
+.art-poster span:nth-child(4) { background: var(--saffron-mid); }
+.kit-banner-navy { background: var(--navy-light); border: 1px solid var(--navy-mid); color: var(--ink-2); }
+.kit-banner-navy .kit-banner-icon { color: var(--navy); }
+.steps-list { margin: 0; padding: 0; list-style: none; counter-reset: step; display: flex; flex-direction: column; gap: 18px; }
+.steps-list li { counter-increment: step; position: relative; padding-left: 48px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.steps-list li::before {
+  content: counter(step); position: absolute; left: 0; top: 0; width: 32px; height: 32px; border-radius: 50%;
+  background: var(--navy); color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center;
+}
+@media (max-width: 1200px) { .admin-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+@media (max-width: 1000px) {
+  .admin-two, .mode-grid { grid-template-columns: minmax(0, 1fr); }
+  .toggle-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) { .admin-grid { grid-template-columns: minmax(0, 1fr); } }

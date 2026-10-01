@@ -3,6 +3,7 @@ import { checkWatchNow, getWatch, makeWatchFolder, updateWatch, type WatchActivi
 import { useCounts } from '../counts'
 import { Icon, type IconName } from '../components/Icon'
 import { StatusChip } from '../components/StatusChip'
+import { Toggle } from '../components/Toggle'
 import { links } from '../router'
 import { shortTime } from './format'
 
@@ -22,36 +23,6 @@ const KITS: { label: string; outputs: string[] }[] = [
 ]
 
 const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x))
-
-// An on/off switch that says what it does (role="switch", read as "on" / "off")
-function Toggle({ label, detail, on, onChange, disabled }: {
-  label: string
-  detail?: string
-  on: boolean
-  onChange: (on: boolean) => void
-  disabled?: boolean
-}) {
-  return (
-    <div className="toggle-row">
-      <span className="stack gap-1 grow">
-        <span className="toggle-label">{label}</span>
-        {detail && <span className="toggle-detail">{detail}</span>}
-      </span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={on}
-        aria-label={label}
-        className={on ? 'switch is-on' : 'switch'}
-        onClick={() => onChange(!on)}
-        disabled={disabled}
-      >
-        <span className="switch-knob" />
-        <span className="switch-text" aria-hidden="true">{on ? 'On' : 'Off'}</span>
-      </button>
-    </div>
-  )
-}
 
 const FILE_ICON: Record<string, IconName> = { pdf: 'file', docx: 'file', txt: 'file' }
 

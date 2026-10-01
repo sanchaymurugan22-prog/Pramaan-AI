@@ -18,7 +18,7 @@ const WORKSPACE: Record<Role, string> = {
 }
 
 // Each role sees its own menu (the backend refuses the other roles' pages anyway).
-function mainNav(role: Role, watchDrafts: number): NavItem[] {
+function mainNav(role: Role, watchDrafts: number, requests: number): NavItem[] {
   const check: NavItem = { label: 'Is this real?', icon: 'scan', href: links.check, pages: ['check'] }
   if (role === 'operator') {
     return [
@@ -41,9 +41,18 @@ function mainNav(role: Role, watchDrafts: number): NavItem[] {
     ]
   }
   return [
-    { label: 'Users & access', icon: 'user', href: links.users, pages: ['users'] },
+    { label: 'Overview', icon: 'home', href: links.adminHome, pages: ['admin-home'] },
+    {
+      label: 'Users & access', icon: 'user', href: links.users, pages: ['users'],
+      badge: requests || undefined, badgeLabel: `${requests} request${requests === 1 ? '' : 's'} waiting`,
+    },
     { label: 'Audit trail', icon: 'hash', href: links.audit, pages: ['audit'] },
+    { label: 'AI models', icon: 'chip', href: links.aiModels, pages: ['ai-models'] },
+    { label: 'Templates', icon: 'summary', href: links.templates, pages: ['templates'] },
+    { label: 'Security & policies', icon: 'shield', href: links.security, pages: ['security'] },
     { label: 'Record book', icon: 'box', href: links.recordBook, pages: ['record-book'] },
+    { label: 'Public verify page', icon: 'globe', href: links.publicPage, pages: ['public-page'] },
+    { label: 'Updates & backup', icon: 'refresh', href: links.backup, pages: ['backup'] },
     check,
   ]
 }
@@ -116,7 +125,7 @@ export function Sidebar({ route, open, onClose }: Props) {
           </div>
 
           <div className="nav-group">
-            {mainNav(user.role, counts.watch_drafts).map((item) => (
+            {mainNav(user.role, counts.watch_drafts, counts.requests).map((item) => (
               <NavLink key={item.label} item={item} route={route} />
             ))}
           </div>

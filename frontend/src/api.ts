@@ -639,6 +639,11 @@ export type AdminUser = {
   failed_attempts: number
   created_at: string
   last_login: string | null
+  employee_id: string | null
+  email: string | null
+  division: string
+  dsc_holder: boolean
+  emergency_duty: boolean
 }
 
 export type AccountRequest = {
@@ -649,6 +654,9 @@ export type AccountRequest = {
   role: Role | null
   role_label: string
   reason: string
+  employee_id: string | null
+  email: string | null
+  division: string
   status: 'pending' | 'approved' | 'rejected' | 'done'
   user_exists: boolean
   created_at: string
@@ -657,9 +665,19 @@ export type AccountRequest = {
 }
 
 export const listUsers = () => request<AdminUser[]>('/api/admin/users')
-export const addUser = (form: { username: string; full_name: string; role: Role }) =>
+export type UserForm = {
+  username?: string
+  full_name: string
+  role: Role
+  employee_id?: string
+  email?: string
+  division?: string
+  dsc_holder?: boolean
+  emergency_duty?: boolean
+}
+export const addUser = (form: UserForm) =>
   request<{ user: AdminUser; temporary_password: string }>('/api/admin/users', sendJson('POST', form))
-export const changeUser = (id: number, change: { full_name?: string; role?: Role; is_active?: boolean; unlock?: boolean }) =>
+export const changeUser = (id: number, change: Partial<UserForm> & { is_active?: boolean; unlock?: boolean }) =>
   request<AdminUser>(`/api/admin/users/${id}`, sendJson('PUT', change))
 export const resetUserPassword = (id: number) =>
   request<{ user: AdminUser; temporary_password: string }>(`/api/admin/users/${id}/reset-password`, { method: 'POST' })
@@ -775,7 +793,7 @@ export type Notification = {
   created_at: string
   read: boolean
 }
-export type Counts = { unread: number; watch_drafts: number }
+export type Counts = { unread: number; watch_drafts: number; requests: number }
 
 export const listNotifications = (unread = false) =>
   request<{ items: Notification[]; unread: number }>(`/api/notifications${unread ? '?unread=true' : ''}`)
@@ -851,4 +869,89 @@ export type AlertCheck = PublicCheck & { chars: number; sms_parts: number; max_c
 export type NewAlert = { type: string; severity: string; area: string; message: string; outputs: string[] }
 export const checkAlert = (message: string) => request<AlertCheck>('/api/alerts/check', sendJson('POST', { message }))
 export const createAlert = (alert: NewAlert) => request<JobDetail>('/api/alerts', sendJson('POST', alert))
+
+// ---- Admin system pages (Stage 9B, backend/app/routes/admin_system.py and admin_files.py) --------
+
+export type ComputerInfo = {
+  processors: number
+  load_percent: number | null
+  memory_bytes: number | null
+  disk_total_bytes: number
+  disk_free_bytes: number
+  encrypted: boolean
+  ai_mode: string
+  ai_label: string
+}
+export type CheckerCounts = { checks: number; genuine: number; changed: number; scam: number; withdrawn: number; not_found: number }
+export type AdminOverview = {
+  users: { operator: number; reviewer: number; admin: number; total: number }
+  jobs: { this_month: number; last_month: number }
+  records: { issued: number; withdrawn: number }
+  checker: CheckerCounts
+  computer: ComputerInfo
+  requests: { id: number; kind: 'access' | 'reset'; full_name: string; username: string; role: Role | null; role_label: string; employee_id: string | null; division: string; created_at: string }[]
+  security_events: { seq: number; action: string; detail: string; actor: string; created_at: string }[]
+}
+export const getAdminOverview = () => request<AdminOverview>('/api/admin/overview')
+
+export type SpeedTest = { at?: string; ai_mode?: string; ok?: boolean; error?: string | null; seconds?: number; words?: number; words_per_second?: number | null }
+export type AiInfo = {
+  ai_mode: string
+  label: string
+  model: string
+  base_url: string
+  timeout_seconds: number
+  models: { name: string; job: string; made_by: string; runtime: string; status: 'in_use' | 'standby' | 'off' | 'planned'; detail: string }[]
+  performance: {
+    ai_mode: string
+    label: string
+    outputs: number
+    average_output_seconds: number | null
+    tokens_per_second: number | null
+    fact_sheets: number
+    average_fact_sheet_seconds: number | null
+    by_type: { type: string; label: string; count: number; average_seconds: number }[]
+  }[]
+  speed_test: SpeedTest
+}
+export const getAiInfo = () => request<AiInfo>('/api/admin/ai')
+export const runSpeedTest = () => request<SpeedTest>('/api/admin/ai/speed-test', { method: 'POST' })
+
+export type SecurityState = {
+  scanner: { key: string; label: string; on: boolean }[]
+  classification_words: string[]
+  built_in_words: string[]
+  idle_minutes: number
+  idle_choices: number[]
+  lock_after: number
+  lock_choices: number[]
+  tlp: { level: Tlp; title: string; description: string; public_allowed: boolean }[]
+  public_outputs: string[]
+  encryption: { database: boolean; files: boolean; key_place: string }
+  signer: { kind: string; label: string; key_id?: string; error?: string }
+  reviewers: { name: string; dsc_holder: boolean }[]
+  max_session_hours: number
+}
+export type SecurityChange = { scanner?: Record<string, boolean>; classification_words?: string[]; idle_minutes?: number; lock_after?: number }
+export const getSecurity = () => request<SecurityState>('/api/admin/security')
+export const saveSecurity = (change: SecurityChange) => request<SecurityState>('/api/admin/security', sendJson('PUT', change))
+
+export type Letterhead = { office_name: string; effective_name: string; default_name: string; has_logo: boolean }
+export const getLetterhead = () => request<Letterhead>('/api/admin/letterhead')
+export const saveLetterhead = (office_name: string) => request<Letterhead>('/api/admin/letterhead', sendJson('PUT', { office_name }))
+export const uploadLogo = (file: File) => {
+  const form = new FormData()
+  form.append('file', file)
+  return request<Letterhead>('/api/admin/letterhead/logo', { method: 'POST', body: form })
+}
+export const removeLogo = () => request<Letterhead>('/api/admin/letterhead/logo', { method: 'DELETE' })
+export const logoUrl = '/api/letterhead/logo.png'
+
+export type PublicPageInfo = { address: string; issuer: string; records: { issued: number; withdrawn: number }; last_export: string | null; checker: CheckerCounts }
+export const getPublicPageInfo = () => request<PublicPageInfo>('/api/admin/public-page')
+
+export type Backups = { version: string; ai_mode?: string; folder: string; made?: string; backups: { name: string; bytes: number; created_at: string }[] }
+export const listBackups = () => request<Backups>('/api/admin/backups')
+export const makeBackup = () => request<Backups>('/api/admin/backups', { method: 'POST' })
+export const backupUrl = (name: string) => `/api/admin/backups/${encodeURIComponent(name)}`
 

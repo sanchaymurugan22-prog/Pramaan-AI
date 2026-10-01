@@ -10,7 +10,7 @@
 //   #/jobs/12/compare    version compare (v1 against v2)
 //   #/watch     watch folder     #/emergency   emergency alert     #/notifications   notifications (everyone)
 //   #/review    review queue (Reviewer); #/review/12 review job 12, /send-back, /signed (Stage 9B)
-//   #/admin/users, #/admin/audit   users & access requests, audit trail (Admin)
+//   #/admin (overview), #/admin/users, /audit, /ai, /templates, /security, /public-page, /backup (Admin)
 //   #/records   signed records (Reviewer)     #/admin/records   the record book (Admin)
 //   #/password  change my password (everyone)
 //   #/check     "Is this real?" message checker (everyone)
@@ -36,7 +36,13 @@ export type Route =
   | { page: 'review-job'; id: number }
   | { page: 'send-back'; id: number }
   | { page: 'signed'; id: number }
+  | { page: 'admin-home' }
   | { page: 'users' }
+  | { page: 'ai-models' }
+  | { page: 'templates' }
+  | { page: 'security' }
+  | { page: 'public-page' }
+  | { page: 'backup' }
   | { page: 'audit' }
   | { page: 'records' }
   | { page: 'record-book' }
@@ -68,7 +74,13 @@ export const links = {
   reviewJob: (id: number) => `#/review/${id}`,
   sendBack: (id: number) => `#/review/${id}/send-back`,
   signed: (id: number) => `#/review/${id}/signed`,
+  adminHome: '#/admin',
   users: '#/admin/users',
+  aiModels: '#/admin/ai',
+  templates: '#/admin/templates',
+  security: '#/admin/security',
+  publicPage: '#/admin/public-page',
+  backup: '#/admin/backup',
   audit: '#/admin/audit',
   records: '#/records',
   recordBook: '#/admin/records',
@@ -91,7 +103,13 @@ const SIMPLE: Record<string, Route> = {
   '/emergency': { page: 'emergency' },
   '/notifications': { page: 'notifications' },
   '/review': { page: 'review' },
+  '/admin': { page: 'admin-home' },
   '/admin/users': { page: 'users' },
+  '/admin/ai': { page: 'ai-models' },
+  '/admin/templates': { page: 'templates' },
+  '/admin/security': { page: 'security' },
+  '/admin/public-page': { page: 'public-page' },
+  '/admin/backup': { page: 'backup' },
   '/admin/audit': { page: 'audit' },
   '/records': { page: 'records' },
   '/admin/records': { page: 'record-book' },

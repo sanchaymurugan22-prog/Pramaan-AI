@@ -6,6 +6,11 @@ import { Sidebar } from './components/Sidebar'
 import { Topbar } from './components/Topbar'
 import { AuditTrail } from './pages/admin/AuditTrail'
 import { Users } from './pages/admin/Users'
+import { AdminOverview } from './pages/admin/Overview'
+import { AiModels } from './pages/admin/AiModels'
+import { Templates } from './pages/admin/Templates'
+import { Security } from './pages/admin/Security'
+import { Backup, PublicPage } from './pages/admin/PublicPage'
 import { IsThisReal } from './pages/IsThisReal'
 import { RecordsPage } from './pages/RecordsPage'
 import { Forgot } from './pages/auth/Forgot'
@@ -37,9 +42,9 @@ import { links, navigate, useRoute, type Route } from './router'
 const ROLE_PAGES: Record<Role, Route['page'][]> = {
   operator: ['dashboard', 'new', 'safety', 'outputs', 'jobs', 'job', 'check', 'password', 'notifications', 'watch', 'emergency', 'progress', 'kit', 'compare', 'profile', 'help'],
   reviewer: ['review', 'review-job', 'send-back', 'signed', 'job', 'records', 'check', 'password', 'notifications', 'kit', 'compare', 'profile', 'help'],
-  admin: ['users', 'audit', 'record-book', 'check', 'password', 'notifications', 'profile', 'help'],
+  admin: ['admin-home', 'users', 'ai-models', 'templates', 'security', 'public-page', 'backup', 'audit', 'record-book', 'check', 'password', 'notifications', 'profile', 'help'],
 }
-const HOME: Record<Role, string> = { operator: links.dashboard, reviewer: links.review, admin: links.users }
+const HOME: Record<Role, string> = { operator: links.dashboard, reviewer: links.review, admin: links.adminHome }
 const SIGNED_OUT_PAGES: Route['page'][] = ['welcome', 'login', 'request-access', 'forgot', 'pending']
 
 export default function App() {
@@ -158,7 +163,13 @@ export default function App() {
           {page?.page === 'review-job' && <ReviewJob key={page.id} jobId={page.id} />}
           {page?.page === 'send-back' && <SendBack key={page.id} jobId={page.id} />}
           {page?.page === 'signed' && <Signed key={page.id} jobId={page.id} />}
+          {page?.page === 'admin-home' && <AdminOverview />}
           {page?.page === 'users' && <Users />}
+          {page?.page === 'ai-models' && <AiModels />}
+          {page?.page === 'templates' && <Templates />}
+          {page?.page === 'security' && <Security />}
+          {page?.page === 'public-page' && <PublicPage />}
+          {page?.page === 'backup' && <Backup />}
           {page?.page === 'audit' && <AuditTrail />}
           {page?.page === 'records' && <RecordsPage admin={false} />}
           {page?.page === 'record-book' && <RecordsPage admin />}

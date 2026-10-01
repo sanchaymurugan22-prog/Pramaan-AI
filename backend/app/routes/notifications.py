@@ -12,7 +12,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.auth.deps import signed_in
-from app.db import Job, Notification, User, as_utc, get_session, utc_now
+from app.db import AccountRequest, Job, Notification, User, as_utc, get_session, utc_now
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
@@ -40,7 +40,10 @@ def list_notifications(unread: bool = False, db: Session = Depends(get_session),
 def count(db: Session = Depends(get_session), user: User = Depends(signed_in)):
     drafts = db.scalar(select(func.count()).select_from(Job).where(
         Job.owner_id == user.id, Job.created_via == "watch", Job.status == "draft")) or 0
-    return {"unread": _unread(db, user), "watch_drafts": drafts}
+    requests = 0
+    if user.role == "admin":  # Stage 9B: the Admin menu shows how many account requests wait
+        requests = db.scalar(select(func.count()).select_from(AccountRequest).where(AccountRequest.status == "pending")) or 0
+    return {"unread": _unread(db, user), "watch_drafts": drafts, "requests": requests}
 
 
 @router.post("/read-all")

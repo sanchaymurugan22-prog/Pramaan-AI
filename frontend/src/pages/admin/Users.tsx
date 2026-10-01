@@ -6,6 +6,7 @@ import {
   addUser,
   approveAccountRequest,
   changeUser,
+  getFormOptions,
   listAccountRequests,
   listUsers,
   rejectAccountRequest,
@@ -121,16 +122,21 @@ function StatusCell({ user }: { user: AdminUser }) {
 
 function UsersTable({ users, onEdit }: { users: AdminUser[]; onEdit: (user: AdminUser) => void }) {
   return (
-    <section className="card card-pad">
+    <section className="card card-pad table-scroll">
       <table className="data-table">
+        <caption className="sr-only">All users</caption>
         <thead>
           <tr>
-            <th>Name</th>
-            <th>Username</th>
-            <th>Role</th>
-            <th>Status</th>
-            <th>Last sign-in</th>
-            <th aria-label="Actions" />
+            <th scope="col">Name</th>
+            <th scope="col">Employee ID</th>
+            <th scope="col">Role</th>
+            <th scope="col">Division</th>
+            <th scope="col">DSC</th>
+            <th scope="col">Status</th>
+            <th scope="col">Last active</th>
+            <th scope="col">
+              <span className="sr-only">Actions</span>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -138,22 +144,35 @@ function UsersTable({ users, onEdit }: { users: AdminUser[]; onEdit: (user: Admi
             <tr key={u.id}>
               <td>
                 <span className="row gap-10">
-                  <span className={`avatar avatar-sm avatar-${ROLE_TONE[u.role]}`}>{initials(u.full_name)}</span>
-                  <strong>{u.full_name}</strong>
+                  <span className={`avatar avatar-sm avatar-${ROLE_TONE[u.role]}`} aria-hidden="true">
+                    {initials(u.full_name)}
+                  </span>
+                  <span className="stack">
+                    <strong>{u.full_name}</strong>
+                    <span className="muted small">{u.email ?? u.username}</span>
+                  </span>
                 </span>
               </td>
-              <td className="mono">{u.username}</td>
+              <td className="mono">{u.employee_id ?? '—'}</td>
               <td>
                 <RoleChip role={u.role} label={u.role_label} />
               </td>
+              <td>{u.division || '—'}</td>
+              <td>{u.dsc_holder ? 'Class 3' : '—'}</td>
               <td>
                 <StatusCell user={u} />
+                {u.emergency_duty && (
+                  <span className="chip chip-xs chip-saffron mt-4">
+                    <Icon name="siren" size={12} strokeWidth={2.2} />
+                    On duty
+                  </span>
+                )}
               </td>
               <td className="muted">{u.last_login ? shortTime(u.last_login) : 'Never'}</td>
               <td className="right">
                 <button type="button" className="btn btn-outline btn-xs" onClick={() => onEdit(u)}>
                   <Icon name="pencil" size={14} strokeWidth={2} />
-                  Edit
+                  Edit<span className="sr-only"> {u.full_name}</span>
                 </button>
               </td>
             </tr>
@@ -204,8 +223,10 @@ function Requests({ requests, users, onChanged }: { requests: AccountRequest[]; 
               <strong>{r.kind === 'access' ? r.full_name : r.username}</strong>
               {r.kind === 'access' ? (
                 <>
-                  <span className="mono muted small">{r.username}</span>
+                  <span className="mono muted small">{r.employee_id ?? r.username}</span>
                   <span className="chip chip-xs chip-neutral">Access request · {r.role_label}</span>
+                  {r.division && <span className="muted small">{r.division}</span>}
+                  {r.email && <span className="muted small">{r.email}</span>}
                 </>
               ) : (
                 <span className="chip chip-xs chip-yellow">Forgot password</span>
@@ -269,14 +290,16 @@ function Requests({ requests, users, onChanged }: { requests: AccountRequest[]; 
   )
 }
 
-// What the backend enforces (Stage 6B). Signing comes in Stage 7.
+// What the backend enforces (Stage 6B, signing Stage 7, Stage 9B). Admins never see job content.
 const PERMISSIONS: [string, boolean, boolean, boolean][] = [
-  ['Create jobs, safety check, edit, regenerate', true, false, false],
-  ['Submit a job for review', true, false, false],
-  ['Read jobs and download files', true, true, false],
-  ['Approve or send back (not your own job)', false, true, false],
-  ['Manage users and access requests', false, false, true],
-  ['See the audit trail and check its chain', false, false, true],
+  ['Verify a document or check a message (“Is this real?”)', true, true, true],
+  ['Create and edit content, safety check, regenerate', true, false, false],
+  ['Use emergency mode (send an alert for fast-track review)', true, false, false],
+  ['Comment on lines, approve and sign (not your own job)', false, true, false],
+  ['Withdraw signed records', false, false, true],
+  ['Manage users, templates and the letterhead', false, false, true],
+  ['Change security rules, see the audit trail', false, false, true],
+  ['Update the public verify page, make backups', false, false, true],
 ]
 
 function RolesTable() {
@@ -351,11 +374,23 @@ function UserDialog({ dialog, onClose, onChanged }: { dialog: NonNullable<Dialog
   const editing = dialog.kind === 'edit' ? dialog.user : null
   const [fullName, setFullName] = useState(editing?.full_name ?? '')
   const [username, setUsername] = useState('')
+  const [employeeId, setEmployeeId] = useState(editing?.employee_id ?? '')
+  const [email, setEmail] = useState(editing?.email ?? '')
+  const [division, setDivision] = useState(editing?.division || 'Cyber operations')
+  const [divisions, setDivisions] = useState<string[]>(['Cyber operations'])
+  const [dsc, setDsc] = useState(editing?.dsc_holder ?? false)
+  const [duty, setDuty] = useState(editing?.emergency_duty ?? false)
   const [role, setRole] = useState<Role>(editing?.role ?? 'operator')
   const [active, setActive] = useState(editing?.is_active ?? true)
   const [error, setError] = useState('')
   const [temporary, setTemporary] = useState('')
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    getFormOptions()
+      .then((o) => setDivisions(o.divisions))
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -380,11 +415,19 @@ function UserDialog({ dialog, onClose, onChanged }: { dialog: NonNullable<Dialog
     event.preventDefault()
     if (editing) {
       run(async () => {
-        await changeUser(editing.id, { full_name: fullName, role, is_active: active })
+        await changeUser(editing.id, {
+          full_name: fullName, role, is_active: active, employee_id: employeeId, email, division,
+          dsc_holder: role === 'reviewer' && dsc, emergency_duty: duty,
+        })
         onClose()
       })
     } else {
-      run(async () => setTemporary((await addUser({ username, full_name: fullName, role })).temporary_password))
+      run(async () =>
+        setTemporary(
+          (await addUser({ username, full_name: fullName, role, employee_id: employeeId, email, division, dsc_holder: role === 'reviewer' && dsc, emergency_duty: duty }))
+            .temporary_password,
+        ),
+      )
     }
   }
 
@@ -411,7 +454,31 @@ function UserDialog({ dialog, onClose, onChanged }: { dialog: NonNullable<Dialog
             <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} required autoFocus />
           </label>
           <label className="field">
-            <span className="field-label">Username</span>
+            <span className="field-label">Employee ID</span>
+            <input
+              className="input"
+              value={employeeId}
+              onChange={(e) => setEmployeeId(e.target.value)}
+              autoCapitalize="characters"
+              spellCheck={false}
+              placeholder="e.g. EMP-11820"
+              required={!editing}
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">Official email</span>
+            <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@org.gov.in" />
+          </label>
+          <label className="field">
+            <span className="field-label">Division</span>
+            <select className="input" value={division} onChange={(e) => setDivision(e.target.value)}>
+              {[...new Set([...divisions, division])].map((d) => (
+                <option key={d}>{d}</option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span className="field-label">Username {editing ? '' : '(optional)'}</span>
             {editing ? (
               <input className="input mono" value={editing.username} disabled />
             ) : (
@@ -421,8 +488,7 @@ function UserDialog({ dialog, onClose, onChanged }: { dialog: NonNullable<Dialog
                 onChange={(e) => setUsername(e.target.value)}
                 autoCapitalize="none"
                 spellCheck={false}
-                placeholder="e.g. meera.iyer"
-                required
+                placeholder="else the employee ID"
               />
             )}
           </label>
@@ -444,6 +510,20 @@ function UserDialog({ dialog, onClose, onChanged }: { dialog: NonNullable<Dialog
             ))}
           </div>
         </fieldset>
+        <label className="row gap-10 toggle-row">
+          <input type="checkbox" checked={role === 'reviewer' && dsc} disabled={role !== 'reviewer'} onChange={(e) => setDsc(e.target.checked)} />
+          <span className="stack">
+            <strong>Holds a Class 3 DSC token</strong>
+            <span className="muted small">Reviewers only: needed to sign documents with a token</span>
+          </span>
+        </label>
+        <label className="row gap-10 toggle-row">
+          <input type="checkbox" checked={duty} onChange={(e) => setDuty(e.target.checked)} />
+          <span className="stack">
+            <strong>On the emergency duty roster</strong>
+            <span className="muted small">Reviewers on duty are told first about emergency alerts</span>
+          </span>
+        </label>
         {editing && (
           <>
             <label className="row gap-10 toggle-row">
