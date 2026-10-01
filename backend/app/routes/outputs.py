@@ -35,6 +35,7 @@ from app.pipeline.output_types import OUTPUT_TYPES
 from app.pipeline.segments import EditError, apply_edits
 from app.pipeline.versions import ORIGIN_LABELS, save_version, version_summary
 from app.routes.jobs import _time, job_detail, must_be_changeable
+from app.signing.sign_job import signed_file, signed_kit
 
 router = APIRouter(prefix="/api", tags=["outputs"])
 
@@ -147,7 +148,8 @@ def download_output(
         raise HTTPException(404, f"Output {output_id} of job {job_id} not found.")
     fmt = fmt.lower().lstrip(".")
     try:
-        exported = export_output(job, output, fmt)
+        # An approved job gives its SIGNED file (with the QR code), exactly as fingerprinted (Stage 7).
+        exported = signed_file(job, output, fmt) or export_output(job, output, fmt)
     except ExportError as exc:
         raise HTTPException(409 if output.status != "done" else 400, str(exc))
     how = "Opened" if inline else "Downloaded"
@@ -162,7 +164,7 @@ def download_kit(job_id: int, db: Session = Depends(get_session), user: User = D
     if job is None:
         raise HTTPException(404, f"Job {job_id} not found.")
     try:
-        kit = build_kit(job)
+        kit = signed_kit(db, job) or build_kit(job)
     except ExportError as exc:
         raise HTTPException(409, str(exc))
     audit.log("content", "download", f"Downloaded the campaign kit (.zip) of job #{job.id}", actor=user,

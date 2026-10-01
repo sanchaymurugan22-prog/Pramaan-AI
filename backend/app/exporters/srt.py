@@ -11,7 +11,7 @@ from pathlib import Path
 
 from typing import BinaryIO
 
-from app.exporters.common import FOOTER, ExportInfo, save_text
+from app.exporters.common import ExportInfo, save_text
 from app.pipeline.generate import add_timings
 
 CLOSING_SECONDS = 4.0
@@ -31,7 +31,10 @@ def srt_text(info: ExportInfo, content: dict) -> str:
 
     cues = [(s["start"], s["end"], s["text"]) for s in subtitles if s.get("text")]
     last_end = _seconds(cues[-1][1]) if cues else 0.0
-    cues.append((_time(last_end), _time(last_end + CLOSING_SECONDS), f"{FOOTER}\n{info.header_line()}"))
+    closing = f"{info.footer}\n{info.header_line()}"
+    if info.signed:
+        closing += f"\nCheck it is genuine: {info.verify_url}"
+    cues.append((_time(last_end), _time(last_end + CLOSING_SECONDS), closing))
 
     # .srt format: number, "start --> end", the text, then a blank line
     return "\n".join(f"{number}\n{start} --> {end}\n{text}\n" for number, (start, end, text) in enumerate(cues, start=1))

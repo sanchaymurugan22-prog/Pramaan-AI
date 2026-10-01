@@ -21,5 +21,9 @@ argon2-cffi==25.1.0      # password hashing (argon2id)
 cryptography==48.0.1     # AES-256-GCM for stored files
 sqlcipher3==0.6.2        # encrypted SQLite database (SQLCipher 4, built in)
 
+# signing and verification (Stage 7)
+qrcode==8.2              # QR codes on signed files (uses Pillow)
+# Optional, only for SIGNER=dsc (Class 3 DSC USB token, design only, not tested):  pip install PyKCS11
+
 # for running tests (backend/tests)
 pytest==9.1.1

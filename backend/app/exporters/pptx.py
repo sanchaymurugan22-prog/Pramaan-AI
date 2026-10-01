@@ -4,6 +4,7 @@ closing slide. Every slide has speaker notes, the tricolour strip, navy titles, 
 have an empty box for the QR code (added in Stage 7). Opens in PowerPoint, Keynote and LibreOffice.
 """
 
+import io
 from functools import cache
 from pathlib import Path
 
@@ -17,7 +18,7 @@ from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from pptx.oxml.ns import qn
 from pptx.util import Inches, Pt
 
-from app.exporters.common import FOOTER, PALETTE, QR_PLACEHOLDER, TLP_TEXT_COLOURS, ExportInfo, texts
+from app.exporters.common import PALETTE, QR_PLACEHOLDER, TLP_TEXT_COLOURS, ExportInfo, texts
 from app.exporters.fonts import family, font_file
 
 WIDTH, HEIGHT = Inches(13.333), Inches(7.5)  # 16:9
@@ -46,7 +47,7 @@ def write_pptx(info: ExportInfo, content: dict, path: Path) -> Path:
     _list_notes_master(deck)
     props = deck.core_properties
     props.title, props.subject, props.author = title, info.job_title, "Pramaan AI"
-    props.comments = f"{FOOTER}. {info.header_line()}"
+    props.comments = f"{info.footer}. {info.header_line()}"
     deck.save(path)
     return path
 
@@ -67,7 +68,7 @@ def _new_slide(deck, info: ExportInfo, number: int, total: int, notes: str):
         label.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
 
     _rect(slide, LEFT, HEIGHT - Inches(0.62), CONTENT_WIDTH, Pt(1), "line")
-    _text(slide, LEFT, HEIGHT - Inches(0.55), Inches(5), Inches(0.35), FOOTER, "heading", 11, info,
+    _text(slide, LEFT, HEIGHT - Inches(0.55), Inches(5), Inches(0.35), info.footer, "heading", 11, info,
           colour="saffron_dark", bold=True)
     box = _text(slide, WIDTH - LEFT - FOOTER_BOX, HEIGHT - Inches(0.55), FOOTER_BOX, Inches(0.35),
                 footer_text(info, number, total), "body", FOOTER_SIZE, info, colour="muted", align=PP_ALIGN.RIGHT)
@@ -144,7 +145,8 @@ def _closing_slide(deck, info: ExportInfo, title: str, total: int) -> None:
     _text(slide, LEFT, Inches(3.4), Inches(9), Inches(0.6), "Questions and discussion", "heading", 24, info,
           colour="saffron_dark")
     _text(slide, LEFT, Inches(4.3), Inches(9), Inches(1.2),
-          f"{title}\nScan the QR code to check this deck is genuine (added when signed).", "body", 16, info, colour="muted")
+          f"{title}\nScan the QR code to check this deck is genuine" + ("." if info.signed else " (added when signed)."),
+          "body", 16, info, colour="muted")
     _qr_placeholder(slide, info, WIDTH - LEFT - Inches(2.1), Inches(2.3), Inches(2.1))
 
 
@@ -166,6 +168,11 @@ def _list_notes_master(deck) -> None:
 
 
 def _qr_placeholder(slide, info: ExportInfo, left, top, size) -> None:
+    if info.signed:  # Stage 7: the real QR code, with the record number under it
+        slide.shapes.add_picture(io.BytesIO(info.qr_png(10)), left, top, size, size)
+        _text(slide, left - Inches(0.2), top + size, size + Inches(0.4), Inches(0.3), info.record_no, "mono", 10, info,
+              colour="muted", align=PP_ALIGN.CENTER)
+        return
     box = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, left, top, size, size)
     box.shadow.inherit = False
     box.fill.background()

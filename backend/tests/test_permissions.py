@@ -18,7 +18,7 @@ from tests.test_jobs_api import wait_for
 OP, RV, AD = "operator", "reviewer", "admin"
 ANYONE = {OP, RV, AD}
 
-# (method, path, roles allowed, JSON body or form data). {job}, {output}, {user} are filled in below.
+# (method, path, roles allowed, JSON body or form data). {job}, {output}, {user}, {record} are filled in below.
 MATRIX = [
     ("GET", "/api/options", ANYONE, None),
     ("GET", "/api/ai/ping", ANYONE, None),
@@ -43,6 +43,11 @@ MATRIX = [
     ("POST", "/api/jobs/{job}/submit", {OP}, {}),
     ("POST", "/api/jobs/{job}/review", {RV}, {"decision": "send_back", "notes": "Permission test note"}),
     ("GET", "/api/review/queue", {RV}, None),
+    # signing and records (Stage 7)
+    ("GET", "/api/jobs/{job}/sign-info", {RV}, None),
+    ("POST", "/api/jobs/{job}/new-version", {OP}, None),
+    ("GET", "/api/records/{record}", ANYONE, None),
+    ("GET", "/api/records/{record}/qr.png", ANYONE, None),
     # admin
     ("GET", "/api/admin/users", {AD}, None),
     ("POST", "/api/admin/users", {AD}, {"username": "matrix.made", "full_name": "Matrix Made", "role": "operator"}),
@@ -77,7 +82,7 @@ def ids() -> dict:
     job = operator.post("/api/jobs", data={"text": SAMPLE_REPORT.read_text(encoding="utf-8"), "outputs": ["x_thread"]})
     done = wait_for(job.json()["id"])
     target = make_user("matrix.target", "operator")
-    return {"job": done["id"], "output": done["outputs"][0]["id"], "user": target.id}
+    return {"job": done["id"], "output": done["outputs"][0]["id"], "user": target.id, "record": "PRM-2000-000000"}
 
 
 def call(client: TestClient, method: str, path: str, body):
@@ -135,5 +140,5 @@ def test_a_temporary_password_only_allows_changing_it():
     for method, path, _, body in MATRIX:
         if path.startswith("/api/auth/"):
             continue
-        response = call(client, method, path.format(job=1, output=1, user=1), body)
+        response = call(client, method, path.format(job=1, output=1, user=1, record="PRM-2000-000000"), body)
         assert response.status_code == 403, f"{method} {path}: {response.status_code}"

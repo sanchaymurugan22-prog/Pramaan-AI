@@ -1,8 +1,8 @@
 """Database connection and tables: one ENCRYPTED SQLite file at data/pramaan.db (SQLCipher, Stage 6B).
 
 Tables so far: jobs, sources, fact_sheets, outputs (Stage 3), output_versions (Stage 5),
-safety_decisions (Stage 6A), users, account_requests, sessions, reviews, audit_log (Stage 6B).
-Stage 7 adds records (signing).
+safety_decisions (Stage 6A), users, account_requests, sessions, reviews, audit_log (Stage 6B),
+records (Stage 7: the record book of signed documents).
 `init_db()` first encrypts a database left from before Stage 6B (keeping the old plain file as
 data/pramaan.db.plain-backup), then creates any missing tables and columns. It never deletes data.
 The rest of the app only uses `engine` / `SessionLocal` and does not know about the encryption.
@@ -69,6 +69,7 @@ class Job(Base):
     # suspicious instructions, suggested TLP. None for jobs made before Stage 6A.
     safety_json: Mapped[dict | None] = mapped_column(JSON, default=None)
     version: Mapped[int] = mapped_column(default=1)
+    record_no: Mapped[str | None] = mapped_column(String(20), default=None)  # latest signed record (Stage 7)
     settings_json: Mapped[dict] = mapped_column(JSON, default=dict)  # audience, tone, objective, style, detail_level
     quality_score: Mapped[int | None] = mapped_column(default=None)        # 0-100: average of the outputs (Stage 5)
     consistency_json: Mapped[dict | None] = mapped_column(JSON, default=None)  # same numbers in every output? (Stage 5)
@@ -190,13 +191,39 @@ class Review(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id"), index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    decision: Mapped[str] = mapped_column(String(20))       # submitted | approved | sent_back
+    decision: Mapped[str] = mapped_column(String(20))       # submitted | approved | sent_back | reopened
     notes: Mapped[str] = mapped_column(Text, default="")
     job_version: Mapped[int] = mapped_column(default=1)     # the job's version at the time
     created_at: Mapped[datetime] = mapped_column(default=utc_now)
 
     job: Mapped[Job] = relationship(back_populates="reviews")
     user: Mapped["User"] = relationship()
+
+
+class Record(Base):
+    """The record book (Stage 7): one row per signed document set ("issue") or withdrawal ("withdraw").
+    Append-only and hash-chained like the audit trail (see app/signing/records.py).
+
+    manifest / signature: the full signed description (title, office, approver, every file and text
+    fingerprint), kept here. public_manifest / public_signature: what is published on the verify page
+    (for TLP:RED / AMBER without the title or any text)."""
+
+    __tablename__ = "records"
+
+    seq: Mapped[int] = mapped_column(primary_key=True, autoincrement=False)  # 1, 2, 3 ... no gaps
+    kind: Mapped[str] = mapped_column(String(10))                 # issue | withdraw
+    record_no: Mapped[str] = mapped_column(String(20), index=True)  # PRM-2026-000123 (withdraw: the record withdrawn)
+    job_id: Mapped[int | None] = mapped_column(default=None)
+    job_version: Mapped[int | None] = mapped_column(default=None)
+    created_at: Mapped[str] = mapped_column(String(40))           # ISO text in UTC, as signed
+    created_by: Mapped[int | None] = mapped_column(default=None)  # the Reviewer who signed / the Admin who withdrew
+    manifest: Mapped[str] = mapped_column(Text)
+    signature: Mapped[str] = mapped_column(Text)
+    public_manifest: Mapped[str] = mapped_column(Text)
+    public_signature: Mapped[str] = mapped_column(Text)
+    key_id: Mapped[str] = mapped_column(String(16))
+    prev_hash: Mapped[str] = mapped_column(String(64))
+    entry_hash: Mapped[str] = mapped_column(String(64))
 
 
 class User(Base):
@@ -295,6 +322,7 @@ def init_db() -> None:
         raise
     _add_missing_columns()
     protect_audit_log()
+    protect_append_only("records", "The record book is append-only")
 
 
 def encrypt_plain_database(path: Path, key_hex: str) -> Path | None:
@@ -343,11 +371,16 @@ def encrypt_plain_database(path: Path, key_hex: str) -> Path | None:
 def protect_audit_log() -> None:
     """The database itself refuses to change or delete audit rows (defence in depth: someone with the
     key could still drop these rules, and then the hash chain shows what they changed)."""
+    protect_append_only("audit_log", "The audit trail is append-only")
+
+
+def protect_append_only(table: str, message: str) -> None:
+    """Triggers that make the database refuse UPDATE and DELETE on a table."""
     with engine.begin() as connection:
         for change in ("UPDATE", "DELETE"):
             connection.execute(text(
-                f"CREATE TRIGGER IF NOT EXISTS audit_log_no_{change.lower()} BEFORE {change} ON audit_log "
-                "BEGIN SELECT RAISE(ABORT, 'The audit trail is append-only'); END"
+                f"CREATE TRIGGER IF NOT EXISTS {table}_no_{change.lower()} BEFORE {change} ON {table} "
+                f"BEGIN SELECT RAISE(ABORT, '{message}'); END"
             ))
 
 

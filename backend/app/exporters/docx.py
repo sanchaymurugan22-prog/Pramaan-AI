@@ -17,7 +17,7 @@ from docx.shared import Cm, Pt, RGBColor
 from PIL import Image
 
 from app.exporters.blocks import Block, document_blocks
-from app.exporters.common import FOOTER, PALETTE, QR_PLACEHOLDER, TLP_TEXT_COLOURS, ExportInfo, rgb
+from app.exporters.common import PALETTE, QR_PLACEHOLDER, TLP_TEXT_COLOURS, ExportInfo, rgb
 from app.exporters.fonts import family
 
 PAGE_WIDTH, PAGE_HEIGHT, MARGIN = Cm(21), Cm(29.7), Cm(2)  # A4
@@ -39,7 +39,7 @@ def write_docx(info: ExportInfo, content: dict, path: Path) -> Path:
 
     props = document.core_properties
     props.title, props.subject, props.author = title, info.job_title, "Pramaan AI"
-    props.comments = f"{FOOTER}. {info.header_line()}"
+    props.comments = f"{info.footer}. {info.header_line()}"
     document.save(path)
     return path
 
@@ -81,7 +81,7 @@ def _page_setup(document, info: ExportInfo) -> None:
         _tlp_run(line, info)
 
     footer = section.footer.paragraphs[0]
-    _run(footer, FOOTER, "heading", 8.5, info, colour="saffron_dark", bold=True)
+    _run(footer, info.footer, "heading", 8.5, info, colour="saffron_dark", bold=True)
     _run(footer, f"  ·  Job #{info.job_id}: {info.job_title}  ·  Page ", "body", 8.5, info, colour="muted")
     _page_number(footer)
 
@@ -108,8 +108,18 @@ def _top_block(document, info: ExportInfo, title: str, subtitle: str) -> None:
         meta.add_run("   ")
         _tlp_run(meta, info)
 
-    # QR code placeholder: a dashed box. Stage 7 puts the real QR code here after signing.
     right.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+    if info.signed:  # Stage 7: the real QR code (verify address + record number) and the record number
+        picture = right.paragraphs[0]
+        picture.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        picture.paragraph_format.space_after = Pt(0)
+        picture.add_run().add_picture(io.BytesIO(info.qr_png(8)), width=QR_BOX - Cm(0.2))
+        caption = right.add_paragraph()
+        caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _run(caption, info.record_no, "mono", 7, info, colour="muted")
+        document.add_paragraph().paragraph_format.space_after = Pt(2)
+        return
+    # QR code placeholder until signed: a dashed box.
     _borders(right, "dashed", PALETTE["line_2"], size=12)
     for number, line in enumerate(QR_PLACEHOLDER.split("\n")):
         paragraph = right.paragraphs[0] if number == 0 else right.add_paragraph()

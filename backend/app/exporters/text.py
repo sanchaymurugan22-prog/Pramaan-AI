@@ -9,7 +9,7 @@ from pathlib import Path
 
 from typing import BinaryIO
 
-from app.exporters.common import FOOTER, ExportInfo, save_text, text_of, texts
+from app.exporters.common import ExportInfo, save_text, text_of, texts
 
 RULE = "-" * 60
 
@@ -36,5 +36,8 @@ def post_text(info: ExportInfo, content: dict) -> str:
     ]
     if info.tlp_label:
         header.append(f"Sharing label: {info.tlp_label}")
-    footer = [FOOTER, "[QR code / verification link: added when signed]"]
+    if info.signed:
+        footer = [info.footer, f"Check it is genuine: {info.verify_url}"]
+    else:
+        footer = [info.footer, "[QR code / verification link: added when signed]"]
     return "\n".join([*header, RULE, body, RULE, *footer]) + "\n"

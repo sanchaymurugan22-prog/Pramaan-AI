@@ -258,7 +258,7 @@ export type JobSummary = {
 }
 
 export type ReviewEvent = {
-  decision: 'submitted' | 'approved' | 'sent_back'
+  decision: 'submitted' | 'approved' | 'sent_back' | 'reopened'
   by: string | null
   user_id: number
   notes: string
@@ -266,8 +266,25 @@ export type ReviewEvent = {
   created_at: string
 }
 
+// The latest signed record of a job (Stage 7, backend/app/routes/jobs.py record_summary)
+export type JobRecord = {
+  record_no: string // PRM-2026-000001
+  issued_at: string
+  version: number
+  approved_by: string
+  signer: string
+  key_id: string
+  files: { name: string; sha256: string; bytes: number }[]
+  texts: number
+  fingerprint: string // this record's entry hash in the record book
+  verify_url: string // what the QR code holds
+  withdrawn: { reason: string; at: string } | null
+  current: boolean // false once the job was reopened as a new version
+}
+
 export type JobDetail = JobSummary & {
   tlp: Tlp | null
+  record: JobRecord | null
   reviews: ReviewEvent[] // oldest first
   safety: SafetyReport | null // null for jobs made before Stage 6A
   safety_decisions: SafetyDecision[]
@@ -424,8 +441,24 @@ export type ReviewQueue = {
 export const getReviewQueue = () => request<ReviewQueue>('/api/review/queue')
 export const submitForReview = (jobId: number, notes: string) =>
   request<JobDetail>(`/api/jobs/${jobId}/submit`, sendJson('POST', { notes }))
-export const reviewJob = (jobId: number, decision: 'approve' | 'send_back', notes: string) =>
-  request<JobDetail>(`/api/jobs/${jobId}/review`, sendJson('POST', { decision, notes }))
+// Approve also signs (Stage 7). pin: only for a DSC token.
+export const reviewJob = (jobId: number, decision: 'approve' | 'send_back', notes: string, pin = '') =>
+  request<JobDetail>(`/api/jobs/${jobId}/review`, sendJson('POST', { decision, notes, pin }))
+
+// ---- signing (Stage 7) ----------------------------------------------------------------------
+
+export type SignInfo = {
+  job_id: number
+  version: number
+  outputs: number
+  files: number
+  signer: { kind: 'test' | 'dsc'; label: string; certificate_class?: string; key_id?: string; error?: string }
+  needs_pin: boolean
+  signed_by: string
+}
+export const getSignInfo = (jobId: number) => request<SignInfo>(`/api/jobs/${jobId}/sign-info`)
+export const newVersion = (jobId: number) => request<JobDetail>(`/api/jobs/${jobId}/new-version`, { method: 'POST' })
+export const recordQrUrl = (recordNo: string) => `/api/records/${recordNo}/qr.png`
 
 // ---- admin (Stage 6B, backend/app/routes/admin.py) ---------------------------------------------
 

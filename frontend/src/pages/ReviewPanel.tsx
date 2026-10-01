@@ -1,19 +1,28 @@
-// The review box at the top of the Results page (Stage 6B).
-//   Operator: "Submit for review" when the job is finished (or was sent back), and the reviewer's notes.
-//   Reviewer: "Approve" or "Send back" with notes, while the job is waiting for review.
+// The review box at the top of the Results page (Stage 6B, signing added in Stage 7).
+//   Operator: "Submit for review" when the job is finished (or was sent back), the reviewer's notes,
+//             and "Start a new version" once it is approved and signed.
+//   Reviewer: "Approve & sign" (opens the sign dialog) or "Send back" with reasons and notes.
+//   Approved: the signed record (QR code, record number, fingerprint).
 // The backend checks everything again (role, job state, separation of duties); this only shows it.
 import { useState } from 'react'
-import { reviewJob, submitForReview, type JobDetail } from '../api'
+import { newVersion, reviewJob, submitForReview, type JobDetail } from '../api'
 import { useAuth } from '../auth'
 import { Icon } from '../components/Icon'
 import { shortTime } from './format'
+import { SignDialog } from './SignDialog'
+import { SignedRecord } from './SignedRecord'
+
+// Design 28 · Send back: quick reasons, added to the start of the note
+const REASONS = ['Facts need checking', 'Language quality', 'Tone', 'Sensitive detail', 'Formatting']
 
 export function ReviewPanel({ job, onChange }: { job: JobDetail; onChange: (job: JobDetail) => void }) {
   const { user } = useAuth()
   const [notes, setNotes] = useState('')
+  const [reasons, setReasons] = useState<string[]>([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const last = job.reviews[job.reviews.length - 1]
+  const [signing, setSigning] = useState(false)
+  const [justSigned, setJustSigned] = useState(false)
   const lastSentBack = [...job.reviews].reverse().find((r) => r.decision === 'sent_back')
   const lastSubmitted = [...job.reviews].reverse().find((r) => r.decision === 'submitted')
 
@@ -23,12 +32,16 @@ export function ReviewPanel({ job, onChange }: { job: JobDetail; onChange: (job:
     try {
       onChange(await action())
       setNotes('')
+      setReasons([])
     } catch (e) {
       setError(e instanceof Error ? e.message : 'That did not work.')
     } finally {
       setBusy(false)
     }
   }
+
+  const record = job.record
+  const recordBox = record && <SignedRecord job={job} record={record} justSigned={justSigned} />
 
   const sentBackNote = job.status === 'sent_back' && lastSentBack && (
     <div className="alert alert-red stack gap-4" role="status">
@@ -40,16 +53,35 @@ export function ReviewPanel({ job, onChange }: { job: JobDetail; onChange: (job:
     </div>
   )
 
-  if (job.status === 'approved' && last) {
+  if (job.status === 'approved') {
     return (
-      <div className="alert alert-green stack gap-4" role="status">
-        <strong className="row gap-8">
-          <Icon name="check" size={18} strokeWidth={2.4} />
-          Approved by {last.by} · {shortTime(last.created_at)} · version {job.version}
-        </strong>
-        {last.notes && <span className="pre-line">{last.notes}</span>}
-        <span className="small">It can no longer be changed. Signing the files comes in Stage 7.</span>
-      </div>
+      <>
+        {recordBox}
+        {user.role === 'operator' && (
+          <section className="card card-pad-sm review-panel">
+            <div className="stack gap-4 grow">
+              <strong>Need to change it?</strong>
+              <span className="muted small">
+                Signed files cannot be changed. A new version needs a new review and a new signature; the new record says
+                which one it replaces.
+              </span>
+              {error && <span className="form-error">{error}</span>}
+            </div>
+            <button
+              type="button"
+              className="btn btn-saffron-outline"
+              disabled={busy}
+              onClick={() => {
+                if (window.confirm(`Start version ${job.version + 1} of this job? It will need a new review and signature.`))
+                  run(() => newVersion(job.id))
+              }}
+            >
+              <Icon name="pencil" size={18} strokeWidth={2} />
+              Start a new version
+            </button>
+          </section>
+        )}
+      </>
     )
   }
 
@@ -64,15 +96,17 @@ export function ReviewPanel({ job, onChange }: { job: JobDetail; onChange: (job:
         </div>
       )
     }
-    if (job.status !== 'ready' && job.status !== 'sent_back') return null
+    if (job.status !== 'ready' && job.status !== 'sent_back') return recordBox || null
     return (
       <>
         {sentBackNote}
+        {recordBox}
         <section className="card card-pad-sm review-panel">
           <div className="stack gap-4 grow">
             <strong>{job.status === 'sent_back' ? 'Made the changes?' : 'Finished checking?'}</strong>
             <span className="muted small">
-              A Reviewer checks the job and approves it or sends it back with notes. It is locked while it is with them.
+              A Reviewer checks the job and approves and signs it, or sends it back with notes. It is locked while it is
+              with them.
             </span>
             <input
               className="input"
@@ -94,7 +128,9 @@ export function ReviewPanel({ job, onChange }: { job: JobDetail; onChange: (job:
 
   // ---- Reviewer ----
   if (user.role === 'reviewer' && job.status === 'in_review') {
-    const ownJob = job.owner?.id === user.id || job.reviews.some((r) => r.decision === 'submitted' && r.user_id === user.id)
+    const ownJob =
+      job.owner?.id === user.id || job.reviews.some((r) => (r.decision === 'submitted' || r.decision === 'reopened') && r.user_id === user.id)
+    const fullNote = () => [reasons.length ? `Reasons: ${reasons.join(', ')}.` : '', notes.trim()].filter(Boolean).join('\n')
     return (
       <section className="card card-pad review-panel-reviewer stack gap-12">
         <div className="row gap-10 wrap">
@@ -113,6 +149,23 @@ export function ReviewPanel({ job, onChange }: { job: JobDetail; onChange: (job:
           </div>
         ) : (
           <>
+            <div className="row gap-8 wrap" role="group" aria-label="Reasons to send back">
+              {REASONS.map((reason) => {
+                const on = reasons.includes(reason)
+                return (
+                  <button
+                    key={reason}
+                    type="button"
+                    className={on ? 'reason-chip is-on' : 'reason-chip'}
+                    aria-pressed={on}
+                    onClick={() => setReasons(on ? reasons.filter((r) => r !== reason) : [...reasons, reason])}
+                  >
+                    {on && <Icon name="check" size={14} strokeWidth={2.4} />}
+                    {reason}
+                  </button>
+                )
+              })}
+            </div>
             <textarea
               className="input textarea"
               rows={3}
@@ -128,24 +181,43 @@ export function ReviewPanel({ job, onChange }: { job: JobDetail; onChange: (job:
                 className="btn btn-red-outline"
                 disabled={busy}
                 onClick={() =>
-                  notes.trim().length < 5
-                    ? setError('Write a note for the Operator: what should be changed?')
-                    : run(() => reviewJob(job.id, 'send_back', notes))
+                  fullNote().length < 5
+                    ? setError('Pick a reason or write a note for the Operator: what should be changed?')
+                    : run(() => reviewJob(job.id, 'send_back', fullNote()))
                 }
               >
                 <Icon name="arrowLeft" size={18} strokeWidth={2} />
                 Send back with notes
               </button>
               <div className="grow" />
-              <button type="button" className="btn btn-green" disabled={busy} onClick={() => run(() => reviewJob(job.id, 'approve', notes))}>
-                <Icon name="check" size={18} strokeWidth={2.4} />
-                Approve
+              <button type="button" className="btn btn-green" disabled={busy} onClick={() => setSigning(true)}>
+                <Icon name="shieldCheck" size={18} strokeWidth={2} />
+                Approve &amp; sign
               </button>
             </div>
           </>
         )}
+        {signing && (
+          <SignDialog
+            job={job}
+            notes={notes}
+            onClose={() => setSigning(false)}
+            onSigned={(signed) => {
+              setSigning(false)
+              setJustSigned(true)
+              setNotes('')
+              onChange(signed)
+              window.scrollTo(0, 0)
+            }}
+          />
+        )}
       </section>
     )
   }
-  return sentBackNote || null
+  return (
+    <>
+      {sentBackNote}
+      {recordBox}
+    </>
+  )
 }

@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 
 # Printed on every exported file until a reviewer approves and signs it (Stage 7).
 FOOTER = "AI-assisted · pending human approval"
+# Printed instead once signed (Stage 7), e.g. "Approved and signed · Record PRM-2026-000001"
+SIGNED_FOOTER = "Approved and signed · Record {record_no}"
 # Text inside the empty box where the QR code goes after signing (Stage 7).
 QR_PLACEHOLDER = "QR code\nadded when signed"
 
@@ -46,6 +48,22 @@ class ExportInfo:
     output_type: str        # "advisory", ...
     output_label: str       # "Advisory", ...
     language: str = "en"    # fonts are picked per language (see fonts.py)
+    # Set only when the files are made for signing (Stage 7): the record number, and the address the
+    # QR code holds. Then the QR code replaces the empty box and the footer says "Approved and signed".
+    record_no: str | None = None
+    verify_url: str | None = None
+
+    @property
+    def signed(self) -> bool:
+        return self.record_no is not None
+
+    @property
+    def footer(self) -> str:
+        return SIGNED_FOOTER.format(record_no=self.record_no) if self.signed else FOOTER
+
+    def qr_png(self, box_size: int = 10) -> bytes:
+        from app.signing.qr import qr_png  # imported here: only signed files need it
+        return qr_png(self.verify_url or "", box_size)
 
     @property
     def tlp_label(self) -> str | None:

@@ -94,6 +94,19 @@ class Settings:
     )
 
 
+    # --- signing and verification (Stage 7) ---
+    # The public "Is this real?" page. The QR code on every signed file holds <this>/?r=<record number>.
+    # To scan it with a phone on the same Wi-Fi, use this Mac's address, e.g. http://192.168.1.20:8090
+    verify_base_url: str = _get("VERIFY_BASE_URL", "http://localhost:8090").rstrip("/")
+    # Printed on the verify page as "Issued by"
+    issuing_office: str = _get("ISSUING_OFFICE", "Pramaan AI demo office")
+    # test = a key made on this computer (for development); dsc = a Class 3 DSC USB token (design only, not tested)
+    signer: str = _get("SIGNER", "test").lower()
+    # dsc only: the token maker's PKCS#11 library and the key's label on the token
+    pkcs11_lib: str = _get("PKCS11_LIB")
+    dsc_key_label: str = _get("DSC_KEY_LABEL")
+
+
 settings = Settings()
 
 

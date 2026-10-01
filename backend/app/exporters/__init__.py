@@ -88,12 +88,16 @@ def export_output(job, output, fmt: str) -> ExportedFile:
         allowed = ", ".join(FORMATS.get(output.type, [])) or "none"
         raise ExportError(f"A {OUTPUT_TYPES[output.type]['label']} can be downloaded as: {allowed}.")
 
-    writer = _writer(output.type, fmt)
-    buffer = io.BytesIO()
-    writer(export_info(job, output), output.content_json, buffer)
-    exported = ExportedFile(file_name(job, output, fmt), buffer.getvalue())
+    exported = ExportedFile(file_name(job, output, fmt), render(export_info(job, output), output, fmt))
     crypto.write_file(exports_dir(job.id) / exported.name, exported.data)
     return exported
+
+
+def render(info: ExportInfo, output, fmt: str) -> bytes:
+    """Make the file in memory and return its bytes (never written to disk unencrypted)."""
+    buffer = io.BytesIO()
+    _writer(output.type, fmt)(info, output.content_json, buffer)
+    return buffer.getvalue()
 
 
 def is_blocked(output) -> bool:

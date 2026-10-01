@@ -930,3 +930,42 @@ details summary { cursor: pointer; font-weight: 600; color: var(--navy); margin-
   .setup-body, .pending-grid, .form-grid-2, .role-cards { grid-template-columns: 1fr; }
   .setup-body, .setup-head { padding-left: 16px; padding-right: 16px; }
 }
+
+/* ======================= Stage 7: signing, records, "Is this real?" ======================= */
+
+.sign-icon { background: var(--green-light); }
+.signer-box {
+  display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 14px;
+  background: var(--green-light); color: var(--green-dark); border: 1px solid var(--green-mid);
+}
+.signer-box strong { color: var(--ink); }
+.signer-box-bad { background: var(--red-light); color: var(--red-dark); border-color: var(--red-border); }
+.sign-details, .record-details { margin: 0; display: grid; grid-template-columns: auto 1fr; }
+.sign-details dt, .sign-details dd, .record-details dt, .record-details dd { margin: 0; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.sign-details dt, .record-details dt { color: var(--muted); padding-right: 16px; }
+.sign-details dd, .record-details dd { text-align: right; font-weight: 600; overflow-wrap: anywhere; }
+.sign-summary { margin: 0; padding: 14px 16px; border-radius: 14px; background: var(--bg); line-height: 1.55; }
+
+.signed-card { border: 2px solid var(--green-mid); }
+.signed-tick {
+  width: 84px; height: 84px; border-radius: 50%; background: var(--green);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 0 8px var(--card), 0 0 0 11px var(--saffron-mid);
+}
+.signed-title { font-size: 30px; font-weight: 700; }
+.record-box { display: flex; gap: 20px; align-items: center; padding: 16px 18px; border-radius: 16px; background: var(--bg); }
+.record-qr { width: 128px; height: 128px; border-radius: 8px; background: #fff; flex-shrink: 0; image-rendering: pixelated; }
+.record-details { flex-grow: 1; }
+.signed-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.signed-steps li { display: flex; gap: 10px; align-items: flex-start; line-height: 1.45; }
+
+.reason-chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--line-2); background: var(--card); color: var(--ink); font: inherit; font-size: 14.5px; cursor: pointer;
+}
+.reason-chip.is-on { background: var(--red-dark); border-color: var(--red-dark); color: #fff; }
+.reason-chip:focus-visible { outline: 3px solid var(--navy-mid); outline-offset: 2px; }
+
+@media (max-width: 900px) {
+  .record-box { flex-direction: column; align-items: stretch; }
+}

@@ -2,11 +2,14 @@
 
 POST /api/jobs/{id}/submit    Operator: "Submit for review" (ready or sent back -> in_review)
 GET  /api/review/queue        Reviewer: jobs waiting for review, and the latest decisions
-POST /api/jobs/{id}/review    Reviewer: {"decision": "approve" | "send_back", "notes": "..."}
+POST /api/jobs/{id}/review    Reviewer: {"decision": "approve" | "send_back", "notes": "...", "pin": ""}
+                              Approve also SIGNS the job (Stage 7, app/signing/sign_job.py): final files with a
+                              QR code, fingerprints, a signed record in the record book. pin: DSC token only.
+GET  /api/jobs/{id}/sign-info Reviewer: what signing would do (signer, number of outputs and files), for the dialog
+POST /api/jobs/{id}/new-version  Operator: reopen an approved job as a new version (needs a new review and signature)
 
 Separation of duties: a Reviewer cannot review a job they worked on (created, edited, made safety
 choices for, or submitted), even if they were an Operator when they did it. Someone else must check it.
-Signing the approved files comes in Stage 7.
 """
 
 from typing import Literal
@@ -23,6 +26,8 @@ from app.exporters import is_blocked
 from app.pipeline.checks import fact_sheet_check
 from app.pipeline.output_types import OUTPUT_TYPES
 from app.routes.jobs import _get_job, _time, job_detail, review_json
+from app.signing.sign_job import outputs_and_files, sign_job
+from app.signing.signer import SigningError, get_signer
 
 router = APIRouter(prefix="/api", tags=["review"])
 
@@ -49,7 +54,7 @@ def submit_for_review(job_id: int, body: SubmitRequest, db: Session = Depends(ge
         raise HTTPException(409, f"Private data was found in: {', '.join(blocked)}. Edit it out before submitting.")
 
     if job.status == "sent_back":
-        job.version += 1  # the changed job goes back as a new version: "v2"
+        job.version += 1  # the changed job goes back as a new version: "v2" (a reopened job already has its number)
     job.status = "in_review"
     db.add(Review(job=job, user_id=user.id, decision="submitted", notes=body.notes.strip()[:2000],
                   job_version=job.version))
@@ -62,13 +67,14 @@ def submit_for_review(job_id: int, body: SubmitRequest, db: Session = Depends(ge
 class ReviewDecision(BaseModel):
     decision: Literal["approve", "send_back"]
     notes: str = ""
+    pin: str = ""  # DSC token PIN (SIGNER=dsc only); used once, never stored or logged
 
 
 def worked_on_by(db: Session, job: Job) -> set[int]:
     """Everyone who made or changed this job."""
     people = {job.owner_id}
     people |= {d.user_id for d in job.safety_decisions}
-    people |= {r.user_id for r in job.reviews if r.decision == "submitted"}
+    people |= {r.user_id for r in job.reviews if r.decision in ("submitted", "reopened")}
     output_ids = [o.id for o in job.outputs]
     if output_ids:
         people |= set(db.scalars(select(OutputVersion.created_by).where(OutputVersion.output_id.in_(output_ids))))
@@ -94,15 +100,52 @@ def review_job(job_id: int, body: ReviewDecision, db: Session = Depends(get_sess
         raise HTTPException(400, "Write a note for the Operator: what should be changed?")
 
     decision = "approved" if body.decision == "approve" else "sent_back"
-    job.status = decision
     db.add(Review(job=job, user_id=user.id, decision=decision, notes=notes, job_version=job.version))
-    db.commit()
     if decision == "approved":
-        audit.log("review", "approved", f"Approved job #{job.id} v{job.version}" + (f": “{notes}”" if notes else ""),
+        try:
+            entry = sign_job(db, job, user, body.pin)  # sets "approved" and commits, with the Review row
+        except SigningError as exc:
+            db.rollback()
+            raise HTTPException(409, f"Could not sign: {exc}")
+        _, files = outputs_and_files(job)
+        audit.log("review", "approved", f"Approved and signed job #{job.id} v{job.version} as record {entry.record_no} "
+                                        f"({files} files)" + (f": “{notes}”" if notes else ""),
                   actor=user, target=f"job {job.id}")
     else:
+        job.status = decision
+        db.commit()
         audit.log("review", "sent_back", f"Sent back job #{job.id} v{job.version} with notes: “{notes}”",
                   actor=user, target=f"job {job.id}")
+    return job_detail(job)
+
+
+@router.get("/jobs/{job_id}/sign-info")
+def sign_info(job_id: int, db: Session = Depends(get_session), user: User = Depends(allow("reviewer"))):
+    """For the sign dialog: who signs with what, and how much."""
+    job = _get_job(db, job_id)
+    outputs, files = outputs_and_files(job)
+    try:
+        signer = get_signer().describe()
+    except SigningError as exc:
+        signer = {"kind": "dsc", "label": "Class 3 DSC on a USB token (PKCS#11) - NOT TESTED", "error": str(exc)}
+    return {"job_id": job.id, "version": job.version, "outputs": outputs, "files": files, "signer": signer,
+            "needs_pin": signer.get("kind") == "dsc", "signed_by": user.full_name}
+
+
+@router.post("/jobs/{job_id}/new-version")
+def new_version(job_id: int, db: Session = Depends(get_session), user: User = Depends(allow("operator"))):
+    """Reopen an approved (signed) job so it can be changed. Its record stays valid until the new
+    version is signed (the new record says it replaces the old one) or an Admin withdraws it."""
+    job = _get_job(db, job_id)
+    if job.status != "approved":
+        raise HTTPException(409, "Only an approved job can be reopened as a new version.")
+    job.version += 1
+    job.status = "ready"
+    db.add(Review(job=job, user_id=user.id, decision="reopened", notes=f"Reopened after record {job.record_no}",
+                  job_version=job.version))
+    db.commit()
+    audit.log("review", "reopened", f"Reopened job #{job.id} as v{job.version} (record {job.record_no} stays until "
+                                    "replaced or withdrawn)", actor=user, target=f"job {job.id}")
     return job_detail(job)
 
 

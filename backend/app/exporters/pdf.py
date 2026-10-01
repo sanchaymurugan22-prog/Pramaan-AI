@@ -6,6 +6,7 @@ blocks.py, and the footer "AI-assisted · pending human approval" with the page 
 The fonts are embedded in the PDF, so it looks the same on every computer.
 """
 
+import io
 from functools import cache
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -16,10 +17,10 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import Flowable, KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Flowable, Image, KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from app.exporters.blocks import Block, document_blocks
-from app.exporters.common import FOOTER, PALETTE, QR_PLACEHOLDER, TLP_TEXT_COLOURS, ExportInfo
+from app.exporters.common import PALETTE, QR_PLACEHOLDER, TLP_TEXT_COLOURS, ExportInfo
 from app.exporters.fonts import font_file
 
 PAGE_WIDTH, PAGE_HEIGHT = A4
@@ -45,7 +46,7 @@ def write_pdf(info: ExportInfo, content: dict, path: Path) -> Path:
 
     document = SimpleDocTemplate(
         str(path) if isinstance(path, Path) else path, pagesize=A4, leftMargin=MARGIN, rightMargin=MARGIN, topMargin=22 * mm, bottomMargin=20 * mm,
-        title=title, author="Pramaan AI", subject=info.job_title, creator="Pramaan AI", keywords=FOOTER,
+        title=title, author="Pramaan AI", subject=info.job_title, creator="Pramaan AI", keywords=info.footer,
     )
     document.build(story, onFirstPage=decorate, onLaterPages=decorate)
     return path
@@ -138,7 +139,12 @@ def _top_block(info: ExportInfo, title: str, subtitle: str, styles, fonts) -> Ta
         colour = "red" if "HIGH" in subtitle or "CRITICAL" in subtitle else "muted"
         left.append(_p(subtitle, ParagraphStyle("sub", parent=styles["subtitle"], textColor=_colour(colour))))
     left.append(_p(f"{info.job_title} · Prepared {info.date}", styles["meta"]))
-    table = Table([[left, QRPlaceholder(QR_BOX, fonts)]], colWidths=[TEXT_WIDTH - QR_BOX - 6 * mm, QR_BOX + 6 * mm])
+    if info.signed:  # Stage 7: the real QR code (verify address + record number)
+        qr = [Image(io.BytesIO(info.qr_png(8)), width=QR_BOX, height=QR_BOX),
+              _p(info.record_no, ParagraphStyle("qr", parent=styles["meta"], fontSize=7, leading=9, alignment=1))]
+    else:
+        qr = QRPlaceholder(QR_BOX, fonts)
+    table = Table([[left, qr]], colWidths=[TEXT_WIDTH - QR_BOX - 6 * mm, QR_BOX + 6 * mm])
     table.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("ALIGN", (1, 0), (1, 0), "RIGHT"),
@@ -171,7 +177,7 @@ def _page_decoration(canvas, doc, info: ExportInfo, fonts) -> None:
     canvas.line(MARGIN + 6, 14 * mm, PAGE_WIDTH - MARGIN - 6, 14 * mm)
     canvas.setFont(fonts["heading"], 8)
     canvas.setFillColor(_colour("saffron_dark"))
-    canvas.drawString(MARGIN + 6, 9.5 * mm, FOOTER)
+    canvas.drawString(MARGIN + 6, 9.5 * mm, info.footer)
     canvas.setFont(fonts["body"], 8)
     canvas.setFillColor(_colour("muted"))
     job = f"Job #{info.job_id}: {info.job_title}"

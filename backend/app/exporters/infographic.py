@@ -10,13 +10,14 @@ approval", the job title and date, and the TLP label if set. If the text is long
 drawn again slightly smaller until it fits.
 """
 
+import io
 import math
 from functools import cache
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from app.exporters.common import FOOTER, TLP_TEXT_COLOURS, ExportInfo, rgb, text_of, texts
+from app.exporters.common import TLP_TEXT_COLOURS, ExportInfo, rgb, text_of, texts
 from app.exporters.fonts import font_file
 
 WIDTH, HEIGHT = 1080, 1350
@@ -77,7 +78,7 @@ def _draw(info: ExportInfo, c: dict, scale: float) -> tuple[Image.Image, int]:
         else:
             y = _step_rows(draw, steps, y, scale * (1.12 if layout == "vertical_steps" else 1.0), lang)
 
-    _footer(draw, info)
+    _footer(image, draw, info)
     return image, y
 
 
@@ -169,21 +170,24 @@ def _timeline(draw, steps: list[str], y: int, scale: float, lang: str) -> int:
     return y - round(22 * scale)
 
 
-def _footer(draw, info: ExportInfo) -> None:
+def _footer(image, draw, info: ExportInfo) -> None:
     lang = info.language
     draw.line((PAD, FOOTER_TOP, PAD + INNER, FOOTER_TOP), fill=rgb("line"), width=2)
-    # QR code placeholder (Stage 7 puts the real QR code here after signing)
     box = (PAD, FOOTER_TOP + 30, PAD + 124, FOOTER_TOP + 154)
-    _dashed_rect(draw, box, rgb("line_2"))
-    small = _font("heading", "semibold", 20, lang)
-    draw.text(((box[0] + box[2]) // 2, (box[1] + box[3]) // 2 - 12), "QR code", font=small, fill=rgb("muted"), anchor="mm")
-    draw.text(((box[0] + box[2]) // 2, (box[1] + box[3]) // 2 + 14), "when signed", font=_font("body", "regular", 18, lang),
-              fill=rgb("muted"), anchor="mm")
+    if info.signed:  # Stage 7: the real QR code (verify address + record number)
+        qr = Image.open(io.BytesIO(info.qr_png(6))).convert("RGB")
+        image.paste(qr.resize((box[2] - box[0], box[3] - box[1]), Image.NEAREST), box[:2])
+    else:  # QR code placeholder until signed
+        _dashed_rect(draw, box, rgb("line_2"))
+        small = _font("heading", "semibold", 20, lang)
+        draw.text(((box[0] + box[2]) // 2, (box[1] + box[3]) // 2 - 12), "QR code", font=small, fill=rgb("muted"), anchor="mm")
+        draw.text(((box[0] + box[2]) // 2, (box[1] + box[3]) // 2 + 14), "when signed", font=_font("body", "regular", 18, lang),
+                  fill=rgb("muted"), anchor="mm")
 
     x = box[2] + 28
     text_width = PAD + INNER - x
     draw.text((x, FOOTER_TOP + 34), "Scan to check this is genuine.", font=_font("body", "medium", 26, lang), fill=rgb("ink"))
-    draw.text((x, FOOTER_TOP + 70), FOOTER, font=_font("heading", "semibold", 24, lang), fill=rgb("saffron_dark"))
+    draw.text((x, FOOTER_TOP + 70), info.footer, font=_font("heading", "semibold", 24, lang), fill=rgb("saffron_dark"))
     job_line = _shorten(draw, f"Job #{info.job_id} · {info.job_title}", _font("body", "regular", 22, lang), text_width)
     draw.text((x, FOOTER_TOP + 106), job_line, font=_font("body", "regular", 22, lang), fill=rgb("muted"))
     date_font = _font("body", "regular", 22, lang)

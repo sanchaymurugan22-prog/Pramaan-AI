@@ -177,7 +177,7 @@ export function Results({ jobId }: { jobId: number }) {
         {done.length > 0 ? (
           <a className="btn btn-saffron" href={kitUrl(job.id)} download>
             <Icon name="box" size={18} strokeWidth={2} />
-            Download campaign kit (.zip)
+            {job.status === 'approved' ? 'Download signed kit (.zip)' : 'Download campaign kit (.zip)'}
           </a>
         ) : (
           <button type="button" className="btn btn-saffron" disabled title="Available when an output is ready">

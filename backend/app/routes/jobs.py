@@ -305,6 +305,36 @@ def _time(value: datetime | None) -> str | None:
     return as_utc(value).isoformat() if value is not None else None
 
 
+def record_summary(job: Job) -> dict | None:
+    """The job's latest record: number, when, who, files, and whether it was withdrawn."""
+    if not job.record_no:
+        return None
+    from sqlalchemy.orm import object_session
+    from app.signing import records
+    from app.signing.qr import verify_url
+    db = object_session(job)
+    entry = records.find_issue(db, job.record_no) if db else None
+    if entry is None:
+        return None
+    import json
+    manifest = json.loads(entry.manifest)
+    withdrawn = records.withdrawal_of(db, entry.record_no)
+    return {
+        "record_no": entry.record_no,
+        "issued_at": manifest["issued_at"],
+        "version": manifest["job_version"],
+        "approved_by": manifest["approved_by"]["name"],
+        "signer": manifest["signer"]["label"],
+        "key_id": entry.key_id,
+        "files": [{k: f[k] for k in ("name", "sha256", "bytes")} for f in manifest["files"]],
+        "texts": len(manifest["texts"]),
+        "fingerprint": entry.entry_hash,
+        "verify_url": verify_url(entry.record_no),
+        "withdrawn": json.loads(withdrawn.manifest) | {"at": withdrawn.created_at} if withdrawn else None,
+        "current": job.status == "approved",  # False once the job was reopened as a new version
+    }
+
+
 def review_json(review) -> dict:
     return {"decision": review.decision, "by": review.user.full_name if review.user else None,
             "user_id": review.user_id, "notes": review.notes, "version": review.job_version,
@@ -331,6 +361,8 @@ def job_detail(job: Job) -> dict:
     return {
         **job_summary(job),
         "tlp": job.tlp,
+        # Stage 7: the latest signed record of this job (None until approved)
+        "record": record_summary(job),
         # Stage 6B: submitted, approved, sent back (with the reviewer's notes), oldest first
         "reviews": [review_json(r) for r in job.reviews],
         # Stage 6A: the safety report with the operator's choices, every decision, and the public

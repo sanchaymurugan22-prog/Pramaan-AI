@@ -94,3 +94,8 @@ export function jsIndex(text: string, pythonIndex: number): number {
 export function todayLabel(): string {
   return new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })
 }
+
+// A SHA-256 fingerprint, shortened for display: "3f9a 7c21 … 8d02 e0b4"
+export function shortHash(hash: string): string {
+  return `${hash.slice(0, 4)} ${hash.slice(4, 8)} … ${hash.slice(-8, -4)} ${hash.slice(-4)}`
+}
