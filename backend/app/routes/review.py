@@ -146,7 +146,7 @@ def review_job(job_id: int, body: ReviewDecision, db: Session = Depends(get_sess
         notifications.notify(db, job.owner_id, "sent_back", f"“{job.title}” was sent back",
                              f"{user.full_name}: “{notes}”{lines}", job)
         db.commit()
-        audit.log("review", "sent_back", f"Sent back job #{job.id} v{job.version}{lines.replace(' · ', ' with ')}: “{notes}”",
+        audit.log("review", "sent_back", f"Sent back job #{job.id} v{job.version} with notes: “{notes}”{lines}",
                   actor=user, target=f"job {job.id}")
     return job_detail(job)
 
