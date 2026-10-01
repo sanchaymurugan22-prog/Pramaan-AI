@@ -222,6 +222,19 @@ def find_hits(text: str) -> list[Hit]:
     return sorted(hits, key=lambda h: h.start)
 
 
+def policy_hits(text: str) -> list[Hit]:
+    """find_hits() with the Admin's security policy (Stage 9B): checks switched off are left out, and the
+    extra classification words are found too (whole words, any case)."""
+    from app import app_settings  # here: app_settings needs the database set up
+    off = app_settings.disabled_kinds()
+    hits = [h for h in find_hits(text) if h.kind not in off]
+    for word in app_settings.policy()["classification_words"]:
+        for m in re.finditer(rf"(?i)(?<![\w-]){re.escape(word)}(?![\w-])", text):
+            if all(m.end() <= h.start or m.start() >= h.end for h in hits):
+                hits.append(Hit("classification", m.start(), m.end(), m.group(), word.upper(), "medium"))
+    return sorted(hits, key=lambda h: h.start)
+
+
 def _compact(text: str) -> str:
     """Letters and digits only: "98765 43210" -> "9876543210"."""
     return re.sub(r"[^0-9A-Za-z]", "", text)
@@ -255,7 +268,7 @@ def scan_sources(sources: list[ScanSource]) -> dict:
     groups: dict[tuple[str, str], dict] = {}
     for source in sources:
         for page_number, page in enumerate(source.pages, start=1):
-            for hit in find_hits(page):
+            for hit in policy_hits(page):
                 finding = groups.setdefault((hit.kind, hit.value), _new_finding(hit))
                 finding["occurrences"].append(
                     {"source_id": source.source_id, "page": page_number, "start": hit.start, "end": hit.end, "text": hit.text}

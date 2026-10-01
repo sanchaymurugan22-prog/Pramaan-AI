@@ -187,4 +187,9 @@ def check_pasted_message(form: MessageCheck, db: Session = Depends(get_session),
         raise HTTPException(400, "Paste the message you received.")
     if len(form.text) > 20_000:
         raise HTTPException(400, "That is too long for a message (20,000 characters at most).")
-    return check_message(form.text, published_records(db))
+    result = check_message(form.text, published_records(db))
+    # Stage 9B: only the verdict is counted (for the Admin overview), never the message
+    from app import app_settings
+    verdict = {"replaced": "genuine"}.get(result["verdict"], result["verdict"])
+    app_settings.bump("counters", "checks", verdict)
+    return result

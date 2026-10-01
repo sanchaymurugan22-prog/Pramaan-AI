@@ -23,7 +23,7 @@ from app.db import User, UserSession, as_utc, utc_now
 
 COOKIE_NAME = "pramaan_session"
 MAX_AGE = timedelta(hours=8)
-IDLE_LIMIT = timedelta(minutes=30)
+IDLE_LIMIT = timedelta(minutes=30)  # the default; an Admin can choose 15, 30 or 60 minutes (Stage 9B)
 # last_seen is saved at most this often (not on every request, e.g. while a page is polling)
 TOUCH_EVERY = timedelta(seconds=60)
 
@@ -39,9 +39,15 @@ class SessionEnded(Exception):
     def message(self) -> str:
         return {
             "expired": "Your session has ended (8-hour limit). Please sign in again.",
-            "idle": "You were signed out after 30 minutes without activity. Please sign in again.",
+            "idle": f"You were signed out after {idle_limit_minutes()} minutes without activity. Please sign in again.",
             "inactive": "This account is switched off. Ask your Admin.",
         }.get(self.reason, "Please sign in.")
+
+
+def idle_limit_minutes() -> int:
+    """Minutes without any request before a session ends (the Admin's security policy)."""
+    from app.app_settings import idle_minutes  # here: app_settings needs the database set up
+    return idle_minutes()
 
 
 def _fingerprint(token: str) -> str:
@@ -68,7 +74,7 @@ def check(db: Session, token: str | None) -> tuple[UserSession, User]:
     reason = None
     if now - as_utc(row.created_at) > MAX_AGE:
         reason = "expired"
-    elif now - as_utc(row.last_seen) > IDLE_LIMIT:
+    elif now - as_utc(row.last_seen) > timedelta(minutes=idle_limit_minutes()):
         reason = "idle"
     elif user is None or not user.is_active:
         reason = "inactive"

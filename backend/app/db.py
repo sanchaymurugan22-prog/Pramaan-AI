@@ -3,7 +3,7 @@
 Tables so far: jobs, sources, fact_sheets, outputs (Stage 3), output_versions (Stage 5),
 safety_decisions (Stage 6A), users, account_requests, sessions, reviews, audit_log (Stage 6B),
 records (Stage 7: the record book of signed documents), notifications, watch_settings, watch_files (Stage 9A),
-review_comments (Stage 9B).
+review_comments, app_settings (Stage 9B).
 `init_db()` first encrypts a database left from before Stage 6B (keeping the old plain file as
 data/pramaan.db.plain-backup), then creates any missing tables and columns. It never deletes data.
 The rest of the app only uses `engine` / `SessionLocal` and does not know about the encryption.
@@ -255,6 +255,18 @@ class Record(Base):
     key_id: Mapped[str] = mapped_column(String(16))
     prev_hash: Mapped[str] = mapped_column(String(64))
     entry_hash: Mapped[str] = mapped_column(String(64))
+
+
+class AppSetting(Base):
+    """Settings an Admin changes in the app (Stage 9B): security policies, letterhead, counters, the last
+    speed test. One row per key, the value as JSON. See app/app_settings.py."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(60), primary_key=True)
+    value: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(default=utc_now, onupdate=utc_now)
+    updated_by: Mapped[int | None] = mapped_column(default=None)
 
 
 class Notification(Base):

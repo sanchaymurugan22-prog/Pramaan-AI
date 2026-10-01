@@ -31,7 +31,7 @@ ROLES = ("operator", "reviewer", "admin")
 ROLE_LABELS = {"operator": "Operator", "reviewer": "Reviewer", "admin": "Admin"}
 REQUESTABLE_ROLES = ("operator", "reviewer")  # Admin accounts are made only by an Admin
 
-LOCK_AFTER_WRONG = 5
+LOCK_AFTER_WRONG = 5  # the default; an Admin can choose 3, 5 or 10 (Security & policies, Stage 9B)
 LOCK_MINUTES = 15
 MAX_PENDING_REQUESTS = 50  # the sign-in pages are open to anyone; don't let them fill the database
 
@@ -190,6 +190,12 @@ def create_first_admin(db: Session, username: str, full_name: str, password: str
 # ---- signing in ------------------------------------------------------------------------------
 
 
+def lock_after() -> int:
+    """Wrong passwords in a row before an account is locked (the Admin's security policy)."""
+    from app.app_settings import lock_after as policy_lock_after  # here: app_settings needs the database set up
+    return policy_lock_after()
+
+
 def is_locked(user: User, now: datetime | None = None) -> bool:
     locked_until = as_utc(user.locked_until)
     return locked_until is not None and locked_until > (now or utc_now())
@@ -218,13 +224,13 @@ def sign_in(db: Session, username: str, password: str) -> User:
 
     if not verify_password(user.password_hash, password):
         user.failed_attempts = (user.failed_attempts or 0) + 1
-        if user.failed_attempts >= LOCK_AFTER_WRONG:
+        if user.failed_attempts >= lock_after():
             user.failed_attempts = 0
             user.locked_until = now + timedelta(minutes=LOCK_MINUTES)
             db.commit()
             raise SignInError(_locked_message(user), "locked_now", user)
         db.commit()
-        left = LOCK_AFTER_WRONG - user.failed_attempts
+        left = lock_after() - user.failed_attempts
         hint = f" {left} {'try' if left == 1 else 'tries'} left before the account is locked." if left <= 2 else ""
         raise SignInError(wrong + hint, "wrong_password", user)
 
@@ -239,7 +245,7 @@ def sign_in(db: Session, username: str, password: str) -> User:
 
 
 def _locked_message(user: User) -> str:
-    return (f"This account is locked for {LOCK_MINUTES} minutes after {LOCK_AFTER_WRONG} wrong passwords. "
+    return (f"This account is locked for {LOCK_MINUTES} minutes after {lock_after()} wrong passwords. "
             "Try again later, or ask your Admin to unlock it.")
 
 

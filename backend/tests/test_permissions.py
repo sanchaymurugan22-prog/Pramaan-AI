@@ -76,6 +76,11 @@ MATRIX = [
     ("POST", "/api/alerts/check", {OP}, {"message": "Do not open unknown links. Report fraud by calling 1930."}),
     ("POST", "/api/alerts", {OP}, {"type": "Other", "severity": "Advisory", "message": "x"}),
     # admin
+    ("GET", "/api/admin/overview", {AD}, None),
+    ("GET", "/api/admin/ai", {AD}, None),
+    ("POST", "/api/admin/ai/speed-test", {AD}, None),
+    ("GET", "/api/admin/security", {AD}, None),
+    ("PUT", "/api/admin/security", {AD}, {}),
     ("GET", "/api/admin/users", {AD}, None),
     ("POST", "/api/admin/users", {AD}, {"username": "matrix.made", "full_name": "Matrix Made", "role": "operator"}),
     ("PUT", "/api/admin/users/{user}", {AD}, {}),

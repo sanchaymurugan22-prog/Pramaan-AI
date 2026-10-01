@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from app import audit
 from app.auth import accounts, sessions
-from app.auth.accounts import LOCK_AFTER_WRONG, LOCK_MINUTES, ROLE_LABELS, AccountError, SignInError
+from app.auth.accounts import LOCK_MINUTES, ROLE_LABELS, AccountError, SignInError, lock_after
 from app.auth.deps import SignedIn, current_session
 from app.db import User, get_session
 
@@ -102,8 +102,8 @@ def _log_refused(refused: SignInError, typed_username: str) -> None:
             audit.log("security", "sign_in_failed", "Failed sign-in: unknown username", actor_name="Unknown")
         return
     detail = {
-        "wrong_password": f"Failed sign-in: wrong password ({user.failed_attempts} of {LOCK_AFTER_WRONG})",
-        "locked_now": f"Account locked for {LOCK_MINUTES} minutes after {LOCK_AFTER_WRONG} wrong passwords",
+        "wrong_password": f"Failed sign-in: wrong password ({user.failed_attempts} of {lock_after()})",
+        "locked_now": f"Account locked for {LOCK_MINUTES} minutes after {lock_after()} wrong passwords",
         "locked": "Sign-in refused: the account is locked",
         "inactive": "Sign-in refused: the account is switched off",
     }[refused.event]
