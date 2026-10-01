@@ -7,6 +7,15 @@
 
 export type Role = 'operator' | 'reviewer' | 'admin'
 
+export type Prefs = {
+  text_size?: 'normal' | 'large' | 'xlarge'
+  high_contrast?: boolean
+  output_languages?: string[]
+  notify_ready?: boolean
+  notify_sent_back?: boolean
+  notify_watch?: boolean
+}
+
 export type User = {
   id: number
   username: string
@@ -14,6 +23,24 @@ export type User = {
   role: Role
   role_label: string
   must_change_password: boolean
+  // Stage 9B
+  employee_id: string | null
+  email: string | null
+  division: string
+  language: string
+  dsc_holder: boolean
+  emergency_duty: boolean
+  prefs: Prefs
+  created_at: string | null
+}
+
+export type Language = { code: string; name: string }
+export type FormOptions = { languages: Language[]; divisions: string[] }
+export type ComputerCheck = {
+  memory_bytes: number | null
+  processors: number | null
+  disk_free_bytes: number
+  ai: { ai_mode: string; model: string; base_url: string; label: string }
 }
 
 export type Health = { status: string; ai_mode: 'local' | 'cloud' | 'mock' }
@@ -477,13 +504,37 @@ export const getAuthStatus = () => request<AuthStatus>('/api/auth/status')
 export const signIn = (username: string, password: string) =>
   request<{ user: User }>('/api/auth/login', sendJson('POST', { username, password }))
 export const signOut = () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' })
-export const firstTimeSetup = (form: { username: string; full_name: string; password: string }) =>
+export const getFormOptions = () => request<FormOptions>('/api/auth/options')
+export const checkComputer = () => request<ComputerCheck>('/api/auth/computer')
+export const getProfile = () => request<{ user: User } & FormOptions>('/api/profile')
+export const saveProfile = (change: { language?: string; prefs?: Prefs }) =>
+  request<{ user: User }>('/api/profile', sendJson('PUT', change))
+export const firstTimeSetup = (form: { username: string; full_name: string; password: string; employee_id?: string; email?: string }) =>
   request<{ user: User }>('/api/auth/setup', sendJson('POST', form))
 export const changePassword = (current_password: string, new_password: string) =>
   request<{ user: User }>('/api/auth/change-password', sendJson('POST', { current_password, new_password }))
 
-export type AccessRequestForm = { username: string; full_name: string; role: 'operator' | 'reviewer'; reason: string; password: string }
-export type AccessRequestSent = { username: string; full_name: string; role: Role; role_label: string; created_at: string }
+export type AccessRequestForm = {
+  username?: string
+  employee_id: string
+  email: string
+  division: string
+  language: string
+  full_name: string
+  role: 'operator' | 'reviewer'
+  reason: string
+  password: string
+}
+export type AccessRequestSent = {
+  username: string
+  full_name: string
+  role: Role
+  role_label: string
+  created_at: string
+  employee_id?: string | null
+  division?: string
+  admins?: string[]
+}
 export const requestAccess = (form: AccessRequestForm) =>
   request<AccessRequestSent>('/api/auth/request-access', sendJson('POST', form))
 export const forgotPassword = (username: string, message: string) =>

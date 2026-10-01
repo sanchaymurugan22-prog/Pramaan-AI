@@ -169,14 +169,19 @@ def needs_setup(db: Session) -> bool:
     return db.scalar(select(func.count(User.id))) == 0
 
 
-def create_first_admin(db: Session, username: str, full_name: str, password: str) -> User:
-    username, full_name = clean_username(username), clean_name(full_name)
+def create_first_admin(db: Session, username: str, full_name: str, password: str,
+                       employee_id: str | None = None, email: str | None = None) -> User:
+    employee_id, email = clean_employee_id(employee_id), clean_email(email)
+    if not (username or "").strip() and employee_id is None:
+        raise AccountError("Enter a username or an employee ID.")
+    username, full_name = clean_username(username or (employee_id or "").lower()), clean_name(full_name)
     _check_password(password, username, full_name)
     with _setup_lock:  # two setup forms sent at the same moment must not both succeed
         if not needs_setup(db):
             raise AccountError("Setup is already done. Sign in, or ask your Admin for an account.")
         user = User(username=username, full_name=full_name, role="admin", password_hash=hash_password(password),
-                    last_login=utc_now())  # setup signs the new Admin in
+                    last_login=utc_now(), employee_id=employee_id, email=email,
+                    division="Administration")  # setup signs the new Admin in
         db.add(user)
         db.commit()
     return user

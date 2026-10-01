@@ -1,7 +1,8 @@
 // Design 07 · First-time setup. Shown only while there are no accounts at all: it makes the first
-// Admin (there are no built-in or default accounts). The other setup steps come in later stages.
-import { useState, type FormEvent } from 'react'
-import { firstTimeSetup, type User } from '../../api'
+// Admin (there are no built-in or default accounts). Stage 9B: the computer check shows real numbers
+// from this computer (GET /api/auth/computer), and the AI that is set up in .env.
+import { useEffect, useState, type FormEvent } from 'react'
+import { checkComputer, firstTimeSetup, type ComputerCheck, type User } from '../../api'
 import { Icon } from '../../components/Icon'
 import { TricolourStrip } from '../../components/TricolourStrip'
 import { BrandMark, FormError, PasswordInput, PasswordStrength } from './AuthLayout'
@@ -10,7 +11,14 @@ const STEPS = ['Check this computer', 'Install AI models', 'Create Admin account
 const CURRENT = 2
 
 export function Setup({ onDone }: { onDone: (user: User) => void }) {
-  const [form, setForm] = useState({ full_name: '', username: '' })
+  const [form, setForm] = useState({ full_name: '', username: '', employee_id: '', email: '' })
+  const [computer, setComputer] = useState<ComputerCheck | null>(null)
+
+  useEffect(() => {
+    checkComputer()
+      .then(setComputer)
+      .catch(() => setComputer(null))
+  }, [])
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState('')
@@ -62,6 +70,7 @@ export function Setup({ onDone }: { onDone: (user: User) => void }) {
           </ol>
         </aside>
         <form className="stack gap-20" onSubmit={submit}>
+          <ComputerCard computer={computer} />
           <section className="card card-pad stack gap-20">
             <div className="row gap-14">
               <span className="setup-card-icon">
@@ -69,7 +78,7 @@ export function Setup({ onDone }: { onDone: (user: User) => void }) {
               </span>
               <div className="stack gap-2">
                 <h2>Create the first Admin account</h2>
-                <span className="muted small">This person manages users, access requests and the audit trail.</span>
+                <span className="muted small">This person manages users, templates and security, and reads the audit trail.</span>
               </div>
             </div>
             <FormError message={error} />
@@ -86,7 +95,19 @@ export function Setup({ onDone }: { onDone: (user: User) => void }) {
                 />
               </label>
               <label className="field">
-                <span className="field-label">Username</span>
+                <span className="field-label">Employee ID</span>
+                <input
+                  className="input"
+                  value={form.employee_id}
+                  onChange={(e) => setForm((f) => ({ ...f, employee_id: e.target.value }))}
+                  autoCapitalize="characters"
+                  spellCheck={false}
+                  placeholder="e.g. EMP-10001"
+                  required
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">Username (optional)</span>
                 <input
                   className="input"
                   value={form.username}
@@ -94,8 +115,17 @@ export function Setup({ onDone }: { onDone: (user: User) => void }) {
                   autoComplete="username"
                   autoCapitalize="none"
                   spellCheck={false}
-                  placeholder="e.g. kavya.nair or EMP-10001"
-                  required
+                  placeholder="e.g. kavya.nair (else the employee ID)"
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">Official email (optional)</span>
+                <input
+                  className="input"
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                  autoComplete="email"
                 />
               </label>
               <div className="field">
@@ -130,3 +160,54 @@ export function Setup({ onDone }: { onDone: (user: User) => void }) {
     </div>
   )
 }
+
+const gb = (bytes: number | null) => (bytes === null ? 'Unknown' : `${Math.round(bytes / 1024 ** 3)} GB`)
+
+// "This computer is ready" (design 07), with the real numbers of this computer and the AI from .env
+function ComputerCard({ computer }: { computer: ComputerCheck | null }) {
+  const enough = computer && (computer.memory_bytes ?? 0) >= 15 * 1024 ** 3
+  const tiles: { icon: 'chip' | 'bolt' | 'box'; label: string; value: string }[] = computer
+    ? [
+        { icon: 'chip', label: 'Memory', value: `${gb(computer.memory_bytes)} RAM` },
+        { icon: 'bolt', label: 'Processors', value: `${computer.processors ?? '?'} cores` },
+        { icon: 'box', label: 'Free disk space', value: gb(computer.disk_free_bytes) },
+      ]
+    : []
+  return (
+    <section className="card card-pad stack gap-16" aria-labelledby="computer-title">
+      <div className="row gap-10">
+        <h2 id="computer-title" className="grow">
+          This computer
+        </h2>
+        {computer && (
+          <span className={enough ? 'chip chip-green' : 'chip chip-yellow'}>
+            <Icon name={enough ? 'check' : 'warning'} size={14} strokeWidth={2.4} />
+            {enough ? 'Checked' : 'Less than 16 GB memory: the local AI will be slow'}
+          </span>
+        )}
+      </div>
+      {!computer && <p className="muted small">Checking…</p>}
+      <div className="setup-tiles">
+        {tiles.map((t) => (
+          <div key={t.label} className="setup-tile">
+            <span className="setup-tile-icon" aria-hidden="true">
+              <Icon name={t.icon} size={20} />
+            </span>
+            <span className="stack">
+              <span className="small muted">{t.label}</span>
+              <strong>{t.value}</strong>
+            </span>
+          </div>
+        ))}
+      </div>
+      {computer && (
+        <p className="row gap-8 small">
+          <Icon name="chip" size={16} color="var(--navy)" />
+          AI: <strong>{computer.ai.label}</strong>
+          <span className="muted">(set with AI_MODE in .env; more models arrive in Stage 8)</span>
+        </p>
+      )}
+    </section>
+  )
+}
+

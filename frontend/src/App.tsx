@@ -12,6 +12,8 @@ import { Forgot } from './pages/auth/Forgot'
 import { Pending, RequestAccess } from './pages/auth/RequestAccess'
 import { Setup } from './pages/auth/Setup'
 import { SignIn } from './pages/auth/SignIn'
+import { LanguagePicker, Splash } from './pages/auth/Welcome'
+import { welcomed } from './localPrefs'
 import { ChangePasswordPage, ForcedPasswordChange } from './pages/ChangePassword'
 import { JobsList } from './pages/JobsList'
 import { Notifications } from './pages/Notifications'
@@ -31,12 +33,12 @@ import { links, navigate, useRoute, type Route } from './router'
 // The pages each role may open. Anything else sends them to their home page.
 // (Only for convenience: the backend refuses other roles' requests with 403.)
 const ROLE_PAGES: Record<Role, Route['page'][]> = {
-  operator: ['dashboard', 'new', 'safety', 'outputs', 'jobs', 'job', 'check', 'password', 'notifications', 'watch', 'emergency', 'progress', 'kit', 'compare'],
-  reviewer: ['review', 'job', 'records', 'check', 'password', 'notifications', 'kit', 'compare'],
-  admin: ['users', 'audit', 'record-book', 'check', 'password', 'notifications'],
+  operator: ['dashboard', 'new', 'safety', 'outputs', 'jobs', 'job', 'check', 'password', 'notifications', 'watch', 'emergency', 'progress', 'kit', 'compare', 'profile', 'help'],
+  reviewer: ['review', 'job', 'records', 'check', 'password', 'notifications', 'kit', 'compare', 'profile', 'help'],
+  admin: ['users', 'audit', 'record-book', 'check', 'password', 'notifications', 'profile', 'help'],
 }
 const HOME: Record<Role, string> = { operator: links.dashboard, reviewer: links.review, admin: links.users }
-const SIGNED_OUT_PAGES: Route['page'][] = ['login', 'request-access', 'forgot', 'pending']
+const SIGNED_OUT_PAGES: Route['page'][] = ['welcome', 'login', 'request-access', 'forgot', 'pending']
 
 export default function App() {
   // undefined = still checking, null = backend not reachable
@@ -111,6 +113,9 @@ export default function App() {
   if (needsSetup) return <Setup onDone={signedIn} />
 
   if (!user || !auth) {
+    // Design 01: the splash, once per browser (or at #/welcome); design 02: the language screen
+    if (route.page === 'welcome' || (!welcomed() && !notice && route.page !== 'language')) return <Splash health={health} />
+    if (route.page === 'language') return <LanguagePicker />
     if (route.page === 'request-access') return <RequestAccess />
     if (route.page === 'forgot') return <Forgot />
     if (route.page === 'pending') return <Pending />
@@ -152,7 +157,7 @@ export default function App() {
           {page?.page === 'audit' && <AuditTrail />}
           {page?.page === 'records' && <RecordsPage admin={false} />}
           {page?.page === 'record-book' && <RecordsPage admin />}
-          {page?.page === 'password' && <ChangePasswordPage onDone={setUser} />}
+          {(page?.page === 'password' || page?.page === 'profile') && <ChangePasswordPage onDone={setUser} />}
           {page?.page === 'check' && <IsThisReal />}
           {page?.page === 'notifications' && <Notifications />}
           {page?.page === 'progress' && <Progress key={page.id} jobId={page.id} />}

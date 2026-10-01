@@ -150,9 +150,11 @@ def change_password(form: PasswordChange, db: Session = Depends(get_session),
 
 
 class SetupForm(BaseModel):
-    username: str
+    username: str = ""
     full_name: str
     password: str
+    employee_id: str = ""
+    email: str = ""
 
 
 @router.post("/setup", status_code=201)
@@ -161,7 +163,8 @@ def setup(form: SetupForm, request: Request, response: Response, db: Session = D
     if not accounts.needs_setup(db):
         raise HTTPException(409, "Setup is already done. Sign in, or ask your Admin for an account.")
     try:
-        user = accounts.create_first_admin(db, form.username, form.full_name, form.password)
+        user = accounts.create_first_admin(db, form.username, form.full_name, form.password,
+                                           employee_id=form.employee_id, email=form.email)
     except AccountError as exc:
         raise HTTPException(409 if "already done" in str(exc) else 400, str(exc))
     _set_cookie(request, response, sessions.start(db, user))

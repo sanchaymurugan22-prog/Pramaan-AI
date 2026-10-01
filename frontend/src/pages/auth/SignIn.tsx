@@ -1,5 +1,5 @@
 // Design 03 · Sign in. Username + password; the backend sets an HttpOnly session cookie.
-// (DSC token sign-in comes with signing in Stage 7.)
+// Stage 9B: the username, the employee ID or the official email can be typed in the same box.
 import { useState, type FormEvent } from 'react'
 import { signIn, type User } from '../../api'
 import { Icon } from '../../components/Icon'
@@ -42,7 +42,7 @@ export function SignIn({ notice, onSignedIn }: { notice: string; onSignedIn: (us
         )}
         <FormError message={error} />
         <label className="field">
-          <span className="field-label">Username</span>
+          <span className="field-label">Username, employee ID or official email</span>
           <span className="input-with-icon">
             <Icon name="user" size={18} color="var(--icon)" />
             <input
@@ -52,7 +52,7 @@ export function SignIn({ notice, onSignedIn }: { notice: string; onSignedIn: (us
               autoComplete="username"
               autoCapitalize="none"
               spellCheck={false}
-              placeholder="e.g. priya.sharma"
+              placeholder="e.g. priya.sharma or EMP-20311"
               required
               autoFocus
             />
@@ -74,6 +74,11 @@ export function SignIn({ notice, onSignedIn }: { notice: string; onSignedIn: (us
           {busy ? 'Signing in…' : 'Sign in'}
           <Icon name="arrowRight" size={18} strokeWidth={2} />
         </button>
+        <p className="muted center">
+          <a href={links.language} className="small">
+            Language: change
+          </a>
+        </p>
         <p className="muted center">
           New to Pramaan AI? <a href={links.requestAccess} className="link-saffron">Request access</a>
         </p>

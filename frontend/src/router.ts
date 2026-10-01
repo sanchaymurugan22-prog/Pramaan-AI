@@ -14,7 +14,7 @@
 //   #/records   signed records (Reviewer)     #/admin/records   the record book (Admin)
 //   #/password  change my password (everyone)
 //   #/check     "Is this real?" message checker (everyone)
-// Before signing in: #/login, #/request-access, #/forgot, #/pending
+// Before signing in: #/welcome (splash), #/language, #/login, #/request-access, #/forgot, #/pending
 // Using "#" means the backend never has to know about these pages (works offline as plain files).
 // Which role may open which page is decided in App.tsx; the backend checks every request anyway.
 import { useEffect, useState } from 'react'
@@ -38,7 +38,11 @@ export type Route =
   | { page: 'records' }
   | { page: 'record-book' }
   | { page: 'password' }
+  | { page: 'profile' }
+  | { page: 'help' }
   | { page: 'check' }
+  | { page: 'welcome' }
+  | { page: 'language' }
   | { page: 'login' }
   | { page: 'request-access' }
   | { page: 'forgot' }
@@ -63,7 +67,11 @@ export const links = {
   records: '#/records',
   recordBook: '#/admin/records',
   password: '#/password',
+  profile: '#/profile',
+  help: '#/help',
   check: '#/check',
+  welcome: '#/welcome',
+  language: '#/language',
   login: '#/login',
   requestAccess: '#/request-access',
   forgot: '#/forgot',
@@ -82,7 +90,11 @@ const SIMPLE: Record<string, Route> = {
   '/records': { page: 'records' },
   '/admin/records': { page: 'record-book' },
   '/password': { page: 'password' },
+  '/profile': { page: 'profile' },
+  '/help': { page: 'help' },
   '/check': { page: 'check' },
+  '/welcome': { page: 'welcome' },
+  '/language': { page: 'language' },
   '/login': { page: 'login' },
   '/request-access': { page: 'request-access' },
   '/forgot': { page: 'forgot' },

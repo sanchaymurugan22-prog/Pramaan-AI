@@ -1,7 +1,8 @@
 // Design 04 · Request access, and design 06 · Request sent (pending).
 // The Admin approves or rejects the request (Users & access → Access requests).
-import { useState, type FormEvent } from 'react'
-import { requestAccess, type AccessRequestSent } from '../../api'
+import { useEffect, useState, type FormEvent } from 'react'
+import { getFormOptions, requestAccess, type AccessRequestSent, type FormOptions } from '../../api'
+import { storedLanguage } from '../../localPrefs'
 import { Icon } from '../../components/Icon'
 import { links, navigate } from '../../router'
 import { CentredLayout, FormError, PasswordInput, PasswordStrength, SplitLayout } from './AuthLayout'
@@ -9,17 +10,32 @@ import { CentredLayout, FormError, PasswordInput, PasswordStrength, SplitLayout 
 const PENDING_KEY = 'pramaan.pendingRequest' // name, username and role only (nothing secret)
 
 export function RequestAccess() {
-  const [form, setForm] = useState({ full_name: '', username: '', reason: '', role: 'operator' as 'operator' | 'reviewer' })
+  const [form, setForm] = useState({
+    full_name: '', employee_id: '', email: '', division: 'Cyber operations', language: storedLanguage() ?? 'en',
+    reason: '', role: 'operator' as 'operator' | 'reviewer',
+  })
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [agreed, setAgreed] = useState(false)
+  const [options, setOptions] = useState<FormOptions | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const set = (key: keyof typeof form) => (value: string) => setForm((f) => ({ ...f, [key]: value }))
+
+  useEffect(() => {
+    getFormOptions()
+      .then(setOptions)
+      .catch(() => setOptions({ languages: [{ code: 'en', name: 'English' }], divisions: ['Other'] }))
+  }, [])
 
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (password !== confirm) {
       setError('The two passwords are not the same.')
+      return
+    }
+    if (!agreed) {
+      setError('Please agree to the acceptable-use policy for official content.')
       return
     }
     setBusy(true)
@@ -53,17 +69,36 @@ export function RequestAccess() {
             <input className="input" value={form.full_name} onChange={(e) => set('full_name')(e.target.value)} autoComplete="name" required />
           </label>
           <label className="field">
-            <span className="field-label">Username</span>
+            <span className="field-label">Employee ID</span>
             <input
               className="input"
-              value={form.username}
-              onChange={(e) => set('username')(e.target.value)}
-              autoComplete="username"
-              autoCapitalize="none"
+              value={form.employee_id}
+              onChange={(e) => set('employee_id')(e.target.value)}
+              autoCapitalize="characters"
               spellCheck={false}
-              placeholder="e.g. rahul.kumar or EMP-20417"
+              placeholder="e.g. EMP-20417"
               required
             />
+          </label>
+          <label className="field">
+            <span className="field-label">Official email</span>
+            <input
+              className="input"
+              type="email"
+              value={form.email}
+              onChange={(e) => set('email')(e.target.value)}
+              autoComplete="email"
+              placeholder="name@org.gov.in"
+              required
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">Division</span>
+            <select className="input" value={form.division} onChange={(e) => set('division')(e.target.value)}>
+              {(options?.divisions ?? [form.division]).map((d) => (
+                <option key={d}>{d}</option>
+              ))}
+            </select>
           </label>
         </div>
         <fieldset className="field role-fieldset">
@@ -88,17 +123,6 @@ export function RequestAccess() {
           </div>
           <span className="muted small">Admin accounts are created only by an existing Admin.</span>
         </fieldset>
-        <label className="field">
-          <span className="field-label">Why do you need access?</span>
-          <textarea
-            className="input textarea"
-            rows={2}
-            value={form.reason}
-            onChange={(e) => set('reason')(e.target.value)}
-            placeholder="e.g. I write advisories for the cyber operations team"
-            required
-          />
-        </label>
         <div className="form-grid-2">
           <div className="field">
             <label className="field-label" htmlFor="new-password">
@@ -114,9 +138,34 @@ export function RequestAccess() {
           </div>
         </div>
         <PasswordStrength password={password} />
+        <div className="form-grid-2">
+          <label className="field">
+            <span className="field-label">Preferred language</span>
+            <select className="input" value={form.language} onChange={(e) => set('language')(e.target.value)}>
+              {(options?.languages ?? [{ code: 'en', name: 'English' }]).map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span className="field-label">Why do you need access? (optional)</span>
+            <input
+              className="input"
+              value={form.reason}
+              onChange={(e) => set('reason')(e.target.value)}
+              placeholder="e.g. I write advisories"
+            />
+          </label>
+        </div>
+        <label className="row gap-10 agree">
+          <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} required />I agree to
+          the acceptable-use policy for official content
+        </label>
         <button type="submit" className="btn btn-lg btn-saffron" disabled={busy}>
           {busy ? 'Sending…' : 'Request access'}
-          <Icon name="arrowRight" size={18} strokeWidth={2} />
+          <Icon name="send" size={18} strokeWidth={2} />
         </button>
         <p className="muted center">
           Already have an account? <a href={links.login}>Sign in</a>
@@ -167,7 +216,7 @@ export function Pending() {
           <p className="muted">
             Your Admin will check your details and approve your account.
             <br />
-            You can sign in with the password you chose once it is approved.
+            This usually happens within the working day. Then sign in with the password you chose.
           </p>
         </div>
         <div className="pending-grid">
@@ -187,7 +236,9 @@ export function Pending() {
               <span className="pending-dot" />
               <span className="stack">
                 <strong>Admin approval</strong>
-                <span className="muted small">Your Admin sees it under Users &amp; access</span>
+                <span className="muted small">
+                  {sent?.admins?.length ? `${sent.admins.join(', ')} (Admin) can approve it` : 'Your Admin sees it under Users & access'}
+                </span>
               </span>
             </li>
             <li>
@@ -202,10 +253,22 @@ export function Pending() {
             <dl className="pending-details">
               <dt>Name</dt>
               <dd>{sent.full_name}</dd>
-              <dt>Username</dt>
-              <dd className="mono">{sent.username}</dd>
+              {sent.employee_id && (
+                <>
+                  <dt>Employee ID</dt>
+                  <dd className="mono">{sent.employee_id}</dd>
+                </>
+              )}
               <dt>Role requested</dt>
               <dd>{sent.role_label}</dd>
+              {sent.division && (
+                <>
+                  <dt>Division</dt>
+                  <dd>{sent.division}</dd>
+                </>
+              )}
+              <dt>Sign in with</dt>
+              <dd className="mono">{sent.employee_id ?? sent.username}</dd>
             </dl>
           )}
         </div>

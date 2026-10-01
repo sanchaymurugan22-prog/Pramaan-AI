@@ -8,7 +8,7 @@ import { links } from '../../router'
 import { CentredLayout, FormError } from './AuthLayout'
 
 const STEPS: { icon: IconName; tone: string; text: string }[] = [
-  { icon: 'arrowRight', tone: 'saffron', text: 'You send a reset request' },
+  { icon: 'send', tone: 'saffron', text: 'You send a reset request' },
   { icon: 'shieldCheck', tone: 'green', text: 'Your Admin verifies you in person' },
   { icon: 'key', tone: 'navy', text: 'You get a one-time password' },
 ]
@@ -51,7 +51,7 @@ export function Forgot() {
           <>
             <FormError message={error} />
             <label className="field">
-              <span className="field-label">Username</span>
+              <span className="field-label">Username or employee ID</span>
               <span className="input-with-icon">
                 <Icon name="user" size={18} color="var(--icon)" />
                 <input
@@ -72,7 +72,7 @@ export function Forgot() {
             </label>
             <button type="submit" className="btn btn-lg btn-navy" disabled={busy}>
               {busy ? 'Sending…' : 'Send request to Admin'}
-              <Icon name="arrowRight" size={18} strokeWidth={2} />
+              <Icon name="send" size={18} strokeWidth={2} />
             </button>
           </>
         )}
