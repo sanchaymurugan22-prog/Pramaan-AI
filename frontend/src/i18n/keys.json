@@ -304,6 +304,7 @@
  "Create password",
  "Create the first Admin account",
  "Create user",
+ "Creating {total} outputs in {count} languages",
  "Creating {total} output{n} in English",
  "Creating…",
  "Critical",

@@ -305,6 +305,7 @@
  "Create password": "कूटशब्द बनाएँ",
  "Create the first Admin account": "पहला प्रशासक खाता बनाएँ",
  "Create user": "उपयोगकर्ता बनाएँ",
+ "Creating {total} outputs in {count} languages": "{count} भाषाओं में {total} आउटपुट बनाए जा रहे हैं",
  "Creating {total} output{n} in English": "अंग्रेजी में {total} आउटपुट {n} बनाया जा रहा है",
  "Creating…": "निर्माण…",
  "Critical": "अति गंभीर",

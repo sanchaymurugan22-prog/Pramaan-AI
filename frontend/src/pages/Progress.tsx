@@ -155,7 +155,9 @@ export function Progress({ jobId }: { jobId: number }) {
           <div className="eyebrow">
             {t("Job {id} · {value}", { id: jobNo(job.id), value: finished ? t("Finished") : t("Generating") })}</div>
           <h1>
-            {finished ? t("{done} of {total} outputs ready", { done: done, total: total }) : t("Creating {total} output{n} in English", { total: total, n: total === 1 ? '' : 's' })}
+            {finished ? t("{done} of {total} outputs ready", { done: done, total: total })
+              : job.languages.length > 1 ? t("Creating {total} outputs in {count} languages", { total: total, count: job.languages.length })
+              : t("Creating {total} output{n} in English", { total: total, n: total === 1 ? '' : 's' })}
           </h1>
           <p className="muted page-lead">
             {t("{title} · started {started}{value}", { title: job.title, started: shortTime(started), value: !finished && (left === null ? t(" · estimating time left…") : left <= 1 ? t(" · about a minute left") : t(" · about {left} minutes left", { left: left })) })}</p>
