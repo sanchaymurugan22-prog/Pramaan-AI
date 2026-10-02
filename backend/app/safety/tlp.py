@@ -25,7 +25,7 @@ HIGH_RISK_KINDS = {"aadhaar", "pan", "passport", "bank_account", "password", "ap
 
 
 def public_outputs() -> list[str]:
-    return [key for key, spec in OUTPUT_TYPES.items() if spec["public"]]
+    return [key for key, spec in OUTPUT_TYPES.items() if spec["public"] and not spec.get("alert_only")]
 
 
 def switched_off(tlp: str | None) -> dict[str, str]:

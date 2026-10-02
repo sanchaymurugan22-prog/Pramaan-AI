@@ -50,9 +50,10 @@ def test_an_alert_goes_to_fast_track_review_by_itself():
     assert done["status"] == "in_review", done["error"]
     assert done["reviews"][0]["notes"] == "Emergency alert: fast-track review"
     queue = reviewer.get("/api/review/queue").json()["waiting"]
-    assert queue[0]["id"] == job["id"] and queue[0]["fast_track"]  # emergency alerts come first
-    note = reviewer.get("/api/notifications").json()["items"][0]
-    assert note["kind"] == "alert" and note["job_id"] == job["id"]
+    position = [q["id"] for q in queue].index(job["id"])
+    assert all(q["fast_track"] for q in queue[: position + 1])  # emergency alerts come first (other tests' alerts too)
+    notes = reviewer.get("/api/notifications").json()["items"]
+    assert any(n["kind"] == "alert" and n["job_id"] == job["id"] for n in notes)
     # the Reviewer still decides: approving signs it as usual
     approved = reviewer.post(f"/api/jobs/{job['id']}/review", json={"decision": "approve"})
     assert approved.status_code == 200 and approved.json()["record"]["record_no"]

@@ -24,7 +24,7 @@ from app.db import Job, Output, SessionLocal
 from app.exporters import FORMATS
 
 # Stage 8: an English video package also comes as narration (.mp3): the (mock) voice reads English
-WITH_VOICE = {**FORMATS, "video_package": ["docx", "srt", "mp3", "mp4"]}
+WITH_VOICE = {**{k: v for k, v in FORMATS.items() if k != "sms"}, "video_package": ["docx", "srt", "mp3", "mp4"]}
 from app.exporters.common import FOOTER, ExportInfo
 from app.exporters.infographic import HEIGHT, WIDTH, write_png
 from app.main import app
