@@ -18,6 +18,7 @@ import {
 import { initials, ROLE_TONE, useAuth } from '../../auth'
 import { Icon } from '../../components/Icon'
 import { shortTime } from '../format'
+import { t } from '../../i18n'
 
 type Tab = 'users' | 'requests' | 'roles'
 type Dialog = { kind: 'add' } | { kind: 'edit'; user: AdminUser } | null
@@ -39,7 +40,7 @@ export function Users() {
         setUsers(u)
         setRequests(r)
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load users.'))
+      .catch((e) => setError(e instanceof Error ? e.message : t("Could not load users.")))
     return () => {
       stopped = true
     }
@@ -53,25 +54,23 @@ export function Users() {
     <main className="page">
       <div className="page-head">
         <div className="stack gap-4">
-          <div className="eyebrow eyebrow-navy">Admin</div>
-          <h1>Users &amp; access</h1>
+          <div className="eyebrow eyebrow-navy">{t("Admin")}</div>
+          <h1>{t("Users & access")}</h1>
         </div>
         <div className="grow" />
         <button type="button" className="btn btn-navy" onClick={() => setDialog({ kind: 'add' })}>
           <Icon name="plus" size={18} strokeWidth={2} />
-          Add user
+          {t("Add user")}
         </button>
       </div>
 
       <div className="segmented segmented-wide" role="tablist">
         <button type="button" role="tab" aria-selected={tab === 'users'} className={tab === 'users' ? 'is-on' : ''} onClick={() => setTab('users')}>
-          All users ({users.length})
-        </button>
+          {t("All users ({length})", { length: users.length })}</button>
         <button type="button" role="tab" aria-selected={tab === 'requests'} className={tab === 'requests' ? 'is-on' : ''} onClick={() => setTab('requests')}>
-          Requests ({pending.length})
-        </button>
+          {t("Requests ({length})", { length: pending.length })}</button>
         <button type="button" role="tab" aria-selected={tab === 'roles'} className={tab === 'roles' ? 'is-on' : ''} onClick={() => setTab('roles')}>
-          Roles and permissions
+          {t("Roles and permissions")}
         </button>
       </div>
 
@@ -83,19 +82,17 @@ export function Users() {
             {pendingAccess.length > 0 && (
               <>
                 <strong>
-                  {pendingAccess.length} {pendingAccess.length === 1 ? 'person is' : 'people are'} waiting for access:
-                </strong>{' '}
+                  {t("{length} {value} waiting for access:", { length: pendingAccess.length, value: pendingAccess.length === 1 ? t("person is") : t("people are") })}</strong>{' '}
                 {pendingAccess.map((r) => `${r.full_name} (${r.role_label})`).join(', ')}.{' '}
               </>
             )}
             {pendingResets.length > 0 && (
               <strong>
-                {pendingResets.length} forgot-password request{pendingResets.length === 1 ? '' : 's'}.
-              </strong>
+                {t("{length} forgot-password request{value}.", { length: pendingResets.length, value: pendingResets.length === 1 ? '' : 's' })}</strong>
             )}
           </span>
           <button type="button" className="btn btn-saffron-outline btn-xs" onClick={() => setTab('requests')}>
-            Review requests
+            {t("Review requests")}
           </button>
         </div>
       )}
@@ -114,28 +111,28 @@ function RoleChip({ role, label }: { role: Role; label: string }) {
 }
 
 function StatusCell({ user }: { user: AdminUser }) {
-  if (!user.is_active) return <span className="chip chip-xs chip-neutral">Switched off</span>
-  if (user.locked) return <span className="chip chip-xs chip-red">Locked</span>
-  if (user.must_change_password) return <span className="chip chip-xs chip-yellow">Temporary password</span>
-  return <span className="chip chip-xs chip-green">Active</span>
+  if (!user.is_active) return <span className="chip chip-xs chip-neutral">{t("Switched off")}</span>
+  if (user.locked) return <span className="chip chip-xs chip-red">{t("Locked")}</span>
+  if (user.must_change_password) return <span className="chip chip-xs chip-yellow">{t("Temporary password")}</span>
+  return <span className="chip chip-xs chip-green">{t("Active")}</span>
 }
 
 function UsersTable({ users, onEdit }: { users: AdminUser[]; onEdit: (user: AdminUser) => void }) {
   return (
     <section className="card card-pad table-scroll">
       <table className="data-table">
-        <caption className="sr-only">All users</caption>
+        <caption className="sr-only">{t("All users")}</caption>
         <thead>
           <tr>
-            <th scope="col">Name</th>
-            <th scope="col">Employee ID</th>
-            <th scope="col">Role</th>
-            <th scope="col">Division</th>
+            <th scope="col">{t("Name")}</th>
+            <th scope="col">{t("Employee ID")}</th>
+            <th scope="col">{t("Role")}</th>
+            <th scope="col">{t("Division")}</th>
             <th scope="col">DSC</th>
-            <th scope="col">Status</th>
-            <th scope="col">Last active</th>
+            <th scope="col">{t("Status")}</th>
+            <th scope="col">{t("Last active")}</th>
             <th scope="col">
-              <span className="sr-only">Actions</span>
+              <span className="sr-only">{t("Actions")}</span>
             </th>
           </tr>
         </thead>
@@ -155,24 +152,24 @@ function UsersTable({ users, onEdit }: { users: AdminUser[]; onEdit: (user: Admi
               </td>
               <td className="mono">{u.employee_id ?? '—'}</td>
               <td>
-                <RoleChip role={u.role} label={u.role_label} />
+                <RoleChip role={u.role} label={t(u.role_label)} />
               </td>
               <td>{u.division || '—'}</td>
-              <td>{u.dsc_holder ? 'Class 3' : '—'}</td>
+              <td>{u.dsc_holder ? t("Class 3") : '—'}</td>
               <td>
                 <StatusCell user={u} />
                 {u.emergency_duty && (
                   <span className="chip chip-xs chip-saffron mt-4">
                     <Icon name="siren" size={12} strokeWidth={2.2} />
-                    On duty
+                    {t("On duty")}
                   </span>
                 )}
               </td>
-              <td className="muted">{u.last_login ? shortTime(u.last_login) : 'Never'}</td>
+              <td className="muted">{u.last_login ? shortTime(u.last_login) : t("Never")}</td>
               <td className="right">
                 <button type="button" className="btn btn-outline btn-xs" onClick={() => onEdit(u)}>
                   <Icon name="pencil" size={14} strokeWidth={2} />
-                  Edit<span className="sr-only"> {u.full_name}</span>
+                  {t("Edit")}<span className="sr-only"> {u.full_name}</span>
                 </button>
               </td>
             </tr>
@@ -196,14 +193,14 @@ function Requests({ requests, users, onChanged }: { requests: AccountRequest[]; 
       await action()
       onChanged()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'That did not work.')
+      setError(e instanceof Error ? e.message : t("That did not work."))
     }
   }
 
   async function resetFor(request: AccountRequest) {
     const user = users.find((u) => u.username === request.username)
     if (!user) return
-    if (!window.confirm(`Have you checked in person that this is ${user.full_name}? A new temporary password will be made.`)) return
+    if (!window.confirm(t("Have you checked in person that this is {full_name}? A new temporary password will be made.", { full_name: user.full_name }))) return
     await act(async () => {
       const result = await resetUserPassword(user.id)
       setShown({ name: user.full_name, password: result.temporary_password })
@@ -212,10 +209,10 @@ function Requests({ requests, users, onChanged }: { requests: AccountRequest[]; 
 
   return (
     <section className="card card-pad stack gap-14">
-      <h2>Waiting</h2>
+      <h2>{t("Waiting")}</h2>
       {error && <div className="alert alert-red">{error}</div>}
       {shown && <TemporaryPassword name={shown.name} password={shown.password} onDone={() => setShown(null)} />}
-      {pending.length === 0 && <p className="muted">No requests are waiting.</p>}
+      {pending.length === 0 && <p className="muted">{t("No requests are waiting.")}</p>}
       {pending.map((r) => (
         <article key={r.id} className="request-row">
           <div className="stack gap-4 grow">
@@ -224,46 +221,46 @@ function Requests({ requests, users, onChanged }: { requests: AccountRequest[]; 
               {r.kind === 'access' ? (
                 <>
                   <span className="mono muted small">{r.employee_id ?? r.username}</span>
-                  <span className="chip chip-xs chip-neutral">Access request · {r.role_label}</span>
+                  <span className="chip chip-xs chip-neutral">{t("Access request · {role_label}", { role_label: t(r.role_label) })}</span>
                   {r.division && <span className="muted small">{r.division}</span>}
                   {r.email && <span className="muted small">{r.email}</span>}
                 </>
               ) : (
-                <span className="chip chip-xs chip-yellow">Forgot password</span>
+                <span className="chip chip-xs chip-yellow">{t("Forgot password")}</span>
               )}
               <span className="muted small">{shortTime(r.created_at)}</span>
             </div>
             {r.reason && <span className="muted small">“{r.reason}”</span>}
-            {r.kind === 'reset' && !r.user_exists && <span className="small form-error">No user has this username.</span>}
+            {r.kind === 'reset' && !r.user_exists && <span className="small form-error">{t("No user has this username.")}</span>}
           </div>
           {r.kind === 'access' ? (
             <div className="row gap-8">
               <select
                 className="input input-sm"
-                aria-label="Role"
+                aria-label={t("Role")}
                 value={roles[r.id] ?? r.role ?? 'operator'}
                 onChange={(e) => setRoles((all) => ({ ...all, [r.id]: e.target.value as Role }))}
               >
-                <option value="operator">Operator</option>
-                <option value="reviewer">Reviewer</option>
+                <option value="operator">{t("Operator")}</option>
+                <option value="reviewer">{t("Reviewer")}</option>
               </select>
               <button type="button" className="btn btn-outline btn-xs" onClick={() => act(() => rejectAccountRequest(r.id))}>
-                Reject
+                {t("Reject")}
               </button>
               <button type="button" className="btn btn-green btn-xs" onClick={() => act(() => approveAccountRequest(r.id, roles[r.id] ?? r.role ?? undefined))}>
                 <Icon name="check" size={14} strokeWidth={2.4} />
-                Approve
+                {t("Approve")}
               </button>
             </div>
           ) : (
             <div className="row gap-8">
               <button type="button" className="btn btn-outline btn-xs" onClick={() => act(() => rejectAccountRequest(r.id))}>
-                Dismiss
+                {t("Dismiss")}
               </button>
               {r.user_exists && (
                 <button type="button" className="btn btn-navy btn-xs" onClick={() => resetFor(r)}>
                   <Icon name="key" size={14} strokeWidth={2} />
-                  Reset password
+                  {t("Reset password")}
                 </button>
               )}
             </div>
@@ -272,12 +269,12 @@ function Requests({ requests, users, onChanged }: { requests: AccountRequest[]; 
       ))}
       {handled.length > 0 && (
         <>
-          <h3 className="mt-8">Handled</h3>
+          <h3 className="mt-8">{t("Handled")}</h3>
           {handled.map((r) => (
             <div key={r.id} className="row gap-10 muted small">
               <span className={`chip chip-xs ${r.status === 'rejected' ? 'chip-red' : 'chip-green'}`}>{r.status}</span>
               <span>
-                {r.kind === 'access' ? `${r.full_name} (${r.username}) as ${r.role_label}` : `Forgot password: ${r.username}`}
+                {r.kind === 'access' ? t("{full_name} ({username}) as {role_label}", { full_name: r.full_name, username: r.username, role_label: t(r.role_label) }) : t("Forgot password: {username}", { username: r.username })}
               </span>
               <span>
                 · {r.decided_by} · {r.decided_at ? shortTime(r.decided_at) : ''}
@@ -306,17 +303,17 @@ function RolesTable() {
   return (
     <section className="card card-pad stack gap-12">
       <div className="row">
-        <h2>What each role can do</h2>
+        <h2>{t("What each role can do")}</h2>
         <div className="grow" />
-        <span className="muted small">Checked by the backend on every request</span>
+        <span className="muted small">{t("Checked by the backend on every request")}</span>
       </div>
       <table className="data-table">
         <thead>
           <tr>
-            <th>Permission</th>
-            <th>Operator</th>
-            <th>Reviewer</th>
-            <th>Admin</th>
+            <th>{t("Permission")}</th>
+            <th>{t("Operator")}</th>
+            <th>{t("Reviewer")}</th>
+            <th>{t("Admin")}</th>
           </tr>
         </thead>
         <tbody>
@@ -347,16 +344,16 @@ function TemporaryPassword({ name, password, onDone }: { name: string; password:
   return (
     <div className="temp-password">
       <div className="stack gap-2 grow">
-        <span className="muted small">Temporary password for {name} · shown only now</span>
+        <span className="muted small">{t("Temporary password for {name} · shown only now", { name: name })}</span>
         <span className="mono temp-password-value">{password}</span>
-        <span className="muted small">Give it to them in person. They must choose their own at the next sign-in.</span>
+        <span className="muted small">{t("Give it to them in person. They must choose their own at the next sign-in.")}</span>
       </div>
       <button type="button" className="btn btn-outline btn-xs" onClick={copy}>
-        {copied ? 'Copied' : 'Copy'}
+        {copied ? t("Copied") : t("Copy")}
       </button>
       {onDone && (
         <button type="button" className="btn btn-link btn-xs" onClick={onDone}>
-          Done
+          {t("Done")}
         </button>
       )}
     </div>
@@ -405,7 +402,7 @@ function UserDialog({ dialog, onClose, onChanged }: { dialog: NonNullable<Dialog
       await action()
       onChanged()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'That did not work.')
+      setError(e instanceof Error ? e.message : t("That did not work."))
     } finally {
       setBusy(false)
     }
@@ -439,7 +436,7 @@ function UserDialog({ dialog, onClose, onChanged }: { dialog: NonNullable<Dialog
         <div className="row">
           <div className="grow" />
           <button type="button" className="btn btn-navy" onClick={onClose}>
-            Done
+            {t("Done")}
           </button>
         </div>
       </>
@@ -450,27 +447,27 @@ function UserDialog({ dialog, onClose, onChanged }: { dialog: NonNullable<Dialog
         {error && <div className="alert alert-red">{error}</div>}
         <div className="form-grid-2">
           <label className="field">
-            <span className="field-label">Full name</span>
+            <span className="field-label">{t("Full name")}</span>
             <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} required autoFocus />
           </label>
           <label className="field">
-            <span className="field-label">Employee ID</span>
+            <span className="field-label">{t("Employee ID")}</span>
             <input
               className="input"
               value={employeeId}
               onChange={(e) => setEmployeeId(e.target.value)}
               autoCapitalize="characters"
               spellCheck={false}
-              placeholder="e.g. EMP-11820"
+              placeholder={t("e.g. EMP-11820")}
               required={!editing}
             />
           </label>
           <label className="field">
-            <span className="field-label">Official email</span>
+            <span className="field-label">{t("Official email")}</span>
             <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@org.gov.in" />
           </label>
           <label className="field">
-            <span className="field-label">Division</span>
+            <span className="field-label">{t("Division")}</span>
             <select className="input" value={division} onChange={(e) => setDivision(e.target.value)}>
               {[...new Set([...divisions, division])].map((d) => (
                 <option key={d}>{d}</option>
@@ -478,7 +475,7 @@ function UserDialog({ dialog, onClose, onChanged }: { dialog: NonNullable<Dialog
             </select>
           </label>
           <label className="field">
-            <span className="field-label">Username {editing ? '' : '(optional)'}</span>
+            <span className="field-label">{t("Username {value}", { value: editing ? '' : t("(optional)") })}</span>
             {editing ? (
               <input className="input mono" value={editing.username} disabled />
             ) : (
@@ -488,13 +485,13 @@ function UserDialog({ dialog, onClose, onChanged }: { dialog: NonNullable<Dialog
                 onChange={(e) => setUsername(e.target.value)}
                 autoCapitalize="none"
                 spellCheck={false}
-                placeholder="else the employee ID"
+                placeholder={t("else the employee ID")}
               />
             )}
           </label>
         </div>
         <fieldset className="field role-fieldset">
-          <legend className="field-label">Role</legend>
+          <legend className="field-label">{t("Role")}</legend>
           <div className="role-cards">
             {ROLE_CARDS.map((card) => (
               <label key={card.role} className={`role-option role-${card.role}${role === card.role ? ' is-checked' : ''}`}>
@@ -503,7 +500,7 @@ function UserDialog({ dialog, onClose, onChanged }: { dialog: NonNullable<Dialog
                   <Icon name={card.icon} size={18} />
                 </span>
                 <span className="stack">
-                  <strong>{card.title}</strong>
+                  <strong>{t(card.title)}</strong>
                   <span className="muted small">{card.note}</span>
                 </span>
               </label>
@@ -513,15 +510,15 @@ function UserDialog({ dialog, onClose, onChanged }: { dialog: NonNullable<Dialog
         <label className="row gap-10 toggle-row">
           <input type="checkbox" checked={role === 'reviewer' && dsc} disabled={role !== 'reviewer'} onChange={(e) => setDsc(e.target.checked)} />
           <span className="stack">
-            <strong>Holds a Class 3 DSC token</strong>
-            <span className="muted small">Reviewers only: needed to sign documents with a token</span>
+            <strong>{t("Holds a Class 3 DSC token")}</strong>
+            <span className="muted small">{t("Reviewers only: needed to sign documents with a token")}</span>
           </span>
         </label>
         <label className="row gap-10 toggle-row">
           <input type="checkbox" checked={duty} onChange={(e) => setDuty(e.target.checked)} />
           <span className="stack">
-            <strong>On the emergency duty roster</strong>
-            <span className="muted small">Reviewers on duty are told first about emergency alerts</span>
+            <strong>{t("On the emergency duty roster")}</strong>
+            <span className="muted small">{t("Reviewers on duty are told first about emergency alerts")}</span>
           </span>
         </label>
         {editing && (
@@ -529,8 +526,8 @@ function UserDialog({ dialog, onClose, onChanged }: { dialog: NonNullable<Dialog
             <label className="row gap-10 toggle-row">
               <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} disabled={editing.id === me.id} />
               <span className="stack">
-                <strong>Account switched on</strong>
-                <span className="muted small">Switching it off signs the person out straight away.</span>
+                <strong>{t("Account switched on")}</strong>
+                <span className="muted small">{t("Switching it off signs the person out straight away.")}</span>
               </span>
             </label>
             <div className="row gap-10 wrap">
@@ -542,7 +539,7 @@ function UserDialog({ dialog, onClose, onChanged }: { dialog: NonNullable<Dialog
                   onClick={() => run(async () => void (await changeUser(editing.id, { unlock: true })))}
                 >
                   <Icon name="lock" size={14} strokeWidth={2} />
-                  Unlock now
+                  {t("Unlock now")}
                 </button>
               )}
               {editing.id !== me.id && (
@@ -551,12 +548,12 @@ function UserDialog({ dialog, onClose, onChanged }: { dialog: NonNullable<Dialog
                   className="btn btn-outline btn-xs"
                   disabled={busy}
                   onClick={() => {
-                    if (window.confirm(`Make a new temporary password for ${editing.full_name}? They will be signed out.`))
+                    if (window.confirm(t("Make a new temporary password for {full_name}? They will be signed out.", { full_name: editing.full_name })))
                       run(async () => setTemporary((await resetUserPassword(editing.id)).temporary_password))
                   }}
                 >
                   <Icon name="key" size={14} strokeWidth={2} />
-                  Reset password
+                  {t("Reset password")}
                 </button>
               )}
             </div>
@@ -564,12 +561,12 @@ function UserDialog({ dialog, onClose, onChanged }: { dialog: NonNullable<Dialog
         )}
         <div className="row gap-10">
           <button type="button" className="btn btn-outline" onClick={onClose}>
-            Cancel
+            {t("Cancel")}
           </button>
           <div className="grow" />
           <button type="submit" className="btn btn-navy" disabled={busy}>
             <Icon name="check" size={18} strokeWidth={2.4} />
-            {editing ? 'Save changes' : 'Create user'}
+            {editing ? t("Save changes") : t("Create user")}
           </button>
         </div>
       </form>
@@ -584,12 +581,12 @@ function UserDialog({ dialog, onClose, onChanged }: { dialog: NonNullable<Dialog
             <Icon name="user" size={22} color="var(--navy)" />
           </span>
           <div className="stack gap-2 grow">
-            <h2 id="user-dialog-title">{editing ? `Edit ${editing.full_name}` : 'Add a user'}</h2>
+            <h2 id="user-dialog-title">{editing ? t("Edit {full_name}", { full_name: editing.full_name }) : t("Add a user")}</h2>
             <span className="muted small">
-              {editing ? `@${editing.username}` : 'They will sign in with a temporary password and then set their own.'}
+              {editing ? `@${editing.username}` : t("They will sign in with a temporary password and then set their own.")}
             </span>
           </div>
-          <button type="button" className="icon-btn icon-btn-sm" aria-label="Close" onClick={onClose}>
+          <button type="button" className="icon-btn icon-btn-sm" aria-label={t("Close")} onClick={onClose}>
             <Icon name="cross" size={18} />
           </button>
         </div>

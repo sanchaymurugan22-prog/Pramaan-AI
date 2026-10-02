@@ -8,6 +8,7 @@ import { Mandala } from '../../components/Mandala'
 import { useCounts } from '../../counts'
 import { links } from '../../router'
 import { fileSize, shortTime, todayLabel } from '../format'
+import { t } from '../../i18n'
 
 function greeting(): string {
   const hour = new Date().getHours()
@@ -56,7 +57,7 @@ export function AdminOverview() {
   const load = () =>
     getAdminOverview()
       .then(setData)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load the overview.'))
+      .catch((e) => setError(e instanceof Error ? e.message : t("Could not load the overview.")))
   useEffect(() => {
     load()
   }, [])
@@ -67,7 +68,7 @@ export function AdminOverview() {
       await load()
       refresh()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'That did not work.')
+      setError(e instanceof Error ? e.message : t("That did not work."))
     }
   }
 
@@ -83,13 +84,13 @@ export function AdminOverview() {
           <Mandala size={340} petals={16} color="var(--navy)" opacity={0.35} />
         </div>
         <div className="hero-body">
-          <div className="eyebrow eyebrow-navy">System overview · {todayLabel()}</div>
+          <div className="eyebrow eyebrow-navy">{t("System overview · {value}", { value: todayLabel() })}</div>
           <h1 id="admin-hello">
             {greeting()}, {firstName(user.full_name)}
           </h1>
           <p>
             {data === null
-              ? 'Loading…'
+              ? t("Loading…")
               : `${c?.encrypted ? 'Everything is healthy.' : 'The database is NOT encrypted.'} ${
                   data.requests.length === 0
                     ? 'No requests are waiting.'
@@ -99,11 +100,11 @@ export function AdminOverview() {
           <div className="row gap-10 mt-8 wrap">
             <a href={links.users} className="btn btn-lg btn-navy">
               <Icon name="user" size={18} strokeWidth={2} />
-              Review requests
+              {t("Review requests")}
             </a>
             <a href={links.recordBook} className="btn btn-lg btn-navy-outline">
               <Icon name="hash" size={18} strokeWidth={2} />
-              Check record book
+              {t("Check record book")}
             </a>
           </div>
         </div>
@@ -115,22 +116,22 @@ export function AdminOverview() {
         <Stat
           icon="user"
           tone="navy"
-          label="Active users"
+          label={t("Active users")}
           value={data ? String(data.users.total) : '–'}
           note={data ? `${data.users.operator} operators · ${data.users.reviewer} reviewers · ${data.users.admin} admin` : ''}
         />
         <Stat
           icon="history"
           tone="saffron"
-          label="Jobs this month"
+          label={t("Jobs this month")}
           value={data ? String(data.jobs.this_month) : '–'}
           note={data ? `${change >= 0 ? '+' : ''}${change} from last month` : ''}
         />
-        <Stat icon="award" tone="green" label="Documents signed" value={data ? String(data.records.issued) : '–'} note="All verifiable by QR" />
+        <Stat icon="award" tone="green" label={t("Documents signed")} value={data ? String(data.records.issued) : '–'} note="All verifiable by QR" />
         <Stat
           icon="shield"
           tone="red"
-          label="Fake or edited caught"
+          label={t("Fake or edited caught")}
           value={data ? String(fakes) : '–'}
           note={data ? `Of ${data.checker.checks} “Is this real?” checks in the app` : ''}
         />
@@ -140,27 +141,27 @@ export function AdminOverview() {
         <section className="card card-pad stack gap-14" aria-labelledby="computer-title">
           <div className="row gap-10">
             <h2 id="computer-title" className="grow">
-              This computer
+              {t("This computer")}
             </h2>
             {c && (
               <span className={c.encrypted ? 'chip chip-green chip-xs' : 'chip chip-red chip-xs'}>
                 <Icon name={c.encrypted ? 'check' : 'warning'} size={12} strokeWidth={2.4} />
-                {c.encrypted ? 'Healthy' : 'Not encrypted'}
+                {c.encrypted ? t("Healthy") : t("Not encrypted")}
               </span>
             )}
           </div>
           {c && (
             <>
-              <Meter label="Processor load" value={c.load_percent === null ? '—' : `${c.load_percent}%`} percent={c.load_percent} tone="navy" />
-              <Meter label="Memory" value={c.memory_bytes ? `${fileSize(c.memory_bytes)} installed` : 'Unknown'} percent={null} tone="fair" />
-              <Meter label="Disk space" value={`${fileSize(c.disk_free_bytes)} free`} percent={usedDisk} tone="good" />
+              <Meter label={t("Processor load")} value={c.load_percent === null ? '—' : `${c.load_percent}%`} percent={c.load_percent} tone="navy" />
+              <Meter label={t("Memory")} value={c.memory_bytes ? `${fileSize(c.memory_bytes)} installed` : 'Unknown'} percent={null} tone="fair" />
+              <Meter label={t("Disk space")} value={`${fileSize(c.disk_free_bytes)} free`} percent={usedDisk} tone="good" />
               <p className="row gap-8 small count-ok">
                 <Icon name="chip" size={16} />
                 AI: {c.ai_label}
               </p>
               <p className="row gap-8 small count-ok">
                 <Icon name="wifiOff" size={16} />
-                No internet needed · {c.encrypted ? 'database and files encrypted' : 'encryption missing'}
+                {t("No internet needed ·")} {c.encrypted ? t("database and files encrypted") : t("encryption missing")}
               </p>
             </>
           )}
@@ -169,11 +170,11 @@ export function AdminOverview() {
         <section className="card card-pad stack gap-12" aria-labelledby="requests-title">
           <div className="row gap-10">
             <h2 id="requests-title" className="grow">
-              Access requests
+              {t("Access requests")}
             </h2>
-            {data && data.requests.length > 0 && <span className="chip chip-saffron chip-xs">{data.requests.length} waiting</span>}
+            {data && data.requests.length > 0 && <span className="chip chip-saffron chip-xs">{t("{length} waiting", { length: data.requests.length })}</span>}
           </div>
-          {data && data.requests.length === 0 && <p className="muted small">Nobody is waiting.</p>}
+          {data && data.requests.length === 0 && <p className="muted small">{t("Nobody is waiting.")}</p>}
           <ul className="clean-list-plain">
             {access.slice(0, 4).map((r) => (
               <li key={r.id} className="request-mini">
@@ -188,10 +189,10 @@ export function AdminOverview() {
                 </span>
                 <span className="row gap-6">
                   <button type="button" className="btn btn-green btn-xs" onClick={() => act(() => approveAccountRequest(r.id))}>
-                    Approve<span className="sr-only"> {r.full_name}</span>
+                    {t("Approve")}<span className="sr-only"> {r.full_name}</span>
                   </button>
                   <button type="button" className="btn btn-outline btn-xs" onClick={() => act(() => rejectAccountRequest(r.id))}>
-                    Deny<span className="sr-only"> {r.full_name}</span>
+                    {t("Deny")}<span className="sr-only"> {r.full_name}</span>
                   </button>
                 </span>
               </li>
@@ -199,22 +200,21 @@ export function AdminOverview() {
           </ul>
           {data && data.requests.length > access.length && (
             <a href={links.users} className="small">
-              {data.requests.length - access.length} forgot-password request(s): open Users &amp; access
-            </a>
+              {t("{value} forgot-password request(s): open Users & access", { value: data.requests.length - access.length })}</a>
           )}
         </section>
 
         <section className="card card-pad stack gap-12" aria-labelledby="events-title">
           <div className="row">
             <h2 id="events-title" className="grow">
-              Security events
+              {t("Security events")}
             </h2>
             <a href={links.audit} className="btn btn-link">
-              Audit trail
+              {t("Audit trail")}
               <Icon name="arrowRight" size={16} strokeWidth={2} />
             </a>
           </div>
-          {data && data.security_events.length === 0 && <p className="muted small">No security events.</p>}
+          {data && data.security_events.length === 0 && <p className="muted small">{t("No security events.")}</p>}
           <ul className="clean-list-plain">
             {data?.security_events.map((e) => (
               <li key={e.seq} className="request-mini">
@@ -222,7 +222,7 @@ export function AdminOverview() {
                   <Icon name={EVENT_ICON[e.action] ?? 'shield'} size={18} />
                 </span>
                 <span className="stack grow">
-                  <strong className="small">{e.detail}</strong>
+                  <strong className="small">{t(e.detail)}</strong>
                   <span className="muted small">
                     {shortTime(e.created_at)} · {e.actor}
                   </span>

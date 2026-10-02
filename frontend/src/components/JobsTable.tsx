@@ -5,6 +5,7 @@ import { links } from '../router'
 import { Icon } from './Icon'
 import { StatusChip } from './StatusChip'
 import { TlpLabel } from './TlpLabel'
+import { t } from '../i18n'
 
 // Where a row leads: a draft opens its Safety check (where the operator left off), a job being
 // written opens its live progress, anything else its results.
@@ -20,14 +21,14 @@ export function OriginBadge({ job }: { job: JobSummary }) {
     return (
       <span className="chip chip-saffron chip-xs">
         <Icon name="folder" size={12} strokeWidth={2.2} />
-        Watch folder
+        {t("Watch folder")}
       </span>
     )
   if (job.created_via === 'emergency')
     return (
       <span className="chip chip-red chip-xs">
         <Icon name="siren" size={12} strokeWidth={2.2} />
-        Emergency
+        {t("Emergency")}
       </span>
     )
   return null
@@ -46,15 +47,15 @@ export function JobsTable({ jobs, full = false, caption }: { jobs: JobSummary[];
         <caption className="sr-only">{caption}</caption>
         <thead>
           <tr>
-            <th scope="col">Job</th>
+            <th scope="col">{t("Job")}</th>
             {full && <th scope="col">Ver.</th>}
-            <th scope="col">Status</th>
-            {full && <th scope="col">Sharing</th>}
-            {full && <th scope="col">AI used</th>}
-            {full && <th scope="col">Quality</th>}
-            <th scope="col">Outputs</th>
-            {!full && <th scope="col">Languages</th>}
-            <th scope="col">Updated</th>
+            <th scope="col">{t("Status")}</th>
+            {full && <th scope="col">{t("Sharing")}</th>}
+            {full && <th scope="col">{t("AI used")}</th>}
+            {full && <th scope="col">{t("Quality")}</th>}
+            <th scope="col">{t("Outputs")}</th>
+            {!full && <th scope="col">{t("Languages")}</th>}
+            <th scope="col">{t("Updated")}</th>
           </tr>
         </thead>
         <tbody>
@@ -66,7 +67,7 @@ export function JobsTable({ jobs, full = false, caption }: { jobs: JobSummary[];
                     <span className="job-no">{jobNo(job.id)}</span> {job.title}
                   </a>
                   <span className="row gap-6 wrap">
-                    <span className="job-kind">{job.output_types.length ? outputKinds(job.output_types) : 'Waiting at the Safety check'}</span>
+                    <span className="job-kind">{job.output_types.length ? outputKinds(job.output_types) : t("Waiting at the Safety check")}</span>
                     <OriginBadge job={job} />
                   </span>
                 </span>
@@ -78,7 +79,7 @@ export function JobsTable({ jobs, full = false, caption }: { jobs: JobSummary[];
                   progress={job.status === 'generating' ? `${job.outputs_done}/${job.outputs_total}` : undefined}
                 />
               </td>
-              {full && <td>{job.tlp ? <TlpLabel tlp={job.tlp} /> : <span className="muted small">Not chosen</span>}</td>}
+              {full && <td>{job.tlp ? <TlpLabel tlp={job.tlp} /> : <span className="muted small">{t("Not chosen")}</span>}</td>}
               {full && <td className="small">{aiShort(job.ai_mode)}</td>}
               {full && (
                 <td>

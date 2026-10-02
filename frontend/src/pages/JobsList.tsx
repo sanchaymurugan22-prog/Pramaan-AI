@@ -3,6 +3,7 @@ import { listJobs, type JobSummary } from '../api'
 import { Icon } from '../components/Icon'
 import { JobsTable } from '../components/JobsTable'
 import { links } from '../router'
+import { t } from '../i18n'
 
 // Design "20 · My jobs (history)". The filters are sent to the backend (GET /api/jobs?q=&status=&tlp=&days=);
 // the list is shown 10 at a time. It refreshes every 5 seconds while any job is still generating.
@@ -43,7 +44,7 @@ export function JobsList() {
         setError('')
         if (found.some((job) => job.status === 'generating')) timer = window.setTimeout(load, 5000)
       } catch (e) {
-        if (!stopped) setError(e instanceof Error ? e.message : 'Could not load jobs.')
+        if (!stopped) setError(e instanceof Error ? e.message : t("Could not load jobs."))
       }
     }
     load()
@@ -64,34 +65,34 @@ export function JobsList() {
     <main className="page">
       <div className="page-head">
         <div className="stack gap-2">
-          <div className="eyebrow">History</div>
-          <h1>My jobs</h1>
+          <div className="eyebrow">{t("History")}</div>
+          <h1>{t("My jobs")}</h1>
         </div>
         <div className="grow" />
         <a href={links.newJob} className="btn btn-saffron">
           <Icon name="plus" size={18} strokeWidth={2} />
-          New transformation
+          {t("New transformation")}
         </a>
       </div>
 
-      <div className="filter-bar" role="search" aria-label="Filter jobs">
+      <div className="filter-bar" role="search" aria-label={t("Filter jobs")}>
         <div className="input-with-icon filter-search">
           <span className="search-icon" aria-hidden="true">
             <Icon name="search" size={18} strokeWidth={1.8} />
           </span>
           <label htmlFor="jobs-search" className="sr-only">
-            Search by title, job number or source file
+            {t("Search by title, job number or source file")}
           </label>
           <input
             id="jobs-search"
             className="input input-icon"
             type="search"
-            placeholder="Search by title or source"
+            placeholder={t("Search by title or source")}
             value={text}
             onChange={(e) => setText(e.target.value)}
           />
         </div>
-        <div className="segmented" role="group" aria-label="Status">
+        <div className="segmented" role="group" aria-label={t("Status")}>
           {STATUS_TABS.map((tab) => (
             <button
               key={tab.label}
@@ -100,25 +101,25 @@ export function JobsList() {
               className={status === tab.value ? 'is-on' : ''}
               onClick={() => setStatus(tab.value)}
             >
-              {tab.label}
+              {t(tab.label)}
             </button>
           ))}
         </div>
         <label className="select-wrap">
           <Icon name="calendar" size={18} />
-          <span className="sr-only">Changed in</span>
+          <span className="sr-only">{t("Changed in")}</span>
           <select className="input select-plain" value={days} onChange={(e) => setDays(Number(e.target.value))}>
-            <option value={7}>Last 7 days</option>
-            <option value={30}>Last 30 days</option>
-            <option value={90}>Last 90 days</option>
-            <option value={0}>All time</option>
+            <option value={7}>{t("Last 7 days")}</option>
+            <option value={30}>{t("Last 30 days")}</option>
+            <option value={90}>{t("Last 90 days")}</option>
+            <option value={0}>{t("All time")}</option>
           </select>
         </label>
         <label className="select-wrap">
           <Icon name="filter" size={18} />
-          <span className="sr-only">Sharing level</span>
+          <span className="sr-only">{t("Sharing level")}</span>
           <select className="input select-plain" value={tlp} onChange={(e) => setTlp(e.target.value)}>
-            <option value="">Any sharing level</option>
+            <option value="">{t("Any sharing level")}</option>
             <option value="RED">TLP:RED</option>
             <option value="AMBER">TLP:AMBER</option>
             <option value="GREEN">TLP:GREEN</option>
@@ -127,27 +128,26 @@ export function JobsList() {
         </label>
       </div>
 
-      <section className="card card-pad stack gap-12" aria-label="Jobs">
+      <section className="card card-pad stack gap-12" aria-label={t("Jobs")}>
         {error && <div className="alert alert-red">{error}</div>}
-        {jobs === null && !error && <p className="muted">Loading…</p>}
+        {jobs === null && !error && <p className="muted">{t("Loading…")}</p>}
         {jobs && jobs.length === 0 && (
           <p className="muted">
-            {filtered ? 'No jobs match these filters.' : 'No jobs yet.'} <a href={links.newJob}>Start a new transformation</a>.
+            {filtered ? t("No jobs match these filters.") : t("No jobs yet.")} <a href={links.newJob}>{t("Start a new transformation")}</a>.
           </p>
         )}
-        {shown.length > 0 && <JobsTable jobs={shown} full caption="My jobs" />}
+        {shown.length > 0 && <JobsTable jobs={shown} full caption={t("My jobs")} />}
         {jobs && jobs.length > 0 && (
           <div className="row gap-10 wrap">
             <span className="muted" role="status">
-              Showing {page * PAGE_SIZE + 1}–{Math.min(total, (page + 1) * PAGE_SIZE)} of {total} job{total === 1 ? '' : 's'}
-            </span>
+              {t("Showing {value}–{total} of {total2} job{value2}", { value: page * PAGE_SIZE + 1, total: Math.min(total, (page + 1) * PAGE_SIZE), total2: total, value2: total === 1 ? '' : 's' })}</span>
             <div className="grow" />
             <button type="button" className="btn btn-outline btn-sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
               <Icon name="chevronLeft" size={18} />
-              Previous
+              {t("Previous")}
             </button>
             <button type="button" className="btn btn-outline btn-sm" disabled={page >= pages - 1} onClick={() => setPage(page + 1)}>
-              Next
+              {t("Next")}
               <Icon name="chevronRight" size={18} />
             </button>
           </div>

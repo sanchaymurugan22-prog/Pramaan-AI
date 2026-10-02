@@ -10,6 +10,7 @@ import { LogoSeal } from '../components/Logo'
 import { TlpLabel } from '../components/TlpLabel'
 import { Traced, TraceTags } from './trace'
 import { useTraceBlock } from './traceState'
+import { locale, t } from '../i18n'
 
 // ---- shapes of the output JSON ------------------------------------------------------------
 
@@ -75,7 +76,7 @@ function G({ item, path, as: Tag = 'p' }: { item?: Grounded; path: (string | num
 function Footnote({ meta }: { meta: ViewMeta }) {
   return (
     <p className="doc-foot">
-      {meta.recordNo ? `AI-assisted · human-approved · Record ${meta.recordNo}` : 'AI-assisted · pending human approval'}
+      {meta.recordNo ? t("AI-assisted · human-approved · Record {recordNo}", { recordNo: meta.recordNo }) : t("AI-assisted · pending human approval")}
     </p>
   )
 }
@@ -95,8 +96,8 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   return (
     <button type="button" className="btn btn-outline btn-xs" onClick={copy}>
       <Icon name={state === 'copied' ? 'check' : 'copy'} size={16} strokeWidth={2} />
-      {state === 'copied' ? 'Copied' : state === 'failed' ? 'Could not copy' : label}
-      <span className="sr-only" role="status">{state === 'copied' ? 'Copied to the clipboard' : ''}</span>
+      {state === 'copied' ? t("Copied") : state === 'failed' ? t("Could not copy") : label}
+      <span className="sr-only" role="status">{state === 'copied' ? t("Copied to the clipboard") : ''}</span>
     </button>
   )
 }
@@ -110,7 +111,7 @@ function PostAuthor({ detail }: { detail: string }) {
         <LogoSeal size={36} />
       </span>
       <span className="stack">
-        <strong>[ORGANISATION NAME]</strong>
+        <strong>{t("[ORGANISATION NAME]")}</strong>
         <span className="muted small">{detail}</span>
       </span>
     </div>
@@ -122,8 +123,8 @@ function LinkedInView({ c }: { c: LinkedInPost }) {
   const text = [...list(c.paragraphs).map((p) => p.text), tags].filter(Boolean).join('\n\n')
   return (
     <div className="stack gap-12">
-      <article className="post-card" aria-label="LinkedIn post preview">
-        <PostAuthor detail="Official page · just now" />
+      <article className="post-card" aria-label={t("LinkedIn post preview")}>
+        <PostAuthor detail={t("Official page · just now")} />
         <div className="stack gap-10">
           {list(c.paragraphs).map((p, i) => (
             <G key={i} item={p} path={['paragraphs', i]} />
@@ -133,10 +134,9 @@ function LinkedInView({ c }: { c: LinkedInPost }) {
       </article>
       <div className="row gap-10 wrap">
         <span className={text.length > 3000 ? 'small over-limit' : 'muted small'}>
-          {text.length.toLocaleString('en-IN')} / 3,000 characters{text.length > 3000 && ' (too long)'}
-        </span>
+          {t("{value} / 3,000 characters{value2}", { value: text.length.toLocaleString(locale()), value2: text.length > 3000 && t(" (too long)") })}</span>
         <div className="grow" />
-        <CopyButton text={text} label="Copy" />
+        <CopyButton text={text} label={t("Copy")} />
       </div>
     </div>
   )
@@ -147,7 +147,7 @@ function XThreadView({ c }: { c: XThread }) {
   const over = tweets.filter((t) => t.text.length > 280).length
   return (
     <div className="stack gap-12">
-      <ol className="thread" aria-label="X thread preview">
+      <ol className="thread" aria-label={t("X thread preview")}>
         {tweets.map((tweet, i) => (
           <li key={i} className="thread-post">
             <span className="post-avatar" aria-hidden="true">
@@ -155,13 +155,13 @@ function XThreadView({ c }: { c: XThread }) {
             </span>
             <div className="stack gap-4 grow">
               <div className="row gap-8 wrap">
-                <strong>[ORGANISATION NAME]</strong>
+                <strong>{t("[ORGANISATION NAME]")}</strong>
                 <span className="mono muted small">
                   {i + 1}/{tweets.length}
                 </span>
                 <div className="grow" />
                 <span className={tweet.text.length > 280 ? 'mono small over-limit' : 'mono small count-ok'}>
-                  {tweet.text.length}/280{tweet.text.length > 280 && ' too long'}
+                  {tweet.text.length}/280{tweet.text.length > 280 && t(" too long")}
                 </span>
               </div>
               <G item={tweet} path={['tweets', i]} />
@@ -171,10 +171,10 @@ function XThreadView({ c }: { c: XThread }) {
       </ol>
       <div className="row gap-10 wrap">
         <span className={over ? 'small over-limit' : 'small count-ok'}>
-          {over ? `${over} post${over === 1 ? ' is' : 's are'} over 280 characters` : 'All posts within 280 characters'}
+          {over ? t("{over} post{n} over 280 characters", { over: over, n: over === 1 ? ' is' : 's are' }) : t("All posts within 280 characters")}
         </span>
         <div className="grow" />
-        <CopyButton text={tweets.map((t) => t.text).join('\n\n')} label="Copy thread" />
+        <CopyButton text={tweets.map((t) => t.text).join('\n\n')} label={t("Copy thread")} />
       </div>
     </div>
   )
@@ -189,10 +189,10 @@ function ExecutiveSummaryView({ c, meta }: { c: ExecutiveSummary; meta: ViewMeta
   const { linked, claims } = traced(meta.quality)
   return (
     <div className="summary-layout">
-      <article className="doc-sheet" aria-label="Executive summary preview">
+      <article className="doc-sheet" aria-label={t("Executive summary preview")}>
         <div className="doc-head">
           <LogoSeal size={36} />
-          <span className="muted small grow">[ORGANISATION NAME] · Executive briefing</span>
+          <span className="muted small grow">{t("[ORGANISATION NAME] · Executive briefing")}</span>
           {meta.tlp && <TlpLabel tlp={meta.tlp} />}
         </div>
         <div className="doc-rule" aria-hidden="true">
@@ -203,18 +203,17 @@ function ExecutiveSummaryView({ c, meta }: { c: ExecutiveSummary; meta: ViewMeta
           <Traced path={['title']} text={c.title} />
         </h3>
         <p className="muted small">
-          {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })} · {count} words · {seconds}-second read
-        </p>
-        <h4 className="section-title">What happened</h4>
+          {t("{value} · {count} words · {seconds}-second read", { value: new Date().toLocaleDateString(locale(), { day: 'numeric', month: 'long', year: 'numeric' }), count: count, seconds: seconds })}</p>
+        <h4 className="section-title">{t("What happened")}</h4>
         <G item={c.bottom_line} path={['bottom_line']} />
-        <h4 className="section-title">Key points</h4>
+        <h4 className="section-title">{t("Key points")}</h4>
         <ul className="clean-list">
           {list(c.key_points).map((p, i) => (
             <G key={i} item={p} path={['key_points', i]} as="li" />
           ))}
         </ul>
         <div className="decision-box">
-          <h4 className="decision-title">Decision needed</h4>
+          <h4 className="decision-title">{t("Decision needed")}</h4>
           <ol className="clean-list numbered">
             {list(c.actions_needed).map((p, i) => (
               <G key={i} item={p} path={['actions_needed', i]} as="li" />
@@ -223,24 +222,23 @@ function ExecutiveSummaryView({ c, meta }: { c: ExecutiveSummary; meta: ViewMeta
         </div>
         <Footnote meta={meta} />
       </article>
-      <dl className="facts-table" aria-label="About this summary">
+      <dl className="facts-table" aria-label={t("About this summary")}>
         <div>
-          <dt>Audience</dt>
+          <dt>{t("Audience")}</dt>
           <dd>{meta.audience}</dd>
         </div>
         <div>
-          <dt>Length</dt>
-          <dd>{count} words</dd>
+          <dt>{t("Length")}</dt>
+          <dd>{t("{count} words", { count: count })}</dd>
         </div>
         <div>
-          <dt>Reading time</dt>
-          <dd>{seconds} seconds</dd>
+          <dt>{t("Reading time")}</dt>
+          <dd>{t("{seconds} seconds", { seconds: seconds })}</dd>
         </div>
         <div>
-          <dt>Traced to source</dt>
+          <dt>{t("Traced to source")}</dt>
           <dd>
-            {linked} of {claims} sentences
-          </dd>
+            {t("{linked} of {claims} sentences", { linked: linked, claims: claims })}</dd>
         </div>
       </dl>
     </div>
@@ -263,7 +261,7 @@ function NumberTile({ n, i }: { n: Infographic['key_numbers'][number]; i: number
   )
   if (!block.onClick) return <div className="number-tile">{content}</div>
   return (
-    <button type="button" className={`number-tile ${block.className}`} onClick={block.onClick} aria-label={`${n.value} ${n.label}: show where this comes from`}>
+    <button type="button" className={`number-tile ${block.className}`} onClick={block.onClick} aria-label={t("{value} {label}: show where this comes from", { value: n.value, label: n.label })}>
       {content}
     </button>
   )
@@ -275,29 +273,29 @@ function InfographicView({ c }: { c: Infographic }) {
   return (
     <div className="stack gap-14">
       <div className="stack gap-6">
-        <span className="section-label">Layout</span>
+        <span className="section-label">{t("Layout")}</span>
         <div className="layout-options" role="list">
           {Object.entries(LAYOUTS).map(([key, label]) => (
             <span key={key} role="listitem" className={c.layout === key ? 'layout-option is-on' : 'layout-option'}>
               {c.layout === key && <Icon name="check" size={16} strokeWidth={2.4} />}
               {label}
-              {c.layout === key && <span className="sr-only"> (used)</span>}
+              {c.layout === key && <span className="sr-only"> {t("(used)")}</span>}
             </span>
           ))}
         </div>
       </div>
       <div className="stack gap-6">
-        <span className="section-label">Headline</span>
+        <span className="section-label">{t("Headline")}</span>
         <p className="key-message">
           <Traced path={['headline']} text={c.headline} />
         </p>
-        <span className="section-label">Subheadline</span>
+        <span className="section-label">{t("Subheadline")}</span>
         <p className="key-message small">
           <Traced path={['subheadline']} text={c.subheadline} />
         </p>
       </div>
       <div className="stack gap-6">
-        <span className="section-label">Main numbers</span>
+        <span className="section-label">{t("Main numbers")}</span>
         <div className="number-tiles">
           {list(c.key_numbers).map((n, i) => (
             <NumberTile key={i} n={n} i={i} />
@@ -305,7 +303,7 @@ function InfographicView({ c }: { c: Infographic }) {
         </div>
       </div>
       <div className="stack gap-6">
-        <span className="section-label">Do these things now</span>
+        <span className="section-label">{t("Do these things now")}</span>
         <ol className="clean-list numbered">
           {list(c.steps).map((s, i) => (
             <G key={i} item={s} path={['steps', i]} as="li" />
@@ -330,25 +328,25 @@ function AdvisoryView({ c, meta }: { c: Advisory; meta: ViewMeta }) {
       <h3 className="doc-title">
         <Traced path={['title']} text={c.title} />
       </h3>
-      <h4 className="section-title">Overview</h4>
+      <h4 className="section-title">{t("Overview")}</h4>
       <G item={c.overview} path={['overview']} />
-      <h4 className="section-title">Who and what is affected</h4>
+      <h4 className="section-title">{t("Who and what is affected")}</h4>
       <ul className="clean-list">
         {list(c.affected).map((a, i) => (
           <G key={i} item={a} path={['affected', i]} as="li" />
         ))}
       </ul>
-      <h4 className="section-title">How the attack works</h4>
+      <h4 className="section-title">{t("How the attack works")}</h4>
       <G item={c.description} path={['description']} />
-      <h4 className="section-title">Impact</h4>
+      <h4 className="section-title">{t("Impact")}</h4>
       <G item={c.impact} path={['impact']} />
       {ind && (ind.cves.length > 0 || ind.ips.length > 0 || ind.hashes.length > 0) && (
         <>
-          <h4 className="section-title">Indicators found in the source</h4>
+          <h4 className="section-title">{t("Indicators found in the source")}</h4>
           <IndicatorTable indicators={ind} />
         </>
       )}
-      <h4 className="section-title">Recommended actions</h4>
+      <h4 className="section-title">{t("Recommended actions")}</h4>
       <ol className="clean-list numbered">
         {list(c.recommendations).map((r, i) => (
           <G key={i} item={r} path={['recommendations', i]} as="li" />
@@ -367,7 +365,7 @@ function PresentationView({ c, meta }: { c: Presentation; meta: ViewMeta }) {
   const [index, setIndex] = useState(0)
   const at = Math.min(index, Math.max(0, slides.length - 1))
   const slide = slides[at]
-  if (!slide) return <p className="muted">No slides.</p>
+  if (!slide) return <p className="muted">{t("No slides.")}</p>
   const sentences = (meta.quality?.sentences ?? []).filter((s) => s.path[0] === 'slides' && s.path[1] === at)
   const claims = sentences.filter((s) => s.status === 'linked' || s.status === 'unlinked' || s.status === 'unverified')
   const onSlide = words(slide.title) + list(slide.bullets).reduce((sum, b) => sum + words(b), 0)
@@ -375,7 +373,7 @@ function PresentationView({ c, meta }: { c: Presentation; meta: ViewMeta }) {
 
   return (
     <div className="deck-layout">
-      <ol className="deck-thumbs" aria-label="Slides">
+      <ol className="deck-thumbs" aria-label={t("Slides")}>
         {slides.map((s, i) => (
           <li key={i}>
             <button
@@ -400,20 +398,19 @@ function PresentationView({ c, meta }: { c: Presentation; meta: ViewMeta }) {
       <div className="stack gap-14 deck-main">
         <div className="row gap-10 wrap">
           <span className="muted small grow">
-            Deck title: <Traced path={['title']} text={c.title} />
+            {t("Deck title:")} <Traced path={['title']} text={c.title} />
           </span>
-          <button type="button" className="icon-btn icon-btn-sm" aria-label="Previous slide" disabled={at === 0} onClick={() => setIndex(at - 1)}>
+          <button type="button" className="icon-btn icon-btn-sm" aria-label={t("Previous slide")} disabled={at === 0} onClick={() => setIndex(at - 1)}>
             <Icon name="chevronLeft" size={18} />
           </button>
           <span className="small" aria-live="polite">
-            Slide {at + 1} of {slides.length}
-          </span>
-          <button type="button" className="icon-btn icon-btn-sm" aria-label="Next slide" disabled={at >= slides.length - 1} onClick={() => setIndex(at + 1)}>
+            {t("Slide {value} of {length}", { value: at + 1, length: slides.length })}</span>
+          <button type="button" className="icon-btn icon-btn-sm" aria-label={t("Next slide")} disabled={at >= slides.length - 1} onClick={() => setIndex(at + 1)}>
             <Icon name="chevronRight" size={18} />
           </button>
         </div>
 
-        <section className="slide-frame" aria-label={`Slide ${at + 1}: ${slide.title}`}>
+        <section className="slide-frame" aria-label={t("Slide {n}: {title}", { n: at + 1, title: slide.title })}>
           <div className="slide-strip" aria-hidden="true">
             <span />
             <span />
@@ -438,28 +435,27 @@ function PresentationView({ c, meta }: { c: Presentation; meta: ViewMeta }) {
           </div>
         </section>
 
-        <section className="notes-card" aria-label="Speaker notes">
-          <h4 className="notes-title">Speaker notes</h4>
+        <section className="notes-card" aria-label={t("Speaker notes")}>
+          <h4 className="notes-title">{t("Speaker notes")}</h4>
           <p className="grounded">
             <Traced path={['slides', at, 'speaker_notes']} text={slide.speaker_notes} />
           </p>
         </section>
 
-        <dl className="facts-table facts-row" aria-label="This slide">
+        <dl className="facts-table facts-row" aria-label={t("This slide")}>
           <div>
-            <dt>Traced</dt>
+            <dt>{t("Traced")}</dt>
             <dd>
-              {claims.filter((s) => s.status === 'linked').length} of {claims.length} sentences
-            </dd>
+              {t("{length} of {length2} sentences", { length: claims.filter((s) => s.status === 'linked').length, length2: claims.length })}</dd>
           </div>
           <div>
-            <dt>Words on slide</dt>
+            <dt>{t("Words on slide")}</dt>
             <dd className={onSlide > MAX_SLIDE_WORDS ? 'over-limit' : undefined}>
-              {onSlide} · {onSlide > MAX_SLIDE_WORDS ? 'too many' : 'within limit'}
+              {onSlide} · {onSlide > MAX_SLIDE_WORDS ? t("too many") : t("within limit")}
             </dd>
           </div>
           <div>
-            <dt>Facts used</dt>
+            <dt>{t("Facts used")}</dt>
             <dd className="mono">{list(slide.fact_ids).join(', ') || '—'}</dd>
           </div>
         </dl>
@@ -480,7 +476,7 @@ function VideoView({ c }: { c: VideoPackage }) {
   const [index, setIndex] = useState(0)
   const at = Math.min(index, Math.max(0, scenes.length - 1))
   const scene = scenes[at]
-  if (!scene) return <p className="muted">No scenes.</p>
+  if (!scene) return <p className="muted">{t("No scenes.")}</p>
   const caption = scene.narration.split(/(?<=[.!?])\s/)[0]
   const total = c.duration_seconds || scenes.at(-1)?.end || 0
 
@@ -490,14 +486,13 @@ function VideoView({ c }: { c: VideoPackage }) {
         <h3 className="grow">
           <Traced path={['title']} text={c.title} />
         </h3>
-        <span className="chip chip-neutral">About {clock(total)} long · {scenes.length} scenes</span>
+        <span className="chip chip-neutral">{t("About {total} long · {length} scenes", { total: clock(total), length: scenes.length })}</span>
       </div>
 
       <div className="video-layout">
-        <section className="video-frame" aria-label={`Storyboard, scene ${at + 1}`}>
+        <section className="video-frame" aria-label={t("Storyboard, scene {n}", { n: at + 1 })}>
           <span className="video-badge">
-            Scene {at + 1} · {clock(scene.start)}
-          </span>
+            {t("Scene {value} · {start}", { value: at + 1, start: clock(scene.start) })}</span>
           <div className="video-art">
             <span className="video-visual">{scene.visual}</span>
             <strong className="video-onscreen">{scene.on_screen_text}</strong>
@@ -505,24 +500,24 @@ function VideoView({ c }: { c: VideoPackage }) {
           <span className="video-caption">{caption}</span>
         </section>
 
-        <section className="stack gap-10 scene-details" aria-label={`Scene ${at + 1} details`}>
-          <h4 className="notes-title">Scene {at + 1}</h4>
-          <span className="section-label">Narration</span>
+        <section className="stack gap-10 scene-details" aria-label={t("Scene {n} details", { n: at + 1 })}>
+          <h4 className="notes-title">{t("Scene {value}", { value: at + 1 })}</h4>
+          <span className="section-label">{t("Narration")}</span>
           <p className="grounded">
             <Traced path={['scenes', at, 'narration']} text={scene.narration} />
           </p>
-          <span className="section-label">On screen</span>
+          <span className="section-label">{t("On screen")}</span>
           <p className="grounded">
             <Traced path={['scenes', at, 'on_screen_text']} text={scene.on_screen_text} />
           </p>
-          <span className="section-label">Visual note</span>
+          <span className="section-label">{t("Visual note")}</span>
           <p className="grounded muted">
             <Traced path={['scenes', at, 'visual']} text={scene.visual} />
           </p>
         </section>
       </div>
 
-      <div className="video-timeline" role="progressbar" aria-label="Position in the video" aria-valuemin={0} aria-valuemax={Math.round(total)} aria-valuenow={Math.round(scene.start)} aria-valuetext={`${clock(scene.start)} of ${clock(total)}`}>
+      <div className="video-timeline" role="progressbar" aria-label={t("Position in the video")} aria-valuemin={0} aria-valuemax={Math.round(total)} aria-valuenow={Math.round(scene.start)} aria-valuetext={t("{n} of {n2}", { n: clock(scene.start), n2: clock(total) })}>
         <span className="mono small">
           {clock(scene.start)} / {clock(total)}
         </span>
@@ -531,7 +526,7 @@ function VideoView({ c }: { c: VideoPackage }) {
         </span>
       </div>
 
-      <ol className="scene-strip" aria-label="Scenes">
+      <ol className="scene-strip" aria-label={t("Scenes")}>
         {scenes.map((s, i) => (
           <li key={i}>
             <button type="button" className={i === at ? 'scene-tile is-current' : 'scene-tile'} aria-current={i === at ? 'true' : undefined} onClick={() => setIndex(i)}>
@@ -547,9 +542,9 @@ function VideoView({ c }: { c: VideoPackage }) {
         ))}
       </ol>
 
-      <p className="muted small">The video (.mp4) and the narration (.mp3) are made on this computer from these scenes: use “Make and watch the video” above, or the downloads below.</p>
+      <p className="muted small">{t("The video (.mp4) and the narration (.mp3) are made on this computer from these scenes: use “Make and watch the video” above, or the downloads below.")}</p>
       <details>
-        <summary>Subtitles ({list(c.subtitles).length} lines)</summary>
+        <summary>{t("Subtitles ({length} lines)", { length: list(c.subtitles).length })}</summary>
         <pre className="json-box">
           {list(c.subtitles)
             .map((s) => `${s.index}\n${s.start} --> ${s.end}\n${s.text}\n`)
@@ -562,16 +557,18 @@ function VideoView({ c }: { c: VideoPackage }) {
 
 // ---- shared bits --------------------------------------------------------------------------
 
+const SEVERITY_WORDS: Record<string, string> = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low' }
+
 export function SeverityChip({ severity }: { severity: string }) {
   const tone = severity === 'critical' || severity === 'high' ? 'chip-red' : severity === 'medium' ? 'chip-saffron' : 'chip-neutral'
-  return <span className={`chip ${tone}`}>Severity: {severity}</span>
+  return <span className={`chip ${tone}`}>{t("Severity")}: {t(SEVERITY_WORDS[severity] ?? severity)}</span>
 }
 
 export function IndicatorTable({ indicators }: { indicators: FactSheet['indicators'] }) {
   const rows: [string, string[]][] = [
-    ['Vulnerability (CVE)', indicators.cves],
-    ['IP addresses', indicators.ips],
-    ['File fingerprints', indicators.hashes],
+    [t('Vulnerability (CVE)'), indicators.cves],
+    [t('IP addresses'), indicators.ips],
+    [t('File fingerprints'), indicators.hashes],
   ]
   return (
     <div className="indicator-table">
@@ -598,7 +595,7 @@ export function IndicatorTable({ indicators }: { indicators: FactSheet['indicato
 // Stage 8: the emergency alert as the text message people receive, with its length
 function SmsView({ c }: { c: { message?: { text: string } } }) {
   const text = c.message?.text ?? ''
-  const unicode = /[^\x00-\x7f]/.test(text)
+  const unicode = Array.from(text).some((ch) => ch.charCodeAt(0) > 127) // Indian scripts: UCS-2, 70 per SMS
   const limit = unicode ? 70 : 160
   const parts = text.length <= limit ? 1 : Math.ceil(text.length / (limit - 7))
   return (
@@ -607,9 +604,7 @@ function SmsView({ c }: { c: { message?: { text: string } } }) {
         <Traced path={['message', 'text']} text={text} />
       </div>
       <span className={parts > 1 ? 'small over-limit' : 'small count-ok'}>
-        {text.length} / {limit} characters · {parts === 1 ? 'fits one SMS' : `${parts} SMS parts`}
-        {unicode && ' (Indian scripts: 70 characters in one SMS)'}
-      </span>
+        {t("{length} / {limit} characters · {value}{value2}", { length: text.length, limit: limit, value: parts === 1 ? t("fits one SMS") : t("{parts} SMS parts", { parts: parts }), value2: unicode && t(" (Indian scripts: 70 characters in one SMS)") })}</span>
     </div>
   )
 }

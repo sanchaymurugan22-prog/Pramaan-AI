@@ -11,6 +11,7 @@ import { markWelcomed, storedLanguage, storeLanguage } from '../../localPrefs'
 import { links, navigate } from '../../router'
 import { aiLabel } from '../format'
 import { BrandMark } from './AuthLayout'
+import { t } from '../../i18n'
 
 const BADGES: { icon: IconName; text: string; tone: string }[] = [
   { icon: 'wifiOff', text: 'Works fully offline', tone: 'green' },
@@ -38,12 +39,12 @@ export function Splash({ health }: { health: Health | null | undefined }) {
         <span className="splash-seal">
           <LogoSeal size={136} />
         </span>
-        <h1 className="splash-name">Pramaan AI</h1>
+        <h1 className="splash-name">{t("Pramaan AI")}</h1>
         <span className="splash-devanagari" lang="hi">
           प्रमाण
         </span>
-        <p className="splash-tagline">Content you can prove.</p>
-        <p className="muted splash-sub">One source · every format · every Indian language</p>
+        <p className="splash-tagline">{t("Content you can prove.")}</p>
+        <p className="muted splash-sub">{t("One source · every format · every Indian language")}</p>
         <ul className="splash-badges">
           {BADGES.map((b) => (
             <li key={b.text}>
@@ -60,16 +61,16 @@ export function Splash({ health }: { health: Health | null | undefined }) {
           <span />
         </div>
         <p className="muted small" role="status">
-          {state === 'checking' && 'Checking this computer…'}
-          {state === 'ready' && `Ready · ${aiLabel(health?.ai_mode)}`}
-          {state === 'down' && 'The backend is not running. Start it with ./scripts/start.sh'}
+          {state === 'checking' && t("Checking this computer…")}
+          {state === 'ready' && t("Ready · {n}", { n: aiLabel(health?.ai_mode) })}
+          {state === 'down' && t("The backend is not running. Start it with ./scripts/start.sh")}
         </p>
         <button type="button" className="btn btn-lg btn-navy" onClick={start} disabled={state !== 'ready'} autoFocus>
-          Get started
+          {t("Get started")}
           <Icon name="arrowRight" size={18} strokeWidth={2} />
         </button>
       </main>
-      <p className="muted small splash-foot">Built on Indian AI · Sarvam AI · BharatGen · AI4Bharat (IIT Madras)</p>
+      <p className="muted small splash-foot">{t("Built on Indian AI · Sarvam AI · BharatGen · AI4Bharat (IIT Madras)")}</p>
     </div>
   )
 }
@@ -90,7 +91,7 @@ export function LanguagePicker() {
   useEffect(() => {
     getFormOptions()
       .then((o) => setLanguages(o.languages))
-      .catch(() => setError('Could not load the languages. Is the backend running?'))
+      .catch(() => setError(t("Could not load the languages. Is the backend running?")))
   }, [])
 
   function next() {
@@ -108,12 +109,12 @@ export function LanguagePicker() {
       <header className="row gap-12 language-head">
         <BrandMark />
         <div className="grow" />
-        <span className="eyebrow">Step 1 of 2 · Language</span>
+        <span className="eyebrow">{t("Step 1 of 2 · Language")}</span>
       </header>
       <main className="language-main">
         <div className="row gap-20 wrap align-start">
           <div className="stack gap-6 grow">
-            <h1 className="language-title">Choose your language</h1>
+            <h1 className="language-title">{t("Choose your language")}</h1>
             <p className="language-sub">
               <span lang="hi">अपनी भाषा चुनें</span> · <span lang="ta">உங்கள் மொழியைத் தேர்ந்தெடுக்கவும்</span> ·{' '}
               <span lang="bn">আপনার ভাষা বেছে নিন</span>
@@ -122,13 +123,12 @@ export function LanguagePicker() {
           <p className="notice notice-green language-note">
             <Icon name="globe" size={20} />
             <span>
-              Your choice is saved now. The app's own words are in English until Stage 8; outputs in all 23 languages
-              are translated offline by Indian AI.
+              {t("Your choice is saved now. The app's own words are in English or हिन्दी; outputs in all 23 languages are translated offline by Indian AI.")}
             </span>
           </p>
         </div>
         {error && <div className="alert alert-red">{error}</div>}
-        <div className="language-grid" role="radiogroup" aria-label="Language">
+        <div className="language-grid" role="radiogroup" aria-label={t("Language")}>
           {languages.map((l) => (
             <label key={l.code} className={chosen === l.code ? 'language-card is-on' : 'language-card'}>
               <input type="radio" name="language" className="sr-only" checked={chosen === l.code} onChange={() => setChosen(l.code)} />
@@ -149,11 +149,11 @@ export function LanguagePicker() {
       </main>
       <footer className="language-foot">
         <span className="muted">
-          Selected: <strong>{name}</strong> · You can change this any time in Profile &amp; settings.
+          Selected: <strong>{name}</strong> {t("· You can change this any time in Profile & settings.")}
         </span>
         <div className="grow" />
         <button type="button" className="btn btn-lg btn-navy" onClick={next}>
-          Continue
+          {t("Continue")}
           <Icon name="arrowRight" size={18} strokeWidth={2} />
         </button>
       </footer>

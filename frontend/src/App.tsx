@@ -18,7 +18,7 @@ import { Pending, RequestAccess } from './pages/auth/RequestAccess'
 import { Setup } from './pages/auth/Setup'
 import { SignIn } from './pages/auth/SignIn'
 import { LanguagePicker, Splash } from './pages/auth/Welcome'
-import { welcomed } from './localPrefs'
+import { storedLanguage, welcomed } from './localPrefs'
 import { ForcedPasswordChange } from './pages/ChangePassword'
 import { Profile } from './pages/Profile'
 import { Help, NoAccess } from './pages/Help'
@@ -38,6 +38,7 @@ import { ReviewJob, Signed } from './pages/ReviewJob'
 import { SendBack } from './pages/SendBack'
 import { SafetyCheck } from './pages/SafetyCheck'
 import { links, navigate, useRoute, type Route } from './router'
+import { setLanguage, t } from './i18n'
 
 // The pages each role may open. Anything else sends them to their home page.
 // (Only for convenience: the backend refuses other roles' requests with 403.)
@@ -97,7 +98,7 @@ export default function App() {
       await apiSignOut()
     } finally {
       setUser(null)
-      setNotice('You have signed out.')
+      setNotice(t("You have signed out."))
       navigate(links.login)
     }
   }, [])
@@ -119,8 +120,12 @@ export default function App() {
     if (start || SIGNED_OUT_PAGES.includes(route.page) || route.page === 'language') navigate(HOME[user.role])
   }, [user, route.page])
 
+  // Stage 8: the interface language: the signed-in user's (Profile, or the switch at the top right), else the one
+  // chosen on the welcome screens. Set before anything is drawn; the pages are keyed by it, so a change redraws all.
+  const uiLang = setLanguage(user ? user.language : storedLanguage())
+
   if (needsSetup === undefined) {
-    return <p className="muted boot-note">{health === null ? 'The backend is not running. Start it with ./scripts/start.sh' : 'Loading…'}</p>
+    return <p className="muted boot-note">{health === null ? t("The backend is not running. Start it with ./scripts/start.sh") : t("Loading…")}</p>
   }
   if (needsSetup) return <Setup onDone={signedIn} />
 
@@ -141,7 +146,7 @@ export default function App() {
   const page = ROLE_PAGES[user.role].includes(route.page) && !SIGNED_OUT_PAGES.includes(route.page) ? route : null
   return (
     <AuthContext.Provider value={auth}>
-      <CountsProvider>
+      <CountsProvider key={uiLang}>
       <div
         className={[
           'app',
@@ -161,7 +166,7 @@ export default function App() {
             content.current?.focus()
           }}
         >
-          Skip to main content
+          {t("Skip to main content")}
         </a>
         <Sidebar route={route} open={menuOpen} onClose={closeMenu} />
         <div className="main-col">

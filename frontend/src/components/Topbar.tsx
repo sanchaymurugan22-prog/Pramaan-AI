@@ -1,11 +1,12 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { search, type Health, type SearchResults } from '../api'
+import { saveProfile, search, type Health, type SearchResults } from '../api'
 import { useAuth } from '../auth'
 import { useCounts } from '../counts'
-import { aiLabel, jobNo, LANGUAGE_NAMES } from '../pages/format'
+import { aiLabel, jobNo } from '../pages/format'
 import { links, navigate } from '../router'
 import { Icon } from './Icon'
 import { StatusChip } from './StatusChip'
+import { getLanguage, t } from '../i18n'
 
 type Props = {
   // undefined = still checking, null = backend not reachable
@@ -16,16 +17,16 @@ type Props = {
 
 // Shows which AI is in use, read live from /api/health.
 function ModelChip({ health }: { health: Props['health'] }) {
-  if (health === undefined) return <span className="chip chip-neutral">Checking…</span>
+  if (health === undefined) return <span className="chip chip-neutral">{t("Checking…")}</span>
   if (health === null)
     return (
       <span className="chip chip-red">
         <Icon name="warning" size={14} strokeWidth={2.2} />
-        Backend offline
+        {t("Backend offline")}
       </span>
     )
   return (
-    <span className={health.ai_mode === 'mock' ? 'chip chip-saffron' : 'chip chip-navy'} title="The AI that writes the outputs">
+    <span className={health.ai_mode === 'mock' ? 'chip chip-saffron' : 'chip chip-navy'} title={t("The AI that writes the outputs")}>
       <Icon name="chip" size={14} strokeWidth={2.2} />
       {aiLabel(health.ai_mode)}
     </span>
@@ -47,7 +48,7 @@ function optionsFrom(found: SearchResults, role: string): Option[] {
   for (const source of found.sources) {
     options.push({
       key: `source-${source.job_id}-${source.id}`, group: 'Sources', label: source.filename,
-      detail: `${source.id} of ${jobNo(source.job_id)} · ${source.job_title}`, href: links.job(source.job_id),
+      detail: t("{id} of {n} · {job_title}", { id: source.id, n: jobNo(source.job_id), job_title: source.job_title }), href: links.job(source.job_id),
     })
   }
   for (const record of found.records) {
@@ -129,12 +130,12 @@ function SearchBox() {
       <input
         type="search"
         role="combobox"
-        aria-label="Search jobs, sources and records"
+        aria-label={t("Search jobs, sources and records")}
         aria-expanded={showList}
         aria-controls={listId}
         aria-autocomplete="list"
         aria-activedescendant={showList && active >= 0 ? `${listId}-${active}` : undefined}
-        placeholder="Search jobs, documents, records"
+        placeholder={t("Search jobs, documents, records")}
         value={text}
         onChange={(e) => {
           setText(e.target.value)
@@ -144,11 +145,10 @@ function SearchBox() {
         onKeyDown={onKey}
       />
       {showList && (
-        <div className="search-results" id={listId} role="listbox" aria-label="Search results">
+        <div className="search-results" id={listId} role="listbox" aria-label={t("Search results")}>
           {options.length === 0 && (
             <p className="muted small search-empty" role="status">
-              Nothing found for “{text.trim()}”. Titles, job numbers, file names and record numbers are searched.
-            </p>
+              {t("Nothing found for “{value}”. Titles, job numbers, file names and record numbers are searched.", { value: text.trim() })}</p>
           )}
           {options.map((option, index) => {
             const heading = option.group !== lastGroup ? option.group : null
@@ -157,7 +157,7 @@ function SearchBox() {
               <div key={option.key} role="presentation">
                 {heading && (
                   <div className="search-group" role="presentation">
-                    {heading}
+                    {t(heading)}
                   </div>
                 )}
                 <div
@@ -170,8 +170,8 @@ function SearchBox() {
                   onMouseEnter={() => setActive(index)}
                 >
                   <span className="stack grow search-option-text">
-                    <span className="search-option-label">{option.label}</span>
-                    <span className="search-option-detail">{option.detail}</span>
+                    <span className="search-option-label">{t(option.label)}</span>
+                    <span className="search-option-detail">{t(option.detail)}</span>
                   </span>
                   {option.chip}
                 </div>
@@ -186,15 +186,25 @@ function SearchBox() {
 
 export function Topbar({ health, onMenu, menuOpen }: Props) {
   const { counts } = useCounts()
-  const { user } = useAuth()
-  const language = user.language || 'en'
+  const { setUser } = useAuth()
   const unread = counts.unread
+  const ui = getLanguage()
+
+  // Stage 8: the interface language, saved with the account (Profile shows the same choice)
+  async function switchTo(code: 'en' | 'hi') {
+    if (code === ui) return
+    try {
+      setUser((await saveProfile({ language: code })).user)
+    } catch {
+      // not saved (offline backend): nothing changes
+    }
+  }
   return (
     <header className="topbar">
       <button
         type="button"
         className="icon-btn menu-btn"
-        aria-label="Menu"
+        aria-label={t("Menu")}
         aria-expanded={menuOpen}
         aria-controls="main-menu"
         onClick={onMenu}
@@ -204,14 +214,19 @@ export function Topbar({ health, onMenu, menuOpen }: Props) {
       <SearchBox />
       <div className="grow" />
       <ModelChip health={health} />
-      <a href={links.profile} className="btn btn-outline btn-sm topbar-lang" aria-label={`Language: ${LANGUAGE_NAMES[language] ?? language}. Change it in Profile and settings`}>
+      <div className="segmented segmented-sm topbar-lang" role="group" aria-label={t('Language of the app')}>
         <Icon name="globe" size={16} color="var(--muted)" strokeWidth={1.8} />
-        <span lang={language}>{LANGUAGE_NAMES[language] ?? language}</span>
-      </a>
+        <button type="button" lang="en" aria-pressed={ui === 'en'} className={ui === 'en' ? 'is-on' : ''} onClick={() => switchTo('en')}>
+          English
+        </button>
+        <button type="button" lang="hi" aria-pressed={ui === 'hi'} className={ui === 'hi' ? 'is-on' : ''} onClick={() => switchTo('hi')}>
+          हिन्दी
+        </button>
+      </div>
       <a
         href={links.notifications}
         className="icon-btn"
-        aria-label={unread ? `Notifications, ${unread} unread` : 'Notifications, none unread'}
+        aria-label={unread ? t('Notifications, {n} unread', { n: unread }) : t('Notifications, none unread')}
       >
         <Icon name="bell" size={20} strokeWidth={1.8} />
         {unread > 0 && (

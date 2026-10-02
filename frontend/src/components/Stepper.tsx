@@ -1,5 +1,6 @@
 import { Fragment } from 'react'
 import { Icon } from './Icon'
+import { t } from '../i18n'
 
 // The steps of a new transformation, as in the design "10 · New transformation · 2 Safety check":
 // done steps get a green tick, the current one a saffron dot, later ones a grey number.
@@ -7,7 +8,7 @@ const STEPS = ['Add sources', 'Safety check', 'Outputs & settings', 'Generate']
 
 export function Stepper({ current }: { current: number }) {
   return (
-    <section className="card stepper" aria-label={`Step ${current} of ${STEPS.length}: ${STEPS[current - 1]}`}>
+    <section className="card stepper" aria-label={t("Step {current} of {length}: {n}", { current: current, length: STEPS.length, n: STEPS[current - 1] })}>
       {STEPS.map((label, index) => {
         const number = index + 1
         const state = number < current ? 'done' : number === current ? 'current' : 'todo'
@@ -18,7 +19,7 @@ export function Stepper({ current }: { current: number }) {
               <span className="step-dot">{state === 'done' ? <Icon name="check" size={16} strokeWidth={2.6} /> : number}</span>
               <span className="step-label">
                 {label}
-                {state === 'done' && <span className="sr-only"> (done)</span>}
+                {state === 'done' && <span className="sr-only"> {t("(done)")}</span>}
               </span>
             </span>
           </Fragment>

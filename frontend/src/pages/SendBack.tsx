@@ -7,6 +7,7 @@ import { Icon } from '../components/Icon'
 import { links, navigate } from '../router'
 import { factLookup } from './format'
 import { ReviewHead, workedOn } from './ReviewJob'
+import { t } from '../i18n'
 
 export function SendBack({ jobId }: { jobId: number }) {
   const { user } = useAuth()
@@ -23,7 +24,7 @@ export function SendBack({ jobId }: { jobId: number }) {
     () =>
       getJob(jobId)
         .then(setJob)
-        .catch((e) => setError(e instanceof Error ? e.message : 'Could not load the job.')),
+        .catch((e) => setError(e instanceof Error ? e.message : t("Could not load the job."))),
     [jobId],
   )
   useEffect(() => {
@@ -34,7 +35,7 @@ export function SendBack({ jobId }: { jobId: number }) {
   }, [reload])
 
   const facts = useMemo(() => factLookup(job?.fact_sheet ?? null), [job?.fact_sheet])
-  if (!job) return <main className="page">{error ? <div className="alert alert-red">{error}</div> : <p className="muted">Loading…</p>}</main>
+  if (!job) return <main className="page">{error ? <div className="alert alert-red">{error}</div> : <p className="muted">{t("Loading…")}</p>}</main>
 
   const comments = job.comments.filter((c) => c.job_version === job.version)
   const owner = job.owner ? firstName(job.owner.full_name) : 'the Operator'
@@ -56,7 +57,7 @@ export function SendBack({ jobId }: { jobId: number }) {
       await reviewJob(job!.id, 'send_back', note, '', reasons)
       navigate(links.review)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not send it back.')
+      setError(e instanceof Error ? e.message : t("Could not send it back."))
       setBusy(false)
     }
   }
@@ -68,7 +69,7 @@ export function SendBack({ jobId }: { jobId: number }) {
       setExtra(null)
       await reload()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not add the comment.')
+      setError(e instanceof Error ? e.message : t("Could not add the comment."))
     }
   }
 
@@ -76,20 +77,20 @@ export function SendBack({ jobId }: { jobId: number }) {
     <main className="page">
       <ReviewHead job={job} eyebrow="Send back">
         <a className="btn btn-outline" href={links.reviewJob(job.id)}>
-          Cancel
+          {t("Cancel")}
         </a>
       </ReviewHead>
       {!ready && (
         <div className="alert alert-yellow">
-          This job cannot be sent back by you now. <a href={links.review}>Back to the review queue</a>
+          {t("This job cannot be sent back by you now.")} <a href={links.review}>{t("Back to the review queue")}</a>
         </div>
       )}
       {error && <div className="alert alert-red" role="alert">{error}</div>}
 
       <div className="sendback-grid">
         <section className="card card-pad stack gap-16" aria-labelledby="why-title">
-          <h2 id="why-title">Why are you sending it back?</h2>
-          <div className="row gap-8 wrap" role="group" aria-label="Reasons">
+          <h2 id="why-title">{t("Why are you sending it back?")}</h2>
+          <div className="row gap-8 wrap" role="group" aria-label={t("Reasons")}>
             {allReasons.map((reason) => {
               const on = reasons.includes(reason)
               return (
@@ -108,33 +109,33 @@ export function SendBack({ jobId }: { jobId: number }) {
           </div>
 
           <div className="row gap-10">
-            <h3 className="grow">Line comments ({comments.length})</h3>
+            <h3 className="grow">{t("Line comments ({length})", { length: comments.length })}</h3>
             <button type="button" className="btn btn-link btn-xs link-red" onClick={() => setExtra(extra === null ? '' : null)} aria-expanded={extra !== null}>
               <Icon name="plus" size={16} strokeWidth={2} />
-              Add comment
+              {t("Add comment")}
             </button>
           </div>
           {extra !== null && (
             <div className="stack gap-8">
               <label className="sr-only" htmlFor="job-comment">
-                A comment about the whole job
+                {t("A comment about the whole job")}
               </label>
-              <textarea id="job-comment" className="input textarea" rows={2} value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="A comment about the whole job" />
+              <textarea id="job-comment" className="input textarea" rows={2} value={extra} onChange={(e) => setExtra(e.target.value)} placeholder={t("A comment about the whole job")} />
               <div className="row gap-8">
                 <button type="button" className="btn btn-outline btn-sm" onClick={() => setExtra(null)}>
-                  Cancel
+                  {t("Cancel")}
                 </button>
                 <button type="button" className="btn btn-sm btn-red" onClick={saveExtra} disabled={!extra.trim()}>
-                  Add
+                  {t("Add")}
                 </button>
               </div>
               <span className="small muted">
-                To comment on one sentence, click it on the <a href={links.reviewJob(job.id)}>review page</a>.
+                {t("To comment on one sentence, click it on the")} <a href={links.reviewJob(job.id)}>{t("review page")}</a>.
               </span>
             </div>
           )}
           {comments.length === 0 && extra === null && (
-            <p className="muted small">No line comments. Click sentences on the review page to comment on them, or write a note below.</p>
+            <p className="muted small">{t("No line comments. Click sentences on the review page to comment on them, or write a note below.")}</p>
           )}
           <ul className="clean-list-plain stack gap-10">
             {comments.map((c) => (
@@ -143,7 +144,7 @@ export function SendBack({ jobId }: { jobId: number }) {
                   <Icon name={c.output_id ? 'file' : 'summary'} size={18} />
                 </span>
                 <button type="button" className="stack gap-2 grow comment-open" onClick={() => setChosen(c.id)}>
-                  <span className="small muted">{c.output_label ?? 'Whole job'} · English</span>
+                  <span className="small muted">{t("{value} · English", { value: c.output_label ?? t("Whole job") })}</span>
                   {c.quote && <q className="comment-quote">{c.quote}</q>}
                   <span>{c.text}</span>
                 </button>
@@ -151,7 +152,7 @@ export function SendBack({ jobId }: { jobId: number }) {
                   <button
                     type="button"
                     className="icon-btn icon-btn-sm"
-                    aria-label="Take back this comment"
+                    aria-label={t("Take back this comment")}
                     onClick={async () => {
                       await takeBackComment(job.id, c.id)
                       await reload()
@@ -165,17 +166,17 @@ export function SendBack({ jobId }: { jobId: number }) {
           </ul>
 
           <label className="field">
-            <span className="field-label">Note to {owner}</span>
+            <span className="field-label">{t("Note to {owner}", { owner: owner })}</span>
             <textarea
               className="input textarea"
               rows={3}
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="e.g. Good structure overall. Please fix the district names and match the source wording, then resend."
+              placeholder={t("e.g. Good structure overall. Please fix the district names and match the source wording, then resend.")}
             />
           </label>
           <div className="row gap-10 wrap">
-            <span className="muted small grow">{owner} will see this on their dashboard and next to each line.</span>
+            <span className="muted small grow">{t("{owner} will see this on their dashboard and next to each line.", { owner: owner })}</span>
             <button
               type="button"
               className="btn btn-lg btn-red"
@@ -183,23 +184,23 @@ export function SendBack({ jobId }: { jobId: number }) {
               disabled={busy || !ready || (note.trim().length < 5 && comments.length === 0)}
             >
               <Icon name="send" size={18} strokeWidth={2} />
-              {busy ? 'Sending…' : `Send back to ${owner}`}
+              {busy ? t("Sending…") : t("Send back to {owner}", { owner: owner })}
             </button>
           </div>
         </section>
 
-        <aside className="card card-pad stack gap-12" aria-label="The selected comment and its source">
+        <aside className="card card-pad stack gap-12" aria-label={t("The selected comment and its source")}>
           {selected ? (
             <>
               <div className="row gap-10">
-                <h2 className="grow">{selected.output_label ?? 'Whole job'}</h2>
-                <span className="chip chip-neutral chip-xs">Selected comment</span>
+                <h2 className="grow">{selected.output_label ?? t("Whole job")}</h2>
+                <span className="chip chip-neutral chip-xs">{t("Selected comment")}</span>
               </div>
-              {selected.quote ? <p className="lead">“{selected.quote}”</p> : <p className="muted">A comment about the whole job.</p>}
+              {selected.quote ? <p className="lead">“{selected.quote}”</p> : <p className="muted">{t("A comment about the whole job.")}</p>}
               {selected.quote && (
                 <>
                   <div className="divider" />
-                  <h3>Source says</h3>
+                  <h3>{t("Source says")}</h3>
                   {sourceFor(selected).length ? (
                     sourceFor(selected).map((q) => (
                       <p key={q} className="source-quote">
@@ -207,13 +208,13 @@ export function SendBack({ jobId }: { jobId: number }) {
                       </p>
                     ))
                   ) : (
-                    <p className="muted small">This line is not linked to any fact in the source.</p>
+                    <p className="muted small">{t("This line is not linked to any fact in the source.")}</p>
                   )}
                 </>
               )}
             </>
           ) : (
-            <p className="muted">Pick a comment to see the line next to what the source says.</p>
+            <p className="muted">{t("Pick a comment to see the line next to what the source says.")}</p>
           )}
         </aside>
       </div>

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { editOutput, type JobDetail, type JobOutput } from '../api'
 import { Icon } from '../components/Icon'
 import { pathKey } from './traceState'
+import { t } from '../i18n'
 
 type Props = {
   jobId: number
@@ -32,7 +33,7 @@ export function OutputEditor({ jobId, output, onSaved, onCancel }: Props) {
       )
       onSaved(job)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save.')
+      setError(e instanceof Error ? e.message : t("Could not save."))
       setSaving(false)
     }
   }
@@ -40,8 +41,7 @@ export function OutputEditor({ jobId, output, onSaved, onCancel }: Props) {
   return (
     <div className="stack gap-14">
       <p className="hint">
-        Change any text below, then <strong>Save and re-check</strong>. The checks run again straight away (no AI).
-        The current text is kept as version {output.version}. Empty a box to remove that post, point or step.
+        {t("Change any text below, then")} <strong>{t("Save and re-check")}</strong>{t(". The checks run again straight away (no AI). The current text is kept as version")} {output.version}{t(". Empty a box to remove that post, point or step.")}
       </p>
       <div className="edit-fields">
         {output.fields.map((f) => {
@@ -51,7 +51,7 @@ export function OutputEditor({ jobId, output, onSaved, onCancel }: Props) {
           return (
             <label key={key} className="field">
               <span className="row gap-8">
-                <span className="field-label grow">{f.label}</span>
+                <span className="field-label grow">{t(f.label)}</span>
                 {limit && <span className={value.length > limit ? 'small over-limit' : 'small muted'}>{value.length}/{limit}</span>}
               </span>
               <textarea
@@ -68,13 +68,13 @@ export function OutputEditor({ jobId, output, onSaved, onCancel }: Props) {
       <div className="row gap-10 wrap edit-actions">
         <button type="button" className="btn btn-saffron" disabled={saving || changed.length === 0} onClick={save}>
           <Icon name="check" size={18} strokeWidth={2.2} />
-          {saving ? 'Saving…' : 'Save and re-check'}
+          {saving ? t("Saving…") : t("Save and re-check")}
         </button>
         <button type="button" className="btn btn-outline" disabled={saving} onClick={onCancel}>
-          Cancel
+          {t("Cancel")}
         </button>
         <span className="muted small">
-          {changed.length === 0 ? 'No changes yet.' : `${changed.length} field${changed.length === 1 ? '' : 's'} changed.`}
+          {changed.length === 0 ? t("No changes yet.") : t("{length} field{n} changed.", { length: changed.length, n: changed.length === 1 ? '' : 's' })}
         </span>
       </div>
     </div>

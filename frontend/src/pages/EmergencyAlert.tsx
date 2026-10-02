@@ -5,6 +5,7 @@ import { LanguagePicker } from '../components/LanguagePicker'
 import { Toggle } from '../components/Toggle'
 import { useLanguages } from '../languages'
 import { links, navigate } from '../router'
+import { t } from '../i18n'
 
 // Design "22 · Emergency alert". The operator writes a short public alert; the app checks it (no panic
 // wording, no private data, SMS length) as they type. "Send for fast-track approval" makes a TLP:CLEAR
@@ -47,7 +48,7 @@ export function EmergencyAlert() {
     try {
       setPreview((await previewAlert(message, languages)).languages)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not translate the preview.')
+      setError(e instanceof Error ? e.message : t("Could not translate the preview."))
     } finally {
       setPreviewing(false)
     }
@@ -78,7 +79,7 @@ export function EmergencyAlert() {
       const job = await createAlert({ type, severity, area, message, outputs, languages, voice })
       navigate(links.progress(job.id))
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not send the alert.')
+      setError(e instanceof Error ? e.message : t("Could not send the alert."))
       setSending(false)
     }
   }
@@ -87,32 +88,32 @@ export function EmergencyAlert() {
     <main className="page">
       <div className="page-head">
         <div className="stack gap-2">
-          <div className="eyebrow eyebrow-red">Emergency mode</div>
-          <h1>Urgent public alert</h1>
-          <p className="muted page-lead">Short alerts in all 22 languages with voice announcements. Goes to fast-track review.</p>
+          <div className="eyebrow eyebrow-red">{t("Emergency mode")}</div>
+          <h1>{t("Urgent public alert")}</h1>
+          <p className="muted page-lead">{t("Short alerts in all 22 languages with voice announcements. Goes to fast-track review.")}</p>
         </div>
         <div className="grow" />
         <span className="chip chip-red">
           <Icon name="bolt" size={14} strokeWidth={2.2} />
-          Fast-track review
+          {t("Fast-track review")}
         </span>
         <a className="btn btn-outline" href={links.dashboard}>
-          Cancel
+          {t("Cancel")}
         </a>
       </div>
 
       <div className="alert-grid">
         <section className="card card-pad stack gap-16" aria-labelledby="write-title">
-          <h2 id="write-title">Write the alert</h2>
+          <h2 id="write-title">{t("Write the alert")}</h2>
 
           <fieldset className="fieldset">
-            <legend className="field-label">Alert type</legend>
+            <legend className="field-label">{t("Alert type")}</legend>
             <div className="row gap-8 wrap">
-              {TYPES.map((t) => (
-                <label key={t} className={type === t ? 'pill pill-red is-on' : 'pill'}>
-                  <input type="radio" name="alert-type" className="sr-only" checked={type === t} onChange={() => setType(t)} />
-                  {type === t && <Icon name="check" size={16} strokeWidth={2.4} />}
-                  {t}
+              {TYPES.map((kind) => (
+                <label key={kind} className={type === kind ? 'pill pill-red is-on' : 'pill'}>
+                  <input type="radio" name="alert-type" className="sr-only" checked={type === kind} onChange={() => setType(kind)} />
+                  {type === kind && <Icon name="check" size={16} strokeWidth={2.4} />}
+                  {t(kind)}
                 </label>
               ))}
             </div>
@@ -120,45 +121,43 @@ export function EmergencyAlert() {
 
           <div className="alert-row">
             <fieldset className="fieldset">
-              <legend className="field-label">Severity</legend>
+              <legend className="field-label">{t("Severity")}</legend>
               <div className="segmented">
                 {SEVERITIES.map((s) => (
                   <label key={s} className={severity === s ? 'segment is-on is-red' : 'segment'}>
                     <input type="radio" name="severity" className="sr-only" checked={severity === s} onChange={() => setSeverity(s)} />
-                    {s}
+                    {t(s)}
                   </label>
                 ))}
               </div>
             </fieldset>
             <div className="field grow">
-              <label className="field-label" htmlFor="alert-area">Area</label>
+              <label className="field-label" htmlFor="alert-area">{t("Area")}</label>
               <input id="alert-area" className="input" value={area} onChange={(e) => setArea(e.target.value)} maxLength={120} />
             </div>
           </div>
 
           <div className="field">
-            <label className="field-label" htmlFor="alert-message">Message in English</label>
+            <label className="field-label" htmlFor="alert-message">{t("Message in English")}</label>
             <textarea
               id="alert-message"
               className="input textarea"
               rows={4}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Cyber alert: Do not open unknown links about hospital bills. Report fraud by calling 1930."
+              placeholder={t("Cyber alert: Do not open unknown links about hospital bills. Report fraud by calling 1930.")}
               aria-describedby="alert-count alert-tip"
             />
             <div className="row gap-10 wrap">
               <span id="alert-count" className={chars > SMS ? 'small over-limit' : 'small count-ok'} aria-live="polite">
-                {chars} / {SMS} characters ·{' '}
-                {chars <= SMS ? 'fits one SMS' : `${check?.sms_parts ?? Math.ceil(chars / 153)} SMS parts`}
-              </span>
+                {t("{chars} / {SMS} characters · {value}", { chars: chars, SMS: SMS, value: chars <= SMS ? t("fits one SMS") : t("{n} SMS parts", { n: check?.sms_parts ?? Math.ceil(chars / 153) }) })}</span>
               <div className="grow" />
-              <span id="alert-tip" className="muted small">Plain words, no panic. Name the helpline (1930 for cyber fraud).</span>
+              <span id="alert-tip" className="muted small">{t("Plain words, no panic. Name the helpline (1930 for cyber fraud).")}</span>
             </div>
           </div>
 
           <fieldset className="fieldset">
-            <legend className="field-label">Outputs to prepare</legend>
+            <legend className="field-label">{t("Outputs to prepare")}</legend>
             <div className="row gap-8 wrap">
               {OUTPUTS.map((o) => (
                 <label key={o.key} className="check-pill">
@@ -167,7 +166,7 @@ export function EmergencyAlert() {
                     checked={outputs.includes(o.key)}
                     onChange={() => setOutputs((now) => (now.includes(o.key) ? now.filter((k) => k !== o.key) : [...now, o.key]))}
                   />
-                  {o.label}
+                  {t(o.label)}
                 </label>
               ))}
             </div>
@@ -180,27 +179,27 @@ export function EmergencyAlert() {
               setChosen(codes)
               setPreview(null)
             }}
-            label="Languages"
+            label={t("Languages")}
             showVoices
           />
           <Toggle
-            label="Add voice announcement"
+            label={t("Add voice announcement")}
             detail={
               voices.length
-                ? `Indian voices on this computer: ${voices.join(', ')}. Other languages: text only.`
-                : 'No voices on this computer: text only.'
+                ? t("Indian voices on this computer: {n}. Other languages: text only.", { n: voices.join(', ') })
+                : t("No voices on this computer: text only.")
             }
             on={voice}
             onChange={setVoice}
           />
           <div className="toggle-row">
             <span className="stack gap-1 grow">
-              <span className="toggle-label">QR code for verification</span>
-              <span className="toggle-detail">Added to every file when a Reviewer signs it</span>
+              <span className="toggle-label">{t("QR code for verification")}</span>
+              <span className="toggle-detail">{t("Added to every file when a Reviewer signs it")}</span>
             </span>
             <span className="chip chip-green">
               <Icon name="check" size={14} strokeWidth={2.4} />
-              Always
+              {t("Always")}
             </span>
           </div>
 
@@ -209,23 +208,23 @@ export function EmergencyAlert() {
 
         <section className="card card-pad stack gap-14 preview-card" aria-labelledby="preview-title">
           <div className="row gap-10 wrap">
-            <h2 id="preview-title">Preview in every language</h2>
+            <h2 id="preview-title">{t("Preview in every language")}</h2>
             <div className="grow" />
             <span className="chip chip-neutral">
-              {preview ? `${preview.length + 1} of ${languages.length + 1} ready` : `English · ${languages.length} more to translate`}
+              {preview ? t("{n} of {n2} ready", { n: preview.length + 1, n2: languages.length + 1 }) : t("English · {length} more to translate", { length: languages.length })}
             </span>
           </div>
           <article className="lang-card" lang="en">
             <div className="row gap-8">
-              <strong className="lang-name">English</strong>
+              <strong className="lang-name">{t("English")}</strong>
               <span className="muted small">{type} · {severity} · {area}</span>
             </div>
-            <p className="lang-text">{message.trim() || 'Your message appears here as people will read it.'}</p>
+            <p className="lang-text">{message.trim() || t("Your message appears here as people will read it.")}</p>
           </article>
           {languages.length > 0 && (
             <button type="button" className="btn btn-outline" onClick={showPreview} disabled={previewing || chars < 20}>
               <Icon name="globe" size={18} strokeWidth={2} />
-              {previewing ? 'Translating…' : preview ? 'Translate the preview again' : `Show it in ${languages.length} languages`}
+              {previewing ? t("Translating…") : preview ? t("Translate the preview again") : t("Show it in {length} languages", { length: languages.length })}
             </button>
           )}
           {preview && (
@@ -239,44 +238,42 @@ export function EmergencyAlert() {
                     </span>
                     <div className="grow" />
                     <span className={p.sms_parts > 1 ? 'small over-limit' : 'small count-ok'} lang="en">
-                      {p.chars} / {p.limit} · {p.sms_parts === 1 ? 'one SMS' : `${p.sms_parts} SMS`}
+                      {p.chars} / {p.limit} · {p.sms_parts === 1 ? t("one SMS") : `${p.sms_parts} SMS`}
                     </span>
                     {voice &&
                       (p.voice ? (
                         <span className="chip chip-green chip-xs" title={`Voice: ${p.voice}`} lang="en">
                           <Icon name="volume" size={12} />
-                          Voice
+                          {t("Voice")}
                         </span>
                       ) : (
                         <span className="chip chip-neutral chip-xs" lang="en">
-                          Text only
+                          {t("Text only")}
                         </span>
                       ))}
                   </div>
                   <p className="lang-text">{p.text}</p>
                   {p.changed.length > 0 && (
                     <span className="small over-limit" dir="ltr" lang="en">
-                      Changed in translation: {p.changed.join(', ')}. Check it before sending.
-                    </span>
+                      {t("Changed in translation: {value}. Check it before sending.", { value: p.changed.join(', ') })}</span>
                   )}
                 </article>
               ))}
             </div>
           )}
           <p className="muted small">
-            Machine translated on this computer (IndicTrans2). A Reviewer ticks “Checked by a native speaker” for every
-            language before the alert can be signed.
+            {t("Machine translated on this computer (IndicTrans2). A Reviewer ticks “Checked by a native speaker” for every language before the alert can be signed.")}
           </p>
         </section>
       </div>
 
       {error && <div className="alert alert-red" role="alert">{error}</div>}
 
-      <section className="send-bar" aria-label="Send">
+      <section className="send-bar" aria-label={t("Send")}>
         <Icon name="bolt" size={22} color="var(--red-dark)" />
-        <span className="grow">Any on-duty Reviewer can approve this within minutes. Nothing is sent until it is signed.</span>
+        <span className="grow">{t("Any on-duty Reviewer can approve this within minutes. Nothing is sent until it is signed.")}</span>
         <button type="button" className="btn btn-lg btn-red" onClick={send} disabled={!ready || sending}>
-          {sending ? 'Sending…' : 'Send for fast-track approval'}
+          {sending ? t("Sending…") : t("Send for fast-track approval")}
           <Icon name="send" size={18} strokeWidth={2} />
         </button>
       </section>
@@ -287,7 +284,7 @@ export function EmergencyAlert() {
 function PublicCheck({ check, tooShort, empty }: { check: AlertCheck | null; tooShort: boolean; empty: boolean }) {
   if (empty) return null
   if (tooShort || !check) {
-    return <p className="muted small">The public-release check runs when the message is at least 20 characters.</p>
+    return <p className="muted small">{t("The public-release check runs when the message is at least 20 characters.")}</p>
   }
   if (check.ok) {
     return (
@@ -296,8 +293,8 @@ function PublicCheck({ check, tooShort, empty }: { check: AlertCheck | null; too
           <Icon name="check" size={16} strokeWidth={2.4} />
         </span>
         <span className="stack gap-1">
-          <span className="check-title">Public-release safety check passed</span>
-          <span className="check-detail">No panic wording, no shouting, no private data</span>
+          <span className="check-title">{t("Public-release safety check passed")}</span>
+          <span className="check-detail">{t("No panic wording, no shouting, no private data")}</span>
         </span>
       </div>
     )
@@ -306,12 +303,12 @@ function PublicCheck({ check, tooShort, empty }: { check: AlertCheck | null; too
     <div className="alert alert-red stack gap-6" role="alert">
       <strong className="row gap-8">
         <Icon name="warning" size={18} strokeWidth={2.2} />
-        Public-release check: change the message before sending
+        {t("Public-release check: change the message before sending")}
       </strong>
       <ul className="clean-list">
         {check.problems.map((p, i) => (
           <li key={i}>
-            {p.label}: “{p.text}”
+            {t(p.label)}: “{p.text}”
           </li>
         ))}
       </ul>

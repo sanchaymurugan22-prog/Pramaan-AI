@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { getLetterhead, logoUrl, removeLogo, saveLetterhead, uploadLogo, type Letterhead } from '../../api'
 import { Icon } from '../../components/Icon'
 import { LogoSeal } from '../../components/Logo'
+import { t } from '../../i18n'
 
 type Kind = 'all' | 'documents' | 'slides' | 'infographics' | 'letterheads'
 const TEMPLATES: { name: string; output: string; kind: Exclude<Kind, 'all'>; art: 'doc' | 'slides' | 'poster' | 'text' }[] = [
@@ -32,7 +33,7 @@ export function Templates() {
         setLetterhead(l)
         setName(l.office_name)
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load the letterhead.'))
+      .catch((e) => setError(e instanceof Error ? e.message : t("Could not load the letterhead.")))
   }, [])
 
   async function run(action: () => Promise<Letterhead>, done: string) {
@@ -45,7 +46,7 @@ export function Templates() {
       setVersion((v) => v + 1)
       setMessage(done)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'That did not work.')
+      setError(e instanceof Error ? e.message : t("That did not work."))
     }
   }
 
@@ -55,24 +56,24 @@ export function Templates() {
     event.target.value = ''
   }
 
-  const shown = TEMPLATES.filter((t) => kind === 'all' || t.kind === kind)
+  const shown = TEMPLATES.filter((template) => kind === 'all' || template.kind === kind)
   return (
     <main className="page">
       <div className="page-head">
         <div className="stack gap-2">
-          <div className="eyebrow eyebrow-navy">Admin</div>
-          <h1>Templates</h1>
-          <p className="muted page-lead">The look of every output. Your letterhead is printed on all of them.</p>
+          <div className="eyebrow eyebrow-navy">{t("Admin")}</div>
+          <h1>{t("Templates")}</h1>
+          <p className="muted page-lead">{t("The look of every output. Your letterhead is printed on all of them.")}</p>
         </div>
         <div className="grow" />
         <button type="button" className="btn btn-navy" onClick={() => fileInput.current?.click()}>
           <Icon name="upload" size={18} strokeWidth={2} />
-          Upload logo
+          {t("Upload logo")}
         </button>
-        <input ref={fileInput} type="file" accept="image/png,image/jpeg" hidden aria-label="Choose a logo (PNG or JPEG)" onChange={chooseLogo} />
+        <input ref={fileInput} type="file" accept="image/png,image/jpeg" hidden aria-label={t("Choose a logo (PNG or JPEG)")} onChange={chooseLogo} />
       </div>
 
-      <div className="segmented segmented-wide" role="group" aria-label="Show">
+      <div className="segmented segmented-wide" role="group" aria-label={t("Show")}>
         {(['all', 'documents', 'slides', 'infographics', 'letterheads'] as const).map((k) => (
           <button key={k} type="button" aria-pressed={kind === k} className={kind === k ? 'is-on' : ''} onClick={() => setKind(k)}>
             {k[0].toUpperCase() + k.slice(1)}
@@ -86,9 +87,9 @@ export function Templates() {
       {(kind === 'all' || kind === 'letterheads') && letterhead && (
         <section className="card card-pad letterhead-card" aria-labelledby="letterhead-title">
           <div className="stack gap-14 grow">
-            <h2 id="letterhead-title">Your letterhead</h2>
+            <h2 id="letterhead-title">{t("Your letterhead")}</h2>
             <label className="field">
-              <span className="field-label">Office name</span>
+              <span className="field-label">{t("Office name")}</span>
               <input
                 className="input"
                 value={name}
@@ -97,28 +98,26 @@ export function Templates() {
                 placeholder={letterhead.default_name}
               />
               <span className="field-help">
-                Printed on every exported file and shown as “Issued by” when someone checks a document. Empty = “{letterhead.default_name}”
-                (ISSUING_OFFICE in .env).
-              </span>
+                {t("Printed on every exported file and shown as “Issued by” when someone checks a document. Empty = “{default_name}” (ISSUING_OFFICE in .env).", { default_name: letterhead.default_name })}</span>
             </label>
             <div className="row gap-10 wrap">
               <button type="button" className="btn btn-navy" onClick={() => run(() => saveLetterhead(name), 'Office name saved.')} disabled={name === letterhead.office_name}>
                 <Icon name="check" size={18} strokeWidth={2.4} />
-                Save office name
+                {t("Save office name")}
               </button>
               <button type="button" className="btn btn-outline" onClick={() => fileInput.current?.click()}>
                 <Icon name="upload" size={18} />
-                {letterhead.has_logo ? 'Change logo' : 'Upload logo'}
+                {letterhead.has_logo ? t("Change logo") : t("Upload logo")}
               </button>
               {letterhead.has_logo && (
                 <button type="button" className="btn btn-red-outline" onClick={() => run(removeLogo, 'Logo removed.')}>
-                  Remove logo
+                  {t("Remove logo")}
                 </button>
               )}
             </div>
-            <span className="field-help">Logo: PNG or JPEG, up to 2 MB. It is made at most 600 pixels wide and stored encrypted.</span>
+            <span className="field-help">{t("Logo: PNG or JPEG, up to 2 MB. It is made at most 600 pixels wide and stored encrypted.")}</span>
           </div>
-          <figure className="letterhead-preview" aria-label="Preview of the top of a page">
+          <figure className="letterhead-preview" aria-label={t("Preview of the top of a page")}>
             <div className="slide-strip" aria-hidden="true">
               <span />
               <span />
@@ -126,28 +125,28 @@ export function Templates() {
             </div>
             <div className="row gap-10 letterhead-preview-head">
               {letterhead.has_logo ? (
-                <img src={`${logoUrl}?v=${version}`} alt="Your logo" height={36} />
+                <img src={`${logoUrl}?v=${version}`} alt={t("Your logo")} height={36} />
               ) : (
                 <LogoSeal size={32} />
               )}
               <strong>{letterhead.effective_name}</strong>
-              <span className="muted small">· Advisory</span>
+              <span className="muted small">{t("· Advisory")}</span>
             </div>
             <div className="letterhead-lines" aria-hidden="true">
               <span />
               <span />
               <span />
             </div>
-            <figcaption className="muted small">Preview of the top of every page</figcaption>
+            <figcaption className="muted small">{t("Preview of the top of every page")}</figcaption>
           </figure>
         </section>
       )}
 
       {kind !== 'letterheads' && (
         <div className="template-grid">
-          {shown.map((t) => (
-            <section key={t.name} className="card template-card" aria-label={t.name}>
-              <div className={`template-art art-${t.art}`} aria-hidden="true">
+          {shown.map((template) => (
+            <section key={template.name} className="card template-card" aria-label={template.name}>
+              <div className={`template-art art-${template.art}`} aria-hidden="true">
                 <span />
                 <span />
                 <span />
@@ -155,12 +154,12 @@ export function Templates() {
               </div>
               <div className="row gap-8 align-start">
                 <span className="stack grow">
-                  <strong>{t.name}</strong>
-                  <span className="muted small">{t.output}</span>
+                  <strong>{template.name}</strong>
+                  <span className="muted small">{template.output}</span>
                 </span>
                 <span className="chip chip-navy chip-xs">
                   <Icon name="check" size={12} strokeWidth={2.4} />
-                  In use
+                  {t("In use")}
                 </span>
               </div>
             </section>

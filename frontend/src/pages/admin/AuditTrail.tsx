@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { getAudit, verifyAuditChain, type AuditCategory, type AuditEntry,
   type AuditPage, type ChainCheck } from '../../api'
 import { Icon, type IconName } from '../../components/Icon'
+import { locale, t } from '../../i18n'
 
 const PAGE_SIZE = 50
 const CATEGORIES: { key: AuditCategory | ''; label: string }[] = [
@@ -25,8 +26,8 @@ const ICONS: Record<AuditCategory, { icon: IconName; tone: string }> = {
 function when(iso: string): { time: string; date: string } {
   const d = new Date(iso)
   return {
-    time: d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false }),
-    date: d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+    time: d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit', hour12: false }),
+    date: d.toLocaleDateString(locale(), { day: 'numeric', month: 'short' }),
   }
 }
 
@@ -54,7 +55,7 @@ export function AuditTrail() {
         setPage(p)
         setError('')
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load the audit trail.'))
+      .catch((e) => setError(e instanceof Error ? e.message : t("Could not load the audit trail.")))
   }, [category, query, actor, days, offset, reloadCount])
 
   function filter(change: () => void) {
@@ -68,7 +69,7 @@ export function AuditTrail() {
       setCheck(await verifyAuditChain())
       setReloadCount((n) => n + 1) // the check itself is logged: show it
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not check the chain.')
+      setError(e instanceof Error ? e.message : t("Could not check the chain."))
     } finally {
       setChecking(false)
     }
@@ -79,27 +80,27 @@ export function AuditTrail() {
     <main className="page">
       <div className="page-head">
         <div className="stack gap-4">
-          <div className="eyebrow eyebrow-navy">Admin</div>
-          <h1>Audit trail</h1>
-          <p className="muted">A permanent record of every action. Entries cannot be edited or deleted.</p>
+          <div className="eyebrow eyebrow-navy">{t("Admin")}</div>
+          <h1>{t("Audit trail")}</h1>
+          <p className="muted">{t("A permanent record of every action. Entries cannot be edited or deleted.")}</p>
         </div>
         <div className="grow" />
         {page && page.entries.length > 0 && (
           <a className="btn btn-outline" href={csvHref(page.entries)} download="pramaan-audit-log.csv">
             <Icon name="download" size={18} strokeWidth={2} />
-            Export log with hashes
+            {t("Export log with hashes")}
           </a>
         )}
         <button type="button" className="btn btn-navy" onClick={verify} disabled={checking}>
           <Icon name="shieldCheck" size={18} strokeWidth={2} />
-          {checking ? 'Checking…' : 'Verify chain'}
+          {checking ? t("Checking…") : t("Verify chain")}
         </button>
       </div>
 
       {check?.ok && (
         <div className="alert alert-green row gap-8" role="status">
           <Icon name="check" size={18} strokeWidth={2.4} />
-          Chain intact: all {check.checked} rows checked, every hash matches. Last hash{' '}
+          {t("Chain intact: all")} {check.checked} {t("rows checked, every hash matches. Last hash")}{' '}
           <span className="mono">{check.last_hash.slice(0, 16)}…</span>
         </div>
       )}
@@ -107,12 +108,11 @@ export function AuditTrail() {
         <div className="alert alert-red stack gap-6" role="alert">
           <strong className="row gap-8">
             <Icon name="warning" size={18} strokeWidth={2.2} />
-            Chain BROKEN at row {check.broken.seq}. The {check.checked} rows before it are intact.
+            {t("Chain BROKEN at row")} {check.broken.seq}{t(". The")} {check.checked} {t("rows before it are intact.")}
           </strong>
           <span>{check.broken.reason}</span>
           <span className="small">
-            Row {check.broken.seq} now says: {check.broken.entry.actor} · {check.broken.entry.detail} ({check.broken.entry.created_at})
-          </span>
+            {t("Row {seq} now says: {actor} · {detail} ({created_at})", { seq: check.broken.seq, actor: check.broken.entry.actor, detail: t(check.broken.entry.detail), created_at: check.broken.entry.created_at })}</span>
         </div>
       )}
       {error && <div className="alert alert-red">{error}</div>}
@@ -122,7 +122,7 @@ export function AuditTrail() {
           <span className="search-icon">
             <Icon name="search" size={18} strokeWidth={1.8} />
           </span>
-          <input type="search" aria-label="Search actions or people" placeholder="Search actions or people" value={text} onChange={(e) => filter(() => setText(e.target.value))} />
+          <input type="search" aria-label={t("Search actions or people")} placeholder={t("Search actions or people")} value={text} onChange={(e) => filter(() => setText(e.target.value))} />
         </label>
         <div className="segmented">
           {CATEGORIES.map((c) => (
@@ -132,14 +132,14 @@ export function AuditTrail() {
           ))}
         </div>
         <div className="grow" />
-        <select className="input input-sm" aria-label="When" value={days} onChange={(e) => filter(() => setDays(Number(e.target.value)))}>
-          <option value={0}>All time</option>
-          <option value={1}>Last 24 hours</option>
-          <option value={7}>Last 7 days</option>
-          <option value={30}>Last 30 days</option>
+        <select className="input input-sm" aria-label={t("When")} value={days} onChange={(e) => filter(() => setDays(Number(e.target.value)))}>
+          <option value={0}>{t("All time")}</option>
+          <option value={1}>{t("Last 24 hours")}</option>
+          <option value={7}>{t("Last 7 days")}</option>
+          <option value={30}>{t("Last 30 days")}</option>
         </select>
-        <select className="input input-sm" aria-label="Who" value={actor} onChange={(e) => filter(() => setActor(e.target.value))}>
-          <option value="">Everyone</option>
+        <select className="input input-sm" aria-label={t("Who")} value={actor} onChange={(e) => filter(() => setActor(e.target.value))}>
+          <option value="">{t("Everyone")}</option>
           {page?.actors.map((a) => (
             <option key={a} value={a}>
               {a}
@@ -153,23 +153,23 @@ export function AuditTrail() {
           <thead>
             <tr>
               <th>#</th>
-              <th>Time</th>
-              <th aria-label="Kind" />
-              <th>Who</th>
-              <th>Action</th>
-              <th>Entry hash</th>
+              <th>{t("Time")}</th>
+              <th aria-label={t("Kind")} />
+              <th>{t("Who")}</th>
+              <th>{t("Action")}</th>
+              <th>{t("Entry hash")}</th>
             </tr>
           </thead>
           <tbody>
             {page?.entries.map((e) => {
-              const t = when(e.created_at)
+              const moment = when(e.created_at)
               const look = ICONS[e.category]
               const broken = check && !check.ok && check.broken.seq === e.seq
               return (
                 <tr key={e.seq} className={broken ? 'is-broken' : undefined}>
                   <td className="mono muted">{e.seq}</td>
                   <td className="nowrap">
-                    <span className="mono">{t.time}</span> <span className="muted small">{t.date}</span>
+                    <span className="mono">{moment.time}</span> <span className="muted small">{moment.date}</span>
                   </td>
                   <td>
                     <span className={`audit-icon tone-${look.tone}`} title={e.category}>
@@ -180,7 +180,7 @@ export function AuditTrail() {
                     <strong>{e.actor}</strong>
                   </td>
                   <td>{e.detail}</td>
-                  <td className="mono muted nowrap" title={`This row: ${e.entry_hash}\nRow before: ${e.prev_hash}`}>
+                  <td className="mono muted nowrap" title={t("This row: {entry_hash}\nRow before: {prev_hash}", { entry_hash: e.entry_hash, prev_hash: e.prev_hash })}>
                     {e.entry_hash.slice(0, 4)}…{e.entry_hash.slice(-4)}
                   </td>
                 </tr>
@@ -188,22 +188,21 @@ export function AuditTrail() {
             })}
           </tbody>
         </table>
-        {page && page.entries.length === 0 && <p className="muted">Nothing matches these filters.</p>}
+        {page && page.entries.length === 0 && <p className="muted">{t("Nothing matches these filters.")}</p>}
         <div className="row gap-10">
           <span className="row gap-8 small chain-note">
             <Icon name="hash" size={16} color="var(--green-dark)" />
-            Each entry carries the hash of the entry before it.
+            {t("Each entry carries the hash of the entry before it.")}
           </span>
           <div className="grow" />
           <span className="muted small">
-            {total === 0 ? '0' : `${offset + 1}–${Math.min(offset + PAGE_SIZE, total)}`} of {total}
-          </span>
+            {t("{value} of {total}", { value: total === 0 ? '0' : `${offset + 1}–${Math.min(offset + PAGE_SIZE, total)}`, total: total })}</span>
           <button type="button" className="btn btn-outline btn-xs" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>
             <Icon name="arrowLeft" size={14} strokeWidth={2} />
-            Newer
+            {t("Newer")}
           </button>
           <button type="button" className="btn btn-outline btn-xs" disabled={offset + PAGE_SIZE >= total} onClick={() => setOffset(offset + PAGE_SIZE)}>
-            Older
+            {t("Older")}
             <Icon name="arrowRight" size={14} strokeWidth={2} />
           </button>
         </div>

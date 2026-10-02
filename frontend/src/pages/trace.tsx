@@ -8,6 +8,7 @@
 import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
 import type { Path, Sentence } from '../api'
 import { pathKey, selectSentence, TraceContext, useTrace, type TraceState } from './traceState'
+import { t } from '../i18n'
 
 export function TraceProvider({ value, children }: { value: TraceState; children: ReactNode }) {
   return <TraceContext.Provider value={value}>{children}</TraceContext.Provider>
@@ -62,7 +63,7 @@ function SentenceSpan({ sentence: s }: { sentence: Sentence }) {
       tabIndex={0}
       onClick={open}
       onKeyDown={onKey}
-      title="Show where this comes from in the source"
+      title={t("Show where this comes from in the source")}
     >
       <FlaggedText text={s.text} flags={s.not_in_source.map((f) => f.text)} />
       <SentenceTags sentence={s} />
@@ -80,7 +81,7 @@ function FlaggedText({ text, flags }: { text: string; flags: string[] }) {
     if (at < 0) continue
     parts.push(text.slice(cursor, at))
     parts.push(
-      <span key={`${at}-${flag}`} className="not-in-source" title="Not in source: this does not appear in the source text">
+      <span key={`${at}-${flag}`} className="not-in-source" title={t("Not in source: this does not appear in the source text")}>
         {flag}
       </span>,
     )
@@ -99,9 +100,9 @@ function SentenceTags({ sentence: s }: { sentence: Sentence }) {
         s.fact_ids.map((id) => (
           <FactChip key={id} id={id} onClick={() => trace.select({ outputId: trace.outputId, sentenceId: s.id, factId: id })} />
         ))}
-      {s.status === 'unlinked' && <span className="tag tag-yellow">Not linked to a fact</span>}
-      {s.status === 'unverified' && <span className="tag tag-yellow">Linked fact not verified</span>}
-      {s.not_in_source.length > 0 && <span className="tag tag-red">Not in source</span>}
+      {s.status === 'unlinked' && <span className="tag tag-yellow">{t("Not linked to a fact")}</span>}
+      {s.status === 'unverified' && <span className="tag tag-yellow">{t("Linked fact not verified")}</span>}
+      {s.not_in_source.length > 0 && <span className="tag tag-red">{t("Not in source")}</span>}
     </span>
   )
 }

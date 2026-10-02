@@ -6,6 +6,7 @@ import { checkComputer, firstTimeSetup, type ComputerCheck, type User } from '..
 import { Icon } from '../../components/Icon'
 import { TricolourStrip } from '../../components/TricolourStrip'
 import { BrandMark, FormError, PasswordInput, PasswordStrength } from './AuthLayout'
+import { t } from '../../i18n'
 
 const STEPS = ['Check this computer', 'Install AI models', 'Create Admin account', 'Organisation details', 'Signing certificate', 'Ready to use']
 const CURRENT = 2
@@ -27,7 +28,7 @@ export function Setup({ onDone }: { onDone: (user: User) => void }) {
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (password !== confirm) {
-      setError('The two passwords are not the same.')
+      setError(t("The two passwords are not the same."))
       return
     }
     setBusy(true)
@@ -36,7 +37,7 @@ export function Setup({ onDone }: { onDone: (user: User) => void }) {
       const { user } = await firstTimeSetup({ ...form, password })
       onDone(user)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not create the Admin account.')
+      setError(e instanceof Error ? e.message : t("Could not create the Admin account."))
     } finally {
       setBusy(false)
     }
@@ -47,18 +48,18 @@ export function Setup({ onDone }: { onDone: (user: User) => void }) {
       <TricolourStrip />
       <header className="setup-head">
         <BrandMark />
-        <span className="muted">· First-time setup</span>
+        <span className="muted">{t("· First-time setup")}</span>
         <div className="grow" />
         <span className="chip chip-green">
           <Icon name="wifiOff" size={14} strokeWidth={2.2} />
-          Offline
+          {t("Offline")}
         </span>
       </header>
       <div className="setup-body">
         <aside className="stack gap-20">
           <div className="stack gap-8">
-            <h1 className="setup-title">Set up Pramaan AI on this computer</h1>
-            <p className="muted">You only do this once.</p>
+            <h1 className="setup-title">{t("Set up Pramaan AI on this computer")}</h1>
+            <p className="muted">{t("You only do this once.")}</p>
           </div>
           <ol className="setup-steps">
             {STEPS.map((step, i) => (
@@ -77,14 +78,14 @@ export function Setup({ onDone }: { onDone: (user: User) => void }) {
                 <Icon name="user" size={22} color="var(--navy)" />
               </span>
               <div className="stack gap-2">
-                <h2>Create the first Admin account</h2>
-                <span className="muted small">This person manages users, templates and security, and reads the audit trail.</span>
+                <h2>{t("Create the first Admin account")}</h2>
+                <span className="muted small">{t("This person manages users, templates and security, and reads the audit trail.")}</span>
               </div>
             </div>
             <FormError message={error} />
             <div className="form-grid-2">
               <label className="field">
-                <span className="field-label">Full name</span>
+                <span className="field-label">{t("Full name")}</span>
                 <input
                   className="input"
                   value={form.full_name}
@@ -95,19 +96,19 @@ export function Setup({ onDone }: { onDone: (user: User) => void }) {
                 />
               </label>
               <label className="field">
-                <span className="field-label">Employee ID</span>
+                <span className="field-label">{t("Employee ID")}</span>
                 <input
                   className="input"
                   value={form.employee_id}
                   onChange={(e) => setForm((f) => ({ ...f, employee_id: e.target.value }))}
                   autoCapitalize="characters"
                   spellCheck={false}
-                  placeholder="e.g. EMP-10001"
+                  placeholder={t("e.g. EMP-10001")}
                   required
                 />
               </label>
               <label className="field">
-                <span className="field-label">Username (optional)</span>
+                <span className="field-label">{t("Username (optional)")}</span>
                 <input
                   className="input"
                   value={form.username}
@@ -115,11 +116,11 @@ export function Setup({ onDone }: { onDone: (user: User) => void }) {
                   autoComplete="username"
                   autoCapitalize="none"
                   spellCheck={false}
-                  placeholder="e.g. kavya.nair (else the employee ID)"
+                  placeholder={t("e.g. kavya.nair (else the employee ID)")}
                 />
               </label>
               <label className="field">
-                <span className="field-label">Official email (optional)</span>
+                <span className="field-label">{t("Official email (optional)")}</span>
                 <input
                   className="input"
                   type="email"
@@ -130,13 +131,13 @@ export function Setup({ onDone }: { onDone: (user: User) => void }) {
               </label>
               <div className="field">
                 <label className="field-label" htmlFor="setup-password">
-                  Password
+                  {t("Password")}
                 </label>
                 <PasswordInput id="setup-password" value={password} onChange={setPassword} autoComplete="new-password" />
               </div>
               <div className="field">
                 <label className="field-label" htmlFor="setup-confirm">
-                  Confirm password
+                  {t("Confirm password")}
                 </label>
                 <PasswordInput id="setup-confirm" value={confirm} onChange={setConfirm} autoComplete="new-password" />
               </div>
@@ -144,14 +145,13 @@ export function Setup({ onDone }: { onDone: (user: User) => void }) {
             <PasswordStrength password={password} />
             <p className="row gap-8 muted small">
               <Icon name="lock" size={16} color="var(--navy)" />
-              Keep this password safe. There is no email reset: another Admin can reset it, so consider making a
-              second Admin later.
+              {t("Keep this password safe. There is no email reset: another Admin can reset it, so consider making a second Admin later.")}
             </p>
           </section>
           <div className="row">
             <div className="grow" />
             <button type="submit" className="btn btn-lg btn-navy" disabled={busy}>
-              {busy ? 'Creating…' : 'Create Admin and continue'}
+              {busy ? t("Creating…") : t("Create Admin and continue")}
               <Icon name="arrowRight" size={18} strokeWidth={2} />
             </button>
           </div>
@@ -168,34 +168,34 @@ function ComputerCard({ computer }: { computer: ComputerCheck | null }) {
   const enough = computer && (computer.memory_bytes ?? 0) >= 15 * 1024 ** 3
   const tiles: { icon: 'chip' | 'bolt' | 'box'; label: string; value: string }[] = computer
     ? [
-        { icon: 'chip', label: 'Memory', value: `${gb(computer.memory_bytes)} RAM` },
-        { icon: 'bolt', label: 'Processors', value: `${computer.processors ?? '?'} cores` },
-        { icon: 'box', label: 'Free disk space', value: gb(computer.disk_free_bytes) },
+        { icon: 'chip', label: t("Memory"), value: `${gb(computer.memory_bytes)} RAM` },
+        { icon: 'bolt', label: t("Processors"), value: `${computer.processors ?? '?'} cores` },
+        { icon: 'box', label: t("Free disk space"), value: gb(computer.disk_free_bytes) },
       ]
     : []
   return (
     <section className="card card-pad stack gap-16" aria-labelledby="computer-title">
       <div className="row gap-10">
         <h2 id="computer-title" className="grow">
-          This computer
+          {t("This computer")}
         </h2>
         {computer && (
           <span className={enough ? 'chip chip-green' : 'chip chip-yellow'}>
             <Icon name={enough ? 'check' : 'warning'} size={14} strokeWidth={2.4} />
-            {enough ? 'Checked' : 'Less than 16 GB memory: the local AI will be slow'}
+            {enough ? t("Checked") : t("Less than 16 GB memory: the local AI will be slow")}
           </span>
         )}
       </div>
-      {!computer && <p className="muted small">Checking…</p>}
+      {!computer && <p className="muted small">{t("Checking…")}</p>}
       <div className="setup-tiles">
-        {tiles.map((t) => (
-          <div key={t.label} className="setup-tile">
+        {tiles.map((tile) => (
+          <div key={tile.label} className="setup-tile">
             <span className="setup-tile-icon" aria-hidden="true">
-              <Icon name={t.icon} size={20} />
+              <Icon name={tile.icon} size={20} />
             </span>
             <span className="stack">
-              <span className="small muted">{t.label}</span>
-              <strong>{t.value}</strong>
+              <span className="small muted">{t(tile.label)}</span>
+              <strong>{tile.value}</strong>
             </span>
           </div>
         ))}
@@ -203,8 +203,8 @@ function ComputerCard({ computer }: { computer: ComputerCheck | null }) {
       {computer && (
         <p className="row gap-8 small">
           <Icon name="chip" size={16} color="var(--navy)" />
-          AI: <strong>{computer.ai.label}</strong>
-          <span className="muted">(set with AI_MODE in .env; more models arrive in Stage 8)</span>
+          AI: <strong>{t(computer.ai.label)}</strong>
+          <span className="muted">{t("(set with AI_MODE in .env; languages and voices: AI models page)")}</span>
         </p>
       )}
     </section>

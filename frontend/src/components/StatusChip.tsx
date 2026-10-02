@@ -1,5 +1,6 @@
 import type { JobStatus } from '../api'
 import { Icon, type IconName } from './Icon'
+import { t } from '../i18n'
 
 // Colour + icon + label for each job status, as in the design.
 const STATUS: Record<JobStatus, { label: string; icon: IconName; className: string }> = {
@@ -17,7 +18,7 @@ export function StatusChip({ status, progress }: { status: JobStatus; progress?:
   return (
     <span className={`chip ${s.className}`}>
       <Icon name={s.icon} size={14} strokeWidth={2.2} />
-      {s.label}
+      {t(s.label)}
       {progress !== undefined && ` ${progress}`}
     </span>
   )

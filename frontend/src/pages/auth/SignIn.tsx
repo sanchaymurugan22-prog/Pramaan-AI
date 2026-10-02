@@ -5,6 +5,7 @@ import { signIn, type User } from '../../api'
 import { Icon } from '../../components/Icon'
 import { links } from '../../router'
 import { FormError, PasswordInput, SplitLayout } from './AuthLayout'
+import { t } from '../../i18n'
 
 export function SignIn({ notice, onSignedIn }: { notice: string; onSignedIn: (user: User) => void }) {
   const [username, setUsername] = useState('')
@@ -21,7 +22,7 @@ export function SignIn({ notice, onSignedIn }: { notice: string; onSignedIn: (us
       setPassword('')
       onSignedIn(user)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not sign in.')
+      setError(e instanceof Error ? e.message : t("Could not sign in."))
       setPassword('')
     } finally {
       setBusy(false)
@@ -32,8 +33,8 @@ export function SignIn({ notice, onSignedIn }: { notice: string; onSignedIn: (us
     <SplitLayout tone="saffron">
       <form className="auth-form" onSubmit={submit}>
         <div className="stack gap-6">
-          <h1 className="auth-title">Welcome back</h1>
-          <p className="muted">Sign in with the account your Admin created for you.</p>
+          <h1 className="auth-title">{t("Welcome back")}</h1>
+          <p className="muted">{t("Sign in with the account your Admin created for you.")}</p>
         </div>
         {notice && !error && (
           <div className="hint" role="status">
@@ -42,7 +43,7 @@ export function SignIn({ notice, onSignedIn }: { notice: string; onSignedIn: (us
         )}
         <FormError message={error} />
         <label className="field">
-          <span className="field-label">Username, employee ID or official email</span>
+          <span className="field-label">{t("Username, employee ID or official email")}</span>
           <span className="input-with-icon">
             <Icon name="user" size={18} color="var(--icon)" />
             <input
@@ -52,7 +53,7 @@ export function SignIn({ notice, onSignedIn }: { notice: string; onSignedIn: (us
               autoComplete="username"
               autoCapitalize="none"
               spellCheck={false}
-              placeholder="e.g. priya.sharma or EMP-20311"
+              placeholder={t("e.g. priya.sharma or EMP-20311")}
               required
               autoFocus
             />
@@ -61,30 +62,30 @@ export function SignIn({ notice, onSignedIn }: { notice: string; onSignedIn: (us
         <div className="field">
           <div className="row">
             <label className="field-label" htmlFor="password">
-              Password
+              {t("Password")}
             </label>
             <div className="grow" />
             <a href={links.forgot} className="small">
-              Forgot password?
+              {t("Forgot password?")}
             </a>
           </div>
           <PasswordInput id="password" value={password} onChange={setPassword} autoComplete="current-password" />
         </div>
         <button type="submit" className="btn btn-lg btn-navy" disabled={busy}>
-          {busy ? 'Signing in…' : 'Sign in'}
+          {busy ? t("Signing in…") : t("Sign in")}
           <Icon name="arrowRight" size={18} strokeWidth={2} />
         </button>
         <p className="muted center">
           <a href={links.language} className="small">
-            Language: change
+            {t("Language: change")}
           </a>
         </p>
         <p className="muted center">
-          New to Pramaan AI? <a href={links.requestAccess} className="link-saffron">Request access</a>
+          {t("New to Pramaan AI?")} <a href={links.requestAccess} className="link-saffron">{t("Request access")}</a>
         </p>
         <p className="row gap-8 secure-note">
           <Icon name="lock" size={16} color="var(--green-dark)" />
-          Accounts are stored and encrypted on this computer.
+          {t("Accounts are stored and encrypted on this computer.")}
         </p>
       </form>
     </SplitLayout>

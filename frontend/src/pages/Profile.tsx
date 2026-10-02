@@ -9,6 +9,7 @@ import { Mandala } from '../components/Mandala'
 import { Toggle } from '../components/Toggle'
 import { languageByCode, useLanguages } from '../languages'
 import { FormError, PasswordInput, PasswordStrength } from './auth/AuthLayout'
+import { locale, t } from '../i18n'
 
 function CardHead({ icon, tone, title }: { icon: IconName; tone: string; title: string }) {
   return (
@@ -36,7 +37,7 @@ export function Profile({ onChanged }: { onChanged: (user: User) => void }) {
   useEffect(() => {
     getProfile()
       .then((p) => setLanguages(p.languages))
-      .catch(() => setError('Could not load the language list.'))
+      .catch(() => setError(t("Could not load the language list.")))
   }, [])
 
   async function save(change: { language?: string; prefs?: Prefs }, done: string) {
@@ -45,7 +46,7 @@ export function Profile({ onChanged }: { onChanged: (user: User) => void }) {
       onChanged((await saveProfile(change)).user)
       setMessage(done)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save.')
+      setError(e instanceof Error ? e.message : t("Could not save."))
     }
   }
 
@@ -54,26 +55,26 @@ export function Profile({ onChanged }: { onChanged: (user: User) => void }) {
   const voice = languageByCode(languageInfo, user.language || 'en')?.voice ?? null
   const outputs = prefs.output_languages ?? [user.language || 'en']
   const name = (code: string) => languages.find((l) => l.code === code)?.name ?? code
-  const since = user.created_at ? new Date(user.created_at).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : '—'
+  const since = user.created_at ? new Date(user.created_at).toLocaleDateString(locale(), { month: 'long', year: 'numeric' }) : '—'
 
   return (
     <main className="page">
       <div className="page-head">
         <div className="stack gap-2">
-          <div className="eyebrow">Account</div>
-          <h1>Profile &amp; settings</h1>
+          <div className="eyebrow">{t("Account")}</div>
+          <h1>{t("Profile & settings")}</h1>
         </div>
         <div className="grow" />
         <button type="button" className="btn btn-red-outline" onClick={() => signOut()}>
           <Icon name="signOut" size={18} />
-          Sign out
+          {t("Sign out")}
         </button>
       </div>
       {error && <div className="alert alert-red" role="alert">{error}</div>}
       <p className="sr-only" role="status">{message}</p>
 
       <div className="profile-grid">
-        <section className="card profile-card" aria-label="Your details">
+        <section className="card profile-card" aria-label={t("Your details")}>
           <div className="profile-banner" aria-hidden="true">
             <Mandala size={200} petals={12} color="var(--role)" opacity={0.4} />
           </div>
@@ -84,62 +85,62 @@ export function Profile({ onChanged }: { onChanged: (user: User) => void }) {
             <div className="stack gap-2">
               <h2 className="profile-name">{user.full_name}</h2>
               <span className="muted">
-                {user.role_label}
+                {t(user.role_label)}
                 {user.division && ` · ${user.division}`}
               </span>
             </div>
             <dl className="facts-table">
               <div>
-                <dt>Employee ID</dt>
+                <dt>{t("Employee ID")}</dt>
                 <dd className="mono">{user.employee_id ?? '—'}</dd>
               </div>
               <div>
-                <dt>Email</dt>
+                <dt>{t("Email")}</dt>
                 <dd>{user.email ?? '—'}</dd>
               </div>
               <div>
-                <dt>Username</dt>
+                <dt>{t("Username")}</dt>
                 <dd className="mono">{user.username}</dd>
               </div>
               <div>
-                <dt>Member since</dt>
+                <dt>{t("Member since")}</dt>
                 <dd>{since}</dd>
               </div>
               {user.role === 'reviewer' && (
                 <div>
-                  <dt>DSC token</dt>
-                  <dd>{user.dsc_holder ? 'Class 3 holder' : 'None'}</dd>
+                  <dt>{t("DSC token")}</dt>
+                  <dd>{user.dsc_holder ? t("Class 3 holder") : t("None")}</dd>
                 </div>
               )}
             </dl>
-            <p className="muted small">Your Admin changes these details (Users &amp; access).</p>
+            <p className="muted small">{t("Your Admin changes these details (Users & access).")}</p>
           </div>
         </section>
 
         <div className="stack gap-20">
-          <section className="card card-pad stack gap-14" aria-label="Language">
-            <CardHead icon="globe" tone="saffron" title="Language" />
+          <section className="card card-pad stack gap-14" aria-label={t("Language")}>
+            <CardHead icon="globe" tone="saffron" title={t("Language")} />
             <div className="form-grid-2">
               <label className="field">
-                <span className="field-label">App language</span>
-                <select className="input" value={user.language || 'en'} onChange={(e) => save({ language: e.target.value }, 'Language saved.')}>
+                <span className="field-label">{t("App language")}</span>
+                <select className="input" value={user.language || 'en'} onChange={(e) => save({ language: e.target.value }, t("Language saved."))}>
                   {languages.map((l) => (
                     <option key={l.code} value={l.code}>
                       {l.name}
                     </option>
                   ))}
                 </select>
-                <span className="field-help">Saved now; the app’s own words are in English until Stage 8.</span>
+                <span className="field-help">{t("The app’s own words are in English or हिन्दी (also the switch at the top right). Other languages: outputs only.")}</span>
               </label>
               <div className="field">
-                <span className="field-label">Voice for audio</span>
-                <span className="input input-static">{voice ?? 'No voice for this language on this computer'}</span>
-                <span className="field-help">Offline voices: Hindi, Telugu, Malayalam, Urdu (Piper) and Indian English.</span>
+                <span className="field-label">{t("Voice for audio")}</span>
+                <span className="input input-static">{voice ?? t("No voice for this language on this computer")}</span>
+                <span className="field-help">{t("Offline voices: Hindi, Telugu, Malayalam, Urdu (Piper) and Indian English.")}</span>
               </div>
             </div>
             <div className="field">
               <span className="field-label" id="output-languages">
-                Default output languages
+                {t("Default output languages")}
               </span>
               <div className="row gap-8 wrap" role="group" aria-labelledby="output-languages">
                 {outputs.map((code) => (
@@ -150,8 +151,8 @@ export function Profile({ onChanged }: { onChanged: (user: User) => void }) {
                       <button
                         type="button"
                         className="pill-remove"
-                        aria-label={`Remove ${name(code)}`}
-                        onClick={() => save({ prefs: { output_languages: outputs.filter((c) => c !== code) } }, 'Output languages saved.')}
+                        aria-label={t("Remove {n}", { n: name(code) })}
+                        onClick={() => save({ prefs: { output_languages: outputs.filter((c) => c !== code) } }, t("Output languages saved."))}
                       >
                         <Icon name="cross" size={12} strokeWidth={2.6} />
                       </button>
@@ -159,15 +160,15 @@ export function Profile({ onChanged }: { onChanged: (user: User) => void }) {
                   </span>
                 ))}
                 <label className="sr-only" htmlFor="add-language">
-                  Add an output language
+                  {t("Add an output language")}
                 </label>
                 <select
                   id="add-language"
                   className="input select-sm add-language"
                   value=""
-                  onChange={(e) => e.target.value && save({ prefs: { output_languages: [...outputs, e.target.value] } }, 'Output languages saved.')}
+                  onChange={(e) => e.target.value && save({ prefs: { output_languages: [...outputs, e.target.value] } }, t("Output languages saved."))}
                 >
-                  <option value="">+ Add</option>
+                  <option value="">{t("+ Add")}</option>
                   {languages
                     .filter((l) => !outputs.includes(l.code))
                     .map((l) => (
@@ -177,16 +178,16 @@ export function Profile({ onChanged }: { onChanged: (user: User) => void }) {
                     ))}
                 </select>
               </div>
-              <span className="field-help">Ticked in advance on “Outputs and settings” for every new job. English is always made.</span>
+              <span className="field-help">{t("Ticked in advance on “Outputs and settings” for every new job. English is always made.")}</span>
             </div>
           </section>
 
           <div className="form-grid-2 profile-pair">
-            <section className="card card-pad stack gap-14" aria-label="Accessibility">
-              <CardHead icon="eye" tone="navy" title="Accessibility" />
+            <section className="card card-pad stack gap-14" aria-label={t("Accessibility")}>
+              <CardHead icon="eye" tone="navy" title={t("Accessibility")} />
               <div className="field">
                 <span className="field-label" id="text-size">
-                  Text size
+                  {t("Text size")}
                 </span>
                 <div className="segmented" role="group" aria-labelledby="text-size">
                   {SIZES.map((s) => (
@@ -195,43 +196,43 @@ export function Profile({ onChanged }: { onChanged: (user: User) => void }) {
                       type="button"
                       aria-pressed={(prefs.text_size ?? 'normal') === s.value}
                       className={(prefs.text_size ?? 'normal') === s.value ? 'is-on' : ''}
-                      onClick={() => save({ prefs: { text_size: s.value } }, `Text size: ${s.label}.`)}
+                      onClick={() => save({ prefs: { text_size: s.value } }, t("Text size: {label}.", { label: s.label }))}
                     >
-                      {s.label}
+                      {t(s.label)}
                     </button>
                   ))}
                 </div>
               </div>
               <Toggle
-                label="High contrast"
-                detail="Darker text and borders"
+                label={t("High contrast")}
+                detail={t("Darker text and borders")}
                 on={Boolean(prefs.high_contrast)}
-                onChange={(on) => save({ prefs: { high_contrast: on } }, on ? 'High contrast on.' : 'High contrast off.')}
+                onChange={(on) => save({ prefs: { high_contrast: on } }, on ? t("High contrast on.") : t("High contrast off."))}
               />
               <Toggle
-                label="Read results aloud"
-                detail="A “Listen” button on each output, in its own language"
+                label={t("Read results aloud")}
+                detail={t("A “Listen” button on each output, in its own language")}
                 on={Boolean(prefs.read_aloud)}
-                onChange={(on) => save({ prefs: { read_aloud: on } }, on ? 'Read aloud on.' : 'Read aloud off.')}
+                onChange={(on) => save({ prefs: { read_aloud: on } }, on ? t("Read aloud on.") : t("Read aloud off."))}
               />
             </section>
 
-            <section className="card card-pad stack gap-14" aria-label="Notifications">
-              <CardHead icon="bell" tone="green" title="Notifications" />
+            <section className="card card-pad stack gap-14" aria-label={t("Notifications")}>
+              <CardHead icon="bell" tone="green" title={t("Notifications")} />
               <Toggle
-                label="When outputs are ready"
+                label={t("When outputs are ready")}
                 on={prefs.notify_ready !== false}
                 onChange={(on) => save({ prefs: { notify_ready: on } }, 'Saved.')}
               />
               <Toggle
-                label="When a reviewer sends something back"
+                label={t("When a reviewer sends something back")}
                 on={prefs.notify_sent_back !== false}
                 onChange={(on) => save({ prefs: { notify_sent_back: on } }, 'Saved.')}
               />
               {user.role === 'operator' && (
-                <Toggle label="Watch folder drafts" on={prefs.notify_watch !== false} onChange={(on) => save({ prefs: { notify_watch: on } }, 'Saved.')} />
+                <Toggle label={t("Watch folder drafts")} on={prefs.notify_watch !== false} onChange={(on) => save({ prefs: { notify_watch: on } }, 'Saved.')} />
               )}
-              <p className="muted small">Approvals, signatures and emergency alerts are always shown. Nothing is emailed: in the app only.</p>
+              <p className="muted small">{t("Approvals, signatures and emergency alerts are always shown. Nothing is emailed: in the app only.")}</p>
             </section>
           </div>
 
@@ -261,43 +262,43 @@ function PasswordCard({ onDone }: { onDone: (user: User) => void }) {
       setDone(true)
       onDone(user)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not change the password.')
+      setError(e instanceof Error ? e.message : t("Could not change the password."))
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <section className="card card-pad stack gap-14" aria-label="Password" id="password">
-      <CardHead icon="lock" tone="red" title="Password" />
+    <section className="card card-pad stack gap-14" aria-label={t("Password")} id="password">
+      <CardHead icon="lock" tone="red" title={t("Password")} />
       <form className="stack gap-14" onSubmit={submit}>
         <FormError message={error} />
         {done && (
           <div className="alert alert-green" role="status">
-            Password changed. Other computers where you were signed in are signed out.
+            {t("Password changed. Other computers where you were signed in are signed out.")}
           </div>
         )}
         <div className="form-grid-2">
           <div className="field">
             <label className="field-label" htmlFor="profile-current">
-              Current password
+              {t("Current password")}
             </label>
             <PasswordInput id="profile-current" value={current} onChange={setCurrent} autoComplete="current-password" />
           </div>
           <div className="field">
             <label className="field-label" htmlFor="profile-new">
-              New password
+              {t("New password")}
             </label>
-            <PasswordInput id="profile-new" value={password} onChange={setPassword} autoComplete="new-password" placeholder="At least 12 characters" />
+            <PasswordInput id="profile-new" value={password} onChange={setPassword} autoComplete="new-password" placeholder={t("At least 12 characters")} />
           </div>
         </div>
         <PasswordStrength password={password} />
         <div className="row gap-10 wrap">
           <button type="submit" className="btn btn-navy-outline" disabled={busy || !current || !password}>
-            {busy ? 'Changing…' : 'Change password'}
+            {busy ? t("Changing…") : t("Change password")}
           </button>
           <span className="grow" />
-          <span className="muted small">Signed in on this computer only</span>
+          <span className="muted small">{t("Signed in on this computer only")}</span>
         </div>
       </form>
     </section>

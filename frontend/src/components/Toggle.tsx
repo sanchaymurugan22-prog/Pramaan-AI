@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 // Stage 9A/9B: shared by the Watch folder, Profile and Admin pages.
 // An on/off switch that says what it does (role="switch", read as "on" / "off")
 export function Toggle({ label, detail, on, onChange, disabled }: {
@@ -23,7 +24,7 @@ export function Toggle({ label, detail, on, onChange, disabled }: {
         disabled={disabled}
       >
         <span className="switch-knob" />
-        <span className="switch-text" aria-hidden="true">{on ? 'On' : 'Off'}</span>
+        <span className="switch-text" aria-hidden="true">{on ? t("On") : t("Off")}</span>
       </button>
     </div>
   )

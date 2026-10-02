@@ -6,6 +6,7 @@ import { forgotPassword } from '../../api'
 import { Icon, type IconName } from '../../components/Icon'
 import { links } from '../../router'
 import { CentredLayout, FormError } from './AuthLayout'
+import { t } from '../../i18n'
 
 const STEPS: { icon: IconName; tone: string; text: string }[] = [
   { icon: 'send', tone: 'saffron', text: 'You send a reset request' },
@@ -27,7 +28,7 @@ export function Forgot() {
     try {
       setSent((await forgotPassword(username, message)).message)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not send the request.')
+      setError(e instanceof Error ? e.message : t("Could not send the request."))
     } finally {
       setBusy(false)
     }
@@ -40,18 +41,18 @@ export function Forgot() {
           <Icon name="key" size={26} color="var(--saffron-dark)" />
         </span>
         <div className="stack gap-6">
-          <h1 className="auth-title">Reset your password</h1>
-          <p className="muted">Pramaan AI works offline, so passwords are reset by your Admin.</p>
+          <h1 className="auth-title">{t("Reset your password")}</h1>
+          <p className="muted">{t("Pramaan AI works offline, so passwords are reset by your Admin.")}</p>
         </div>
         {sent ? (
           <div className="alert alert-green" role="status">
-            <strong>Request sent.</strong> {sent.replace(/^Request sent\.\s*/, '')}
+            <strong>{t("Request sent.")}</strong> {sent.replace(/^Request sent\.\s*/, '')}
           </div>
         ) : (
           <>
             <FormError message={error} />
             <label className="field">
-              <span className="field-label">Username or employee ID</span>
+              <span className="field-label">{t("Username or employee ID")}</span>
               <span className="input-with-icon">
                 <Icon name="user" size={18} color="var(--icon)" />
                 <input
@@ -67,11 +68,11 @@ export function Forgot() {
               </span>
             </label>
             <label className="field">
-              <span className="field-label">Message to Admin (optional)</span>
+              <span className="field-label">{t("Message to Admin (optional)")}</span>
               <textarea className="input textarea" rows={3} value={message} onChange={(e) => setMessage(e.target.value)} />
             </label>
             <button type="submit" className="btn btn-lg btn-navy" disabled={busy}>
-              {busy ? 'Sending…' : 'Send request to Admin'}
+              {busy ? t("Sending…") : t("Send request to Admin")}
               <Icon name="send" size={18} strokeWidth={2} />
             </button>
           </>
@@ -88,7 +89,7 @@ export function Forgot() {
         </div>
         <a href={links.login} className="row gap-6 center-self">
           <Icon name="arrowLeft" size={16} strokeWidth={2} />
-          Back to sign in
+          {t("Back to sign in")}
         </a>
       </form>
     </CentredLayout>

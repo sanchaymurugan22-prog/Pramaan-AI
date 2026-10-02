@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react'
 import { changePassword, type User } from '../api'
 import { Icon } from '../components/Icon'
 import { CentredLayout, FormError, PasswordInput, PasswordStrength } from './auth/AuthLayout'
+import { t } from '../i18n'
 
 function PasswordForm({ forced, onDone }: { forced: boolean; onDone: (user: User) => void }) {
   const [current, setCurrent] = useState('')
@@ -16,7 +17,7 @@ function PasswordForm({ forced, onDone }: { forced: boolean; onDone: (user: User
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (password !== confirm) {
-      setError('The two new passwords are not the same.')
+      setError(t("The two new passwords are not the same."))
       return
     }
     setBusy(true)
@@ -29,7 +30,7 @@ function PasswordForm({ forced, onDone }: { forced: boolean; onDone: (user: User
       setDone(true)
       onDone(user)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not change the password.')
+      setError(e instanceof Error ? e.message : t("Could not change the password."))
     } finally {
       setBusy(false)
     }
@@ -41,36 +42,36 @@ function PasswordForm({ forced, onDone }: { forced: boolean; onDone: (user: User
         <Icon name="key" size={26} color="var(--navy)" />
       </span>
       <div className="stack gap-6">
-        <h1 className="auth-title">{forced ? 'Choose your own password' : 'Change password'}</h1>
+        <h1 className="auth-title">{forced ? t("Choose your own password") : t("Change password")}</h1>
         <p className="muted">
           {forced
-            ? 'You signed in with a temporary password from your Admin. Choose a new one to continue.'
-            : 'Other computers where you are signed in will be signed out.'}
+            ? t("You signed in with a temporary password from your Admin. Choose a new one to continue.")
+            : t("Other computers where you are signed in will be signed out.")}
         </p>
       </div>
-      {done && !forced && <div className="alert alert-green">Password changed.</div>}
+      {done && !forced && <div className="alert alert-green">{t("Password changed.")}</div>}
       <FormError message={error} />
       <div className="field">
         <label className="field-label" htmlFor="current-password">
-          {forced ? 'Temporary password' : 'Current password'}
+          {forced ? t("Temporary password") : t("Current password")}
         </label>
         <PasswordInput id="current-password" value={current} onChange={setCurrent} autoComplete="current-password" />
       </div>
       <div className="field">
         <label className="field-label" htmlFor="new-password">
-          New password
+          {t("New password")}
         </label>
         <PasswordInput id="new-password" value={password} onChange={setPassword} autoComplete="new-password" />
       </div>
       <div className="field">
         <label className="field-label" htmlFor="confirm-password">
-          Confirm new password
+          {t("Confirm new password")}
         </label>
         <PasswordInput id="confirm-password" value={confirm} onChange={setConfirm} autoComplete="new-password" />
       </div>
       <PasswordStrength password={password} />
       <button type="submit" className="btn btn-lg btn-navy" disabled={busy}>
-        {busy ? 'Saving…' : 'Save new password'}
+        {busy ? t("Saving…") : t("Save new password")}
       </button>
     </form>
   )
@@ -82,7 +83,7 @@ export function ForcedPasswordChange({ onDone, onSignOut }: { onDone: (user: Use
     <CentredLayout>
       <PasswordForm forced onDone={onDone} />
       <button type="button" className="btn btn-link center-self" onClick={onSignOut}>
-        Sign out
+        {t("Sign out")}
       </button>
     </CentredLayout>
   )

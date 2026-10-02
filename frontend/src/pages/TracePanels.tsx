@@ -11,6 +11,7 @@ import { Icon } from '../components/Icon'
 import { FOUND_LABELS, jsIndex, scoreTone, type FactLookup } from './format'
 import { FactChip } from './trace'
 import { selectSentence, type Selection } from './traceState'
+import { t } from '../i18n'
 
 // ---- source text (loaded once per source, then kept) ----------------------------------------
 
@@ -62,15 +63,14 @@ export function SourcePanel({ jobId, facts, selection, sentence, where, select, 
   return (
     <section className={open ? 'card side-card trace-card is-open' : 'card side-card trace-card'} aria-live="polite">
       <div className="row gap-8">
-        <h2 className="side-title">Source trace</h2>
+        <h2 className="side-title">{t("Source trace")}</h2>
         <div className="grow" />
         {fact?.page && fact.quote_found !== 'no' && (
           <span className="chip chip-navy">
-            {fact.source_id} · Page {fact.page}
-          </span>
+            {t("{source_id} · Page {page}", { source_id: fact.source_id, page: fact.page })}</span>
         )}
         {open && (
-          <button type="button" className="icon-btn icon-btn-sm" aria-label="Close source trace" onClick={onClose}>
+          <button type="button" className="icon-btn icon-btn-sm" aria-label={t("Close source trace")} onClick={onClose}>
             <Icon name="cross" size={16} />
           </button>
         )}
@@ -78,8 +78,7 @@ export function SourcePanel({ jobId, facts, selection, sentence, where, select, 
 
       {!open && (
         <p className="muted small">
-          Click any sentence of an output, or a fact chip like <span className="fact-chip">F1</span>, to see where it
-          comes from in the source.
+          {t("Click any sentence of an output, or a fact chip like")} <span className="fact-chip">F1</span>{t(", to see where it comes from in the source.")}
         </p>
       )}
 
@@ -94,7 +93,7 @@ export function SourcePanel({ jobId, facts, selection, sentence, where, select, 
           )}
           {(sentence.status === 'linked' || sentence.status === 'unverified') && (
             <div className="row gap-6 wrap small">
-              <span className="muted">Uses</span>
+              <span className="muted">{t("Uses")}</span>
               {sentence.fact_ids.map((id) => (
                 <FactChip
                   key={id}
@@ -104,38 +103,35 @@ export function SourcePanel({ jobId, facts, selection, sentence, where, select, 
                 />
               ))}
               {sentence.matched_by === 'words' && (
-                <span className="muted">· matched by its words (the AI did not cite this fact)</span>
+                <span className="muted">{t("· matched by its words (the AI did not cite this fact)")}</span>
               )}
             </div>
           )}
           {sentence.status === 'unlinked' && (
             <div className="trace-alert trace-alert-yellow">
-              <strong>Not linked to a fact.</strong> No fact in the fact sheet supports this sentence. Check it, edit
-              it, or remove it.
+              <strong>{t("Not linked to a fact.")}</strong> {t("No fact in the fact sheet supports this sentence. Check it, edit it, or remove it.")}
               {sentence.closest && (
                 <>
                   {' '}
-                  The closest fact is{' '}
+                  {t("The closest fact is")}{' '}
                   <FactChip
                     id={sentence.closest}
                     active={sentence.closest === selection.factId}
                     onClick={() => select({ ...selection, factId: sentence.closest, scroll: false })}
                   />{' '}
-                  (shown below), but it does not say the same thing.
+                  {t("(shown below), but it does not say the same thing.")}
                 </>
               )}
             </div>
           )}
           {sentence.status === 'unverified' && (
             <div className="trace-alert trace-alert-yellow">
-              <strong>Linked fact not verified.</strong> The fact this sentence uses could not be found in the source,
-              so it may be made up. Check it against the source before using it.
+              <strong>{t("Linked fact not verified.")}</strong> {t("The fact this sentence uses could not be found in the source, so it may be made up. Check it against the source before using it.")}
             </div>
           )}
           {sentence.not_in_source.length > 0 && (
             <div className="trace-alert trace-alert-red">
-              <strong>Not in source:</strong> {sentence.not_in_source.map((f) => `${f.text} (${f.label.toLowerCase()})`).join(', ')}.
-              This does not appear in the source text.
+              <strong>{t("Not in source:")}</strong> {sentence.not_in_source.map((f) => `${f.text} (${f.label.toLowerCase()})`).join(', ')}{t(". This does not appear in the source text.")}
             </div>
           )}
         </div>
@@ -150,7 +146,7 @@ export function SourcePanel({ jobId, facts, selection, sentence, where, select, 
               <span className="row gap-6 wrap small muted">
                 {fact.kind}
                 {fact.source_id && ` · ${fact.source_id}`}
-                {fact.page && ` · page ${fact.page}`}
+                {fact.page && t(" · page {page}", { page: fact.page })}
                 {fact.quote_found && (
                   <span className={`chip chip-xs ${FOUND_CHIP[fact.quote_found]}`}>{FOUND_LABELS[fact.quote_found]}</span>
                 )}
@@ -186,7 +182,7 @@ function SourceExcerpt({ jobId, fact }: { jobId: number; fact: NonNullable<Retur
 
   if (!fact.source_id) return null
   if (loaded?.error) return <div className="alert alert-red small">{loaded.error}</div>
-  if (page === undefined) return <p className="muted small">Loading the source…</p>
+  if (page === undefined) return <p className="muted small">{t("Loading the source…")}</p>
 
   let body: ReactNode = page
   if (hasSpan) {
@@ -205,19 +201,17 @@ function SourceExcerpt({ jobId, fact }: { jobId: number; fact: NonNullable<Retur
   return (
     <div className="stack gap-6">
       <span className="small muted">
-        {loaded?.source?.filename} · page {fact.page}
-      </span>
+        {t("{filename} · page {page}", { filename: loaded?.source?.filename, page: fact.page })}</span>
       {!hasSpan && (
         <div className="trace-alert trace-alert-yellow">
-          This fact's quote “{fact.quote}” was not found in the source. Read the page below to check it.
-        </div>
+          {t("This fact's quote “{quote}” was not found in the source. Read the page below to check it.", { quote: fact.quote })}</div>
       )}
       <div ref={box} className={wide ? 'source-text is-wide' : 'source-text'}>
         {body}
       </div>
       <button type="button" className="btn btn-outline btn-xs" onClick={() => setWide(!wide)}>
         <Icon name="eye" size={16} />
-        {wide ? 'Show less' : `Show more of page ${fact.page}`}
+        {wide ? t("Show less") : t("Show more of page {page}", { page: fact.page })}
       </button>
     </div>
   )
@@ -251,7 +245,7 @@ export function CheckWarnings({ outputId, quality, select }: { outputId: number;
     return (
       <section className="side-card side-ok">
         <Icon name="shieldCheck" size={20} />
-        <span>Every sentence is linked to a fact found in the source, and every number, date and code is in the source.</span>
+        <span>{t("Every sentence is linked to a fact found in the source, and every number, date and code is in the source.")}</span>
       </section>
     )
   }
@@ -263,15 +257,14 @@ export function CheckWarnings({ outputId, quality, select }: { outputId: number;
           <div className="row gap-8">
             <Icon name="warning" size={20} />
             <strong>
-              {unlinked.length} sentence{unlinked.length === 1 ? '' : 's'} not linked to a fact
-            </strong>
+              {t("{length} sentence{value} not linked to a fact", { length: unlinked.length, value: unlinked.length === 1 ? '' : 's' })}</strong>
           </div>
           {unlinked.map((s) => (
             <button key={s.id} type="button" className="warn-item" onClick={() => jump(s)}>
               “{s.text}”<span className="warn-where">{s.label}</span>
             </button>
           ))}
-          <p className="small warn-hint">Use Edit to change or remove them, or check them yourself.</p>
+          <p className="small warn-hint">{t("Use Edit to change or remove them, or check them yourself.")}</p>
         </section>
       )}
       {unverified.length > 0 && (
@@ -279,12 +272,11 @@ export function CheckWarnings({ outputId, quality, select }: { outputId: number;
           <div className="row gap-8">
             <Icon name="warning" size={20} />
             <strong>
-              {unverified.length} sentence{unverified.length === 1 ? '' : 's'}: linked fact not verified
-            </strong>
+              {t("{length} sentence{value}: linked fact not verified", { length: unverified.length, value: unverified.length === 1 ? '' : 's' })}</strong>
           </div>
           {unverified.map((s) => (
             <button key={s.id} type="button" className="warn-item" onClick={() => jump(s)}>
-              “{s.text}”<span className="warn-where">{s.label} · its fact's quote is not in the source</span>
+              “{s.text}”<span className="warn-where">{t("{label} · its fact's quote is not in the source", { label: s.label })}</span>
             </button>
           ))}
         </section>
@@ -293,14 +285,13 @@ export function CheckWarnings({ outputId, quality, select }: { outputId: number;
         <section className="side-card side-bad">
           <div className="row gap-8">
             <Icon name="warning" size={20} />
-            <strong>Not in source</strong>
+            <strong>{t("Not in source")}</strong>
           </div>
           {flagged.map((s) => (
             <button key={s.id} type="button" className="warn-item" onClick={() => jump(s)}>
               {s.not_in_source.map((f) => f.text).join(', ')}
               <span className="warn-where">
-                {s.label} · not in the source
-              </span>
+                {t("{label} · not in the source", { label: s.label })}</span>
             </button>
           ))}
         </section>
@@ -328,14 +319,14 @@ export function QualityCard({ quality, versionNote }: { quality: Quality; versio
   return (
     <section className="card side-card">
       <div className="row gap-8">
-        <h2 className="side-title">Quality score</h2>
+        <h2 className="side-title">{t("Quality score")}</h2>
         <div className="grow" />
         <span className={`score-big score-${scoreTone(quality.score)}`}>{quality.score}</span>
       </div>
       <span className="small muted">{versionNote}</span>
       {quality.capped && (
         <span className="small" style={{ color: 'var(--red-dark)' }}>
-          Capped at 50: the fact sheet does not match the source.
+          {t("Capped at 50: the fact sheet does not match the source.")}
         </span>
       )}
       {rows.map(([label, value, points, max]) => (
@@ -345,7 +336,7 @@ export function QualityCard({ quality, versionNote }: { quality: Quality; versio
             <div className="grow" />
             <strong>{value}</strong>
           </div>
-          <div className="bar" title={`${points} of ${max} points`}>
+          <div className="bar" title={t("{points} of {max} points", { points: points, max: max })}>
             <div className={`bar-fill fill-${scoreTone((points / max) * 100)}`} style={{ width: `${(points / max) * 100}%` }} />
           </div>
         </div>
@@ -376,15 +367,15 @@ export function ScoreBadge({ score, explanation, big, inButton }: ScoreBadgeProp
     // nothing to explain: no tooltip, so no extra Tab stop
     return (
       <span className={`score-badge score-bg-${scoreTone(score)} ${big ? 'score-badge-big' : ''}`}>
-        {big ? 'Quality ' : <span className="sr-only">Quality </span>}
+        {big ? t("Quality ") : <span className="sr-only">{t("Quality")} </span>}
         {score}
       </span>
     )
   }
   return (
-    <span className="tip" tabIndex={inButton ? undefined : 0} aria-label={`Quality ${score}. ${explanation ?? ''}`}>
+    <span className="tip" tabIndex={inButton ? undefined : 0} aria-label={t("Quality {score}. {n}", { score: score, n: explanation ?? '' })}>
       <span className={`score-badge score-bg-${scoreTone(score)} ${big ? 'score-badge-big' : ''}`}>
-        {big && 'Quality '}
+        {big && t("Quality ")}
         {score}
       </span>
       {explanation && (
@@ -410,9 +401,9 @@ export function ConsistencyPanel({ consistency, generating, facts, onOpen, onFac
   if (!consistency) {
     return (
       <section className="card card-pad-sm row gap-12 wrap">
-        <span className="section-label">Consistency</span>
+        <span className="section-label">{t("Consistency")}</span>
         <span className="muted small">
-          {generating ? 'Checked when the outputs are ready.' : 'No outputs to compare yet.'}
+          {generating ? t("Checked when the outputs are ready.") : t("No outputs to compare yet.")}
         </span>
       </section>
     )
@@ -421,20 +412,17 @@ export function ConsistencyPanel({ consistency, generating, facts, onOpen, onFac
   return (
     <section className="card card-pad-sm stack gap-10">
       <div className="row gap-10 wrap">
-        <span className="section-label">Consistency across outputs</span>
+        <span className="section-label">{t("Consistency across outputs")}</span>
         {consistency.ok ? (
           <span className="chip chip-green">
-            <Icon name="check" size={14} strokeWidth={2.4} /> All outputs agree
+            <Icon name="check" size={14} strokeWidth={2.4} /> {t("All outputs agree")}
           </span>
         ) : (
           <span className="chip chip-red">
-            {mismatches.length} mismatch{mismatches.length === 1 ? '' : 'es'}
-          </span>
+            {t("{length} mismatch{value}", { length: mismatches.length, value: mismatches.length === 1 ? '' : t("es") })}</span>
         )}
         <span className="muted small">
-          {consistency.checked} numbers, dates and times in {consistency.outputs} output{consistency.outputs === 1 ? '' : 's'} compared
-          with the fact they come from.
-        </span>
+          {t("{checked} numbers, dates and times in {outputs} output{value} compared with the fact they come from.", { checked: consistency.checked, outputs: consistency.outputs, value: consistency.outputs === 1 ? '' : 's' })}</span>
       </div>
       {mismatches.length > 0 && (
         <ul className="mismatch-list">
@@ -444,11 +432,11 @@ export function ConsistencyPanel({ consistency, generating, facts, onOpen, onFac
                 {m.fact_id}
               </button>
               <span className="grow">
-                The fact sheet says <strong>{m.expected.join(' / ')}</strong>, but the <strong>{m.output_label}</strong> says{' '}
+                {t("The fact sheet says")} <strong>{m.expected.join(' / ')}</strong>{t(", but the")} <strong>{m.output_label}</strong> {t("says")}{' '}
                 <strong className="mismatch-found">{m.found}</strong>.
               </span>
               <button type="button" className="btn btn-outline btn-xs" onClick={() => onOpen(m.output_id, m.sentence_id, m.fact_id)}>
-                Open {m.output_label}
+                {t("Open")} {m.output_label}
                 <Icon name="arrowRight" size={14} />
               </button>
             </li>
@@ -457,17 +445,17 @@ export function ConsistencyPanel({ consistency, generating, facts, onOpen, onFac
       )}
       {agreed.length > 0 && (
         <div className="row gap-6 wrap small">
-          <span className="muted">Same everywhere:</span>
+          <span className="muted">{t("Same everywhere:")}</span>
           {agreed.map((a) => (
             <button
               key={`${a.fact_id}-${a.value}`}
               type="button"
               className="agree-chip"
-              title={`${a.fact_id}: ${facts.get(a.fact_id)?.text ?? ''}\nUsed the same in: ${a.outputs.join(', ')}`}
+              title={t("{fact_id}: {n}\nUsed the same in: {n2}", { fact_id: a.fact_id, n: facts.get(a.fact_id)?.text ?? '', n2: a.outputs.join(', ') })}
               onClick={() => onFact(a.fact_id)}
             >
               <Icon name="check" size={13} strokeWidth={2.4} />
-              {a.value} <span className="muted">· {a.outputs.length} outputs</span>
+              {a.value} <span className="muted">{t("· {length} outputs", { length: a.outputs.length })}</span>
             </button>
           ))}
         </div>

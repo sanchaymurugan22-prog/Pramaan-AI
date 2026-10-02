@@ -5,6 +5,7 @@ import { useCounts } from '../counts'
 import { Icon, type IconName } from '../components/Icon'
 import { links, navigate } from '../router'
 import { dayLabel, shortTime } from './format'
+import { t } from '../i18n'
 
 // Design "40 · Notifications (all roles)": in-app only (nothing is emailed or texted; works offline).
 // Each kind has its own icon, colour AND words, so nothing depends on colour alone.
@@ -43,7 +44,7 @@ export function Notifications() {
         setUnread(body.unread)
         setError('')
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load notifications.'))
+      .catch((e) => setError(e instanceof Error ? e.message : t("Could not load notifications.")))
   }, [tab])
 
   async function open(note: Notification) {
@@ -78,29 +79,28 @@ export function Notifications() {
     <main className="page">
       <div className="page-head">
         <div className="stack gap-2">
-          <div className="eyebrow">Inbox</div>
-          <h1>Notifications</h1>
+          <div className="eyebrow">{t("Inbox")}</div>
+          <h1>{t("Notifications")}</h1>
         </div>
         <div className="grow" />
         <button type="button" className="btn btn-outline" onClick={readAll} disabled={unread === 0}>
           <Icon name="check" size={18} strokeWidth={2} />
-          Mark all as read
+          {t("Mark all as read")}
         </button>
       </div>
 
-      <div className="segmented segmented-wide" role="tablist" aria-label="Show">
+      <div className="segmented segmented-wide" role="tablist" aria-label={t("Show")}>
         <button type="button" role="tab" aria-selected={tab === 'all'} className={tab === 'all' ? 'is-on' : ''} onClick={() => setTab('all')}>
-          All
+          {t("All")}
         </button>
         <button type="button" role="tab" aria-selected={tab === 'unread'} className={tab === 'unread' ? 'is-on' : ''} onClick={() => setTab('unread')}>
-          Unread ({unread})
-        </button>
+          {t("Unread ({unread})", { unread: unread })}</button>
       </div>
 
       {error && <div className="alert alert-red">{error}</div>}
-      {items === null && !error && <p className="muted">Loading…</p>}
+      {items === null && !error && <p className="muted">{t("Loading…")}</p>}
       {items && items.length === 0 && (
-        <p className="muted">{tab === 'unread' ? 'Nothing unread.' : 'No notifications yet. You will see here when a job is ready, sent back, approved or signed.'}</p>
+        <p className="muted">{tab === 'unread' ? t("Nothing unread.") : t("No notifications yet. You will see here when a job is ready, sent back, approved or signed.")}</p>
       )}
 
       {groups.map((group) => (
@@ -131,7 +131,7 @@ export function Notifications() {
                   )}
                   {!href && !note.read && (
                     <button type="button" className="btn btn-sm btn-outline" onClick={() => open(note)}>
-                      Mark read
+                      {t("Mark read")}
                     </button>
                   )}
                 </li>

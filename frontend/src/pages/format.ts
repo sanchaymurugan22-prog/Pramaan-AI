@@ -1,4 +1,5 @@
 import type { FactSheet, QuoteFound } from '../api'
+import { locale, t } from '../i18n'
 
 // Small helpers shared by the pages.
 
@@ -14,7 +15,7 @@ const OUTPUT_LABELS: Record<string, string> = {
 
 // ["x_thread", "advisory", "presentation"] -> "X thread, Advisory +1"
 export function outputKinds(types: string[]): string {
-  const labels = types.map((t) => OUTPUT_LABELS[t] ?? t)
+  const labels = types.map((type) => t(OUTPUT_LABELS[type] ?? type))
   return labels.length <= 2 ? labels.join(', ') : `${labels.slice(0, 2).join(', ')} +${labels.length - 2}`
 }
 
@@ -23,8 +24,8 @@ export function shortTime(iso: string): string {
   const date = new Date(iso)
   const today = new Date().toDateString() === date.toDateString()
   return today
-    ? date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false })
-    : date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+    ? date.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit', hour12: false })
+    : date.toLocaleDateString(locale(), { day: 'numeric', month: 'short' })
 }
 
 // 75 -> "1:15"
@@ -35,10 +36,10 @@ export function duration(seconds: number): string {
 
 // Which AI is in use, for chips and status rows
 export function aiLabel(mode: string | undefined): string {
-  if (mode === 'local') return 'Sarvam 30B · local'
-  if (mode === 'cloud') return 'Sarvam · cloud'
-  if (mode === 'mock') return 'Mock AI · test answers'
-  return 'AI'
+  if (mode === 'local') return t('Sarvam 30B · local')
+  if (mode === 'cloud') return t('Sarvam · cloud')
+  if (mode === 'mock') return t('Mock AI · test answers')
+  return t('AI')
 }
 
 // Job numbers as printed everywhere: 142 -> "#0142"
@@ -71,12 +72,12 @@ export function dayLabel(iso: string): string {
   yesterday.setDate(today.getDate() - 1)
   if (date.toDateString() === today.toDateString()) return 'Today'
   if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
-  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+  return date.toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 // "30 Sep, 10:21"
 export function dateTime(iso: string): string {
-  return new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+  return new Date(iso).toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
 // 2150000 -> "2.1 MB"
@@ -142,7 +143,7 @@ export function jsIndex(text: string, pythonIndex: number): number {
 
 // e.g. "Wednesday, 30 September"
 export function todayLabel(): string {
-  return new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })
+  return new Date().toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long' })
 }
 
 // A SHA-256 fingerprint, shortened for display: "3f9a 7c21 … 8d02 e0b4"

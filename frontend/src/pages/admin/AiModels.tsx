@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { getAiInfo, runSpeedTest, type AiInfo } from '../../api'
 import { Icon } from '../../components/Icon'
 import { duration, shortTime } from '../format'
+import { t } from '../../i18n'
 
 const STATUS: Record<string, { label: string; className: string }> = {
   in_use: { label: 'In use', className: 'chip chip-green chip-xs' },
@@ -20,7 +21,7 @@ export function AiModels() {
   const load = () =>
     getAiInfo()
       .then(setInfo)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load the AI information.'))
+      .catch((e) => setError(e instanceof Error ? e.message : t("Could not load the AI information.")))
   useEffect(() => {
     load()
   }, [])
@@ -32,26 +33,26 @@ export function AiModels() {
       await runSpeedTest()
       await load()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'The speed test did not run.')
+      setError(e instanceof Error ? e.message : t("The speed test did not run."))
     } finally {
       setTesting(false)
     }
   }
 
   const current = info?.performance.find((p) => p.ai_mode === info.ai_mode)
-  const t = info?.speed_test
+  const speed = info?.speed_test
   return (
     <main className="page">
       <div className="page-head">
         <div className="stack gap-2">
-          <div className="eyebrow eyebrow-navy">Admin</div>
-          <h1>AI models &amp; performance</h1>
-          <p className="muted page-lead">All models are Indian and run on this computer. Speeds below are measured from real jobs here.</p>
+          <div className="eyebrow eyebrow-navy">{t("Admin")}</div>
+          <h1>{t("AI models & performance")}</h1>
+          <p className="muted page-lead">{t("All models are Indian and run on this computer. Speeds below are measured from real jobs here.")}</p>
         </div>
         <div className="grow" />
         <button type="button" className="btn btn-navy" onClick={test} disabled={testing || !info}>
           <Icon name="bolt" size={18} strokeWidth={2} />
-          {testing ? 'Testing… (the local model can take a minute)' : 'Run a speed test'}
+          {testing ? t("Testing… (the local model can take a minute)") : t("Run a speed test")}
         </button>
       </div>
       {error && <div className="alert alert-red">{error}</div>}
@@ -60,7 +61,7 @@ export function AiModels() {
         <>
           <div className="mode-grid">
             {(['local', 'mock', 'cloud'] as const).map((mode) => (
-              <section key={mode} className={info.ai_mode === mode ? 'card card-pad mode-card is-on' : 'card card-pad mode-card'} aria-label={`${mode} mode`}>
+              <section key={mode} className={info.ai_mode === mode ? 'card card-pad mode-card is-on' : 'card card-pad mode-card'} aria-label={t("{mode} mode", { mode: mode })}>
                 <div className="row gap-12 align-start">
                   <span className="setup-card-icon" aria-hidden="true">
                     <Icon name={mode === 'local' ? 'chip' : mode === 'mock' ? 'code' : 'globe'} size={22} color="var(--navy)" />
@@ -80,7 +81,7 @@ export function AiModels() {
                   {info.ai_mode === mode && (
                     <span className="chip chip-navy chip-xs">
                       <Icon name="check" size={12} strokeWidth={2.4} />
-                      In use
+                      {t("In use")}
                     </span>
                   )}
                 </div>
@@ -88,12 +89,11 @@ export function AiModels() {
             ))}
           </div>
           <p className="muted small">
-            The mode is set with <code className="mono">AI_MODE</code> in <code className="mono">.env</code> (then restart the app), so it cannot be
-            changed from a web page. Model: <span className="mono">{info.model || '—'}</span>
+            {t("The mode is set with")} <code className="mono">AI_MODE</code> {t("in")} <code className="mono">.env</code> {t("(then restart the app), so it cannot be changed from a web page. Model:")} <span className="mono">{info.model || '—'}</span>
             {info.base_url && (
               <>
                 {' '}
-                at <span className="mono">{info.base_url}</span>
+                {t("at")} <span className="mono">{info.base_url}</span>
               </>
             )}
             .
@@ -101,16 +101,16 @@ export function AiModels() {
 
           <div className="admin-two">
             <section className="card card-pad stack gap-12" aria-labelledby="models-title">
-              <h2 id="models-title">Models</h2>
+              <h2 id="models-title">{t("Models")}</h2>
               <div className="table-scroll">
                 <table className="data-table">
-                  <caption className="sr-only">Models of the plan and their status</caption>
+                  <caption className="sr-only">{t("Models of the plan and their status")}</caption>
                   <thead>
                     <tr>
-                      <th scope="col">Model</th>
-                      <th scope="col">Job</th>
-                      <th scope="col">Made by</th>
-                      <th scope="col">Status</th>
+                      <th scope="col">{t("Model")}</th>
+                      <th scope="col">{t("Job")}</th>
+                      <th scope="col">{t("Made by")}</th>
+                      <th scope="col">{t("Status")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -123,7 +123,7 @@ export function AiModels() {
                         <td>{m.job}</td>
                         <td>{m.made_by}</td>
                         <td>
-                          <span className={(STATUS[m.status] ?? STATUS.off).className}>{(STATUS[m.status] ?? STATUS.off).label}</span>
+                          <span className={(STATUS[m.status] ?? STATUS.off).className}>{t((STATUS[m.status] ?? STATUS.off).label)}</span>
                         </td>
                       </tr>
                     ))}
@@ -134,36 +134,35 @@ export function AiModels() {
 
             <div className="stack gap-20">
               <section className="card card-pad stack gap-12" aria-labelledby="speed-title">
-                <h2 id="speed-title">Measured speed · {info.label}</h2>
-                {!current && <p className="muted small">No jobs have run with this AI yet.</p>}
+                <h2 id="speed-title">{t("Measured speed · {label}", { label: t(info.label) })}</h2>
+                {!current && <p className="muted small">{t("No jobs have run with this AI yet.")}</p>}
                 {current && (
                   <dl className="facts-table">
                     <div>
-                      <dt>Outputs written</dt>
+                      <dt>{t("Outputs written")}</dt>
                       <dd>{current.outputs}</dd>
                     </div>
                     <div>
-                      <dt>Average per output</dt>
+                      <dt>{t("Average per output")}</dt>
                       <dd>{current.average_output_seconds === null ? '—' : duration(current.average_output_seconds)}</dd>
                     </div>
                     <div>
-                      <dt>Average fact sheet</dt>
+                      <dt>{t("Average fact sheet")}</dt>
                       <dd>{current.average_fact_sheet_seconds === null ? '—' : duration(current.average_fact_sheet_seconds)}</dd>
                     </div>
                     <div>
-                      <dt>Writing speed</dt>
+                      <dt>{t("Writing speed")}</dt>
                       <dd>{current.tokens_per_second === null ? '—' : `${current.tokens_per_second} tokens/s`}</dd>
                     </div>
                   </dl>
                 )}
                 {current && current.by_type.length > 0 && (
                   <ul className="clean-list-plain small stack gap-4">
-                    {current.by_type.map((t) => (
-                      <li key={t.type} className="row">
-                        <span className="grow">{t.label}</span>
+                    {current.by_type.map((speed) => (
+                      <li key={speed.type} className="row">
+                        <span className="grow">{t(speed.label)}</span>
                         <span className="muted">
-                          {t.count}× · {duration(t.average_seconds)} each
-                        </span>
+                          {t("{count}× · {average_seconds} each", { count: speed.count, average_seconds: duration(speed.average_seconds) })}</span>
                       </li>
                     ))}
                   </ul>
@@ -171,25 +170,25 @@ export function AiModels() {
               </section>
 
               <section className="card card-pad stack gap-10" aria-labelledby="test-title" aria-live="polite">
-                <h2 id="test-title">Last speed test</h2>
-                {!t?.at && <p className="muted small">Not run yet.</p>}
-                {t?.at && (
-                  <p className={t.ok ? '' : 'over-limit'}>
-                    {t.ok
-                      ? `${t.words} words in ${t.seconds} s${t.words_per_second ? ` (${t.words_per_second} words/s)` : ''}`
-                      : `Failed: ${t.error}`}
-                    <span className="muted small"> · {t.ai_mode} · {shortTime(t.at)}</span>
+                <h2 id="test-title">{t("Last speed test")}</h2>
+                {!speed?.at && <p className="muted small">{t("Not run yet.")}</p>}
+                {speed?.at && (
+                  <p className={speed.ok ? '' : 'over-limit'}>
+                    {speed.ok
+                      ? t("{words} words in {seconds} s{n}", { words: speed.words, seconds: speed.seconds, n: speed.words_per_second ? ` (${speed.words_per_second} words/s)` : '' })
+                      : `Failed: ${speed.error}`}
+                    <span className="muted small"> · {speed.ai_mode} · {shortTime(speed.at)}</span>
                   </p>
                 )}
               </section>
 
               <section className="card card-pad stack gap-8" aria-labelledby="saving-title">
-                <h2 id="saving-title">How Pramaan saves time</h2>
+                <h2 id="saving-title">{t("How Pramaan saves time")}</h2>
                 <ul className="clean-list small">
-                  <li>The source is read once into a fact sheet, reused for every output.</li>
-                  <li>Short outputs are written first, so the first results appear sooner.</li>
-                  <li>Local answers are streamed: the progress page shows them being written.</li>
-                  <li>Each answer has a word limit per output type (MAX_TOKENS_… in .env).</li>
+                  <li>{t("The source is read once into a fact sheet, reused for every output.")}</li>
+                  <li>{t("Short outputs are written first, so the first results appear sooner.")}</li>
+                  <li>{t("Local answers are streamed: the progress page shows them being written.")}</li>
+                  <li>{t("Each answer has a word limit per output type (MAX_TOKENS_… in .env).")}</li>
                 </ul>
               </section>
             </div>

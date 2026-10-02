@@ -18,6 +18,7 @@ import { links, navigate } from '../router'
 import { OriginBadge } from '../components/JobsTable'
 import { jobNo, jsIndex } from './format'
 import { ALWAYS_CHECKED, CHOICES, findingIcon, INDICATOR_CHOICES, TLP_LEVELS, whereFound } from './safety'
+import { t } from '../i18n'
 
 // New transformation, step 2 of 3: the Safety check. Layout from the design
 // "10 · New transformation · 2 Safety check". Everything here was found by rules (no AI):
@@ -45,13 +46,13 @@ export function SafetyCheck({ jobId }: { jobId: number }) {
         setChoices(Object.fromEntries([...all.map((f) => [f.id, f.choice]), ...instructions.map((x) => [x.id, x.choice!])]))
         setTlp(loaded.tlp ?? loaded.safety?.suggested_tlp ?? null)
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load the job.'))
+      .catch((e) => setError(e instanceof Error ? e.message : t("Could not load the job.")))
   }, [jobId])
 
   if (!job) {
     return (
       <main className="page">
-        {error ? <div className="alert alert-red">{error}</div> : <p className="muted">Loading…</p>}
+        {error ? <div className="alert alert-red">{error}</div> : <p className="muted">{t("Loading…")}</p>}
       </main>
     )
   }
@@ -59,10 +60,10 @@ export function SafetyCheck({ jobId }: { jobId: number }) {
   if (job.status !== 'draft' || !safety) {
     return (
       <main className="page">
-        <h1>Safety check</h1>
+        <h1>{t("Safety check")}</h1>
         <div className="alert alert-yellow">
-          {safety ? 'This job has already started, so its safety check is locked.' : 'This job was made before the safety check existed.'}{' '}
-          <a href={links.job(job.id)}>Open its results</a>.
+          {safety ? t("This job has already started, so its safety check is locked.") : t("This job was made before the safety check existed.")}{' '}
+          <a href={links.job(job.id)}>{t("Open its results")}</a>.
         </div>
       </main>
     )
@@ -76,7 +77,7 @@ export function SafetyCheck({ jobId }: { jobId: number }) {
   ])
 
   async function next() {
-    if (!job || !tlp) return setError('Choose a sharing level (TLP).')
+    if (!job || !tlp) return setError(t("Choose a sharing level (TLP)."))
     const changed = Object.fromEntries(Object.entries(choices).filter(([id, choice]) => saved[id] !== choice))
     setSaving(true)
     setError('')
@@ -84,7 +85,7 @@ export function SafetyCheck({ jobId }: { jobId: number }) {
       await saveSafety(job.id, { tlp, choices: changed })
       navigate(links.outputs(job.id))
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save the safety check.')
+      setError(e instanceof Error ? e.message : t("Could not save the safety check."))
       setSaving(false)
     }
   }
@@ -97,19 +98,18 @@ export function SafetyCheck({ jobId }: { jobId: number }) {
       <div className="page-head">
         <div className="stack gap-2">
           <div className="eyebrow">
-            New transformation · Job {jobNo(job.id)} · {job.title}
-          </div>
-          <h1>Safety check</h1>
+            {t("New transformation · Job {id} · {title}", { id: jobNo(job.id), title: job.title })}</div>
+          <h1>{t("Safety check")}</h1>
           {job.created_via === 'watch' && (
             <p className="muted row gap-8 wrap">
               <OriginBadge job={job} />
-              Found by your watch folder. Nothing has been written yet: check it, choose the sharing label, then continue.
+              {t("Found by your watch folder. Nothing has been written yet: check it, choose the sharing label, then continue.")}
             </p>
           )}
         </div>
         <div className="grow" />
         <a className="btn btn-outline" href={links.dashboard}>
-          Cancel
+          {t("Cancel")}
         </a>
       </div>
       <Stepper current={2} />
@@ -120,12 +120,10 @@ export function SafetyCheck({ jobId }: { jobId: number }) {
 
           <section className="card card-pad stack gap-14">
             <div className="row gap-12 wrap">
-              <h2>What we found</h2>
+              <h2>{t("What we found")}</h2>
               <div className="grow" />
               <span className="muted small">
-                {safety.checked.pages} page{safety.checked.pages === 1 ? '' : 's'} in {safety.checked.sources} source
-                {safety.checked.sources === 1 ? '' : 's'} checked
-              </span>
+                {t("{pages} page{value} in {sources} source{value2} checked", { pages: safety.checked.pages, value: safety.checked.pages === 1 ? '' : 's', sources: safety.checked.sources, value2: safety.checked.sources === 1 ? '' : 's' })}</span>
             </div>
             <FindingTable
               findings={safety.findings}
@@ -142,10 +140,9 @@ export function SafetyCheck({ jobId }: { jobId: number }) {
           {safety.indicators.length > 0 && (
             <section className="card card-pad stack gap-14">
               <div className="stack gap-4">
-                <h2>Attack indicators</h2>
+                <h2>{t("Attack indicators")}</h2>
                 <p className="muted small">
-                  Attacker addresses, CVE ids and file hashes are not private data. They stay in the advisory and are
-                  left out of public posts, unless you choose otherwise.
+                  {t("Attacker addresses, CVE ids and file hashes are not private data. They stay in the advisory and are left out of public posts, unless you choose otherwise.")}
                 </p>
               </div>
               <FindingTable
@@ -166,8 +163,8 @@ export function SafetyCheck({ jobId }: { jobId: number }) {
 
         <div className="stack gap-16">
           <section className="card card-pad stack gap-14">
-            <h2>Sharing level (TLP)</h2>
-            <div className="stack gap-10" role="radiogroup" aria-label="Sharing level">
+            <h2>{t("Sharing level (TLP)")}</h2>
+            <div className="stack gap-10" role="radiogroup" aria-label={t("Sharing level")}>
               {TLP_LEVELS.map((level) => {
                 const on = tlp === level.tlp
                 return (
@@ -183,23 +180,21 @@ export function SafetyCheck({ jobId }: { jobId: number }) {
                     <span className="stack gap-4 grow">
                       <span className="row gap-8 wrap">
                         <TlpLabel tlp={level.tlp} />
-                        <span className="tlp-title">{level.title}</span>
-                        {safety.suggested_tlp === level.tlp && <span className="chip chip-saffron">Suggested</span>}
+                        <span className="tlp-title">{t(level.title)}</span>
+                        {safety.suggested_tlp === level.tlp && <span className="chip chip-saffron">{t("Suggested")}</span>}
                       </span>
-                      <span className="tlp-desc">{level.description}</span>
+                      <span className="tlp-desc">{t(level.description)}</span>
                     </span>
                   </button>
                 )
               })}
             </div>
             <p className="hint">
-              <strong>Why TLP:{safety.suggested_tlp}?</strong> {safety.tlp_reason}
+              <strong>{t("Why TLP:{suggested_tlp}?", { suggested_tlp: safety.suggested_tlp })}</strong> {safety.tlp_reason}
             </p>
             {(tlp === 'RED' || tlp === 'AMBER') && (
               <p className="muted small">
-                With TLP:{tlp}, the LinkedIn post, X thread, infographic and video package are switched off. The
-                advisory, executive summary and presentation are allowed.
-              </p>
+                {t("With TLP:{tlp}, the LinkedIn post, X thread, infographic and video package are switched off. The advisory, executive summary and presentation are allowed.", { tlp: tlp })}</p>
             )}
           </section>
 
@@ -208,17 +203,16 @@ export function SafetyCheck({ jobId }: { jobId: number }) {
               <Icon name="wifiOff" size={20} />
             </span>
             <span className="stack">
-              <span className="muted small">Processing mode</span>
-              <strong>Rule-based check · nothing leaves this computer</strong>
+              <span className="muted small">{t("Processing mode")}</span>
+              <strong>{t("Rule-based check · nothing leaves this computer")}</strong>
             </span>
           </section>
 
           {hiddenCount > 0 && (
             <section className="card card-pad-sm stack gap-6">
-              <span className="section-label">What the AI will see</span>
+              <span className="section-label">{t("What the AI will see")}</span>
               <p className="muted small">
-                The AI never sees the {hiddenCount} hidden item{hiddenCount === 1 ? '' : 's'}: each is swapped for a
-                placeholder like <code className="mono">[PHONE-1]</code> before it reads the source.
+                {t("The AI never sees the")} {hiddenCount} {t("hidden item")}{hiddenCount === 1 ? '' : 's'}{t(": each is swapped for a placeholder like")} <code className="mono">[PHONE-1]</code> {t("before it reads the source.")}
               </p>
             </section>
           )}
@@ -230,14 +224,14 @@ export function SafetyCheck({ jobId }: { jobId: number }) {
         <a
           className="btn btn-lg btn-outline"
           href={links.newJob}
-          title="Start again with other sources. This draft stays in My jobs."
+          title={t("Start again with other sources. This draft stays in My jobs.")}
         >
           <Icon name="arrowLeft" size={18} strokeWidth={2} />
-          Back
+          {t("Back")}
         </a>
         <div className="grow" />
         <button type="button" className="btn btn-lg btn-saffron" onClick={next} disabled={saving || !tlp}>
-          {saving ? 'Saving…' : 'Next: outputs and settings'}
+          {saving ? t("Saving…") : t("Next: outputs and settings")}
           {!saving && <Icon name="arrowRight" size={18} strokeWidth={2} />}
         </button>
       </div>
@@ -283,16 +277,16 @@ function Banner({ kinds, suggested }: { kinds: number; suggested: Tlp }) {
       </span>
       <span className="stack gap-2 grow">
         <span className="banner-title">
-          {found ? `We found ${kinds} kind${kinds === 1 ? '' : 's'} of sensitive information` : 'No private data found'}
+          {found ? t("We found {kinds} kind{n} of sensitive information", { kinds: kinds, n: kinds === 1 ? '' : 's' }) : t("No private data found")}
         </span>
         <span className="banner-text">
           {found
-            ? 'Internal outputs can keep them. Public outputs will hide them automatically.'
-            : 'Nothing personal, secret or marked was found in the sources.'}
+            ? t("Internal outputs can keep them. Public outputs will hide them automatically.")
+            : t("Nothing personal, secret or marked was found in the sources.")}
         </span>
       </span>
       <span className="stack gap-6 banner-tlp">
-        <span className="small">Suggested sharing level</span>
+        <span className="small">{t("Suggested sharing level")}</span>
         <TlpLabel tlp={suggested} />
       </span>
     </section>
@@ -317,23 +311,22 @@ function FindingTable({ findings, choices, options, focus, onChoose, onShow, non
   return (
     <div className="find-table" role="table">
       <div className="find-row find-head" role="row">
-        <span role="columnheader">Item</span>
-        <span role="columnheader">Found</span>
-        <span role="columnheader">Where</span>
-        <span role="columnheader">Action</span>
+        <span role="columnheader">{t("Item")}</span>
+        <span role="columnheader">{t("Found")}</span>
+        <span role="columnheader">{t("Where")}</span>
+        <span role="columnheader">{t("Action")}</span>
       </div>
       {findings.map((f) => (
         <div key={f.id} className={focus === f.id ? 'find-row is-focus' : 'find-row'} role="row">
-          <button type="button" className="find-item" onClick={() => onShow(f.id)} title="Show it in the source" role="cell">
+          <button type="button" className="find-item" onClick={() => onShow(f.id)} title={t("Show it in the source")} role="cell">
             <span className={`find-icon ${f.group === 'indicator' ? 'tone-navy' : `risk-${f.risk}`}`}>
               <Icon name={findingIcon(f)} size={18} />
             </span>
             <span className="stack gap-1 find-text">
-              <span className="find-label">{f.label}</span>
+              <span className="find-label">{t(f.label)}</span>
               <span className="find-value mono">{shown(f)}</span>
               <span className="find-note">
-                {f.group === 'indicator' ? 'Indicator' : `${capital(f.risk)} risk`} · public outputs show {f.redaction}
-              </span>
+                {t("{value} · public outputs show {redaction}", { value: f.group === 'indicator' ? t("Indicator") : t("{n} risk", { n: capital(f.risk) }), redaction: f.redaction })}</span>
             </span>
           </button>
           <span role="cell">{f.count}</span>
@@ -343,13 +336,13 @@ function FindingTable({ findings, choices, options, focus, onChoose, onShow, non
           <span role="cell">
             <select
               className="input select-sm"
-              aria-label={`Action for ${f.label}`}
+              aria-label={t("Action for {label}", { label: f.label })}
               value={choices[f.id]}
               onChange={(e) => onChoose(f.id, e.target.value as SafetyChoice)}
             >
               {options.map((o) => (
                 <option key={o.value} value={o.value}>
-                  {o.label}
+                  {t(o.label)}
                 </option>
               ))}
             </select>
@@ -362,14 +355,14 @@ function FindingTable({ findings, choices, options, focus, onChoose, onShow, non
             <span className="find-icon tone-green">
               <Icon name={row.icon} size={18} />
             </span>
-            <span className="muted">{row.label}</span>
+            <span className="muted">{t(row.label)}</span>
           </span>
           <span role="cell">0</span>
           <span role="cell">—</span>
           <span role="cell">
             <span className="chip chip-green">
               <Icon name="check" size={14} strokeWidth={2.4} />
-              None found
+              {t("None found")}
             </span>
           </span>
         </div>
@@ -409,7 +402,7 @@ function Preview({ findings, suspicious, choices, sources }: {
   const after = page.slice(end, end + 60).replace(/\s\S*$/, '').replace(/\s+/g, ' ')
   return (
     <div className="preview-box">
-      Preview in public outputs: “…{before}
+      {t("Preview in public outputs: “…")}{before}
       <span className="redaction">{hidden.redaction}</span>
       {after}…”
     </div>
@@ -434,10 +427,9 @@ function SuspiciousCard({ items, choices, focus, onShow, onChoose }: SuspiciousP
           <Icon name="shieldCheck" size={22} />
         </span>
         <span className="stack gap-4">
-          <h3>No hidden instructions found</h3>
+          <h3>{t("No hidden instructions found")}</h3>
           <p className="muted small">
-            We look for text that tries to control the AI, such as “ignore your rules”, invisible characters, and
-            white, tiny or hidden text in Word and PDF files.
+            {t("We look for text that tries to control the AI, such as “ignore your rules”, invisible characters, and white, tiny or hidden text in Word and PDF files.")}
           </p>
         </span>
       </section>
@@ -450,11 +442,9 @@ function SuspiciousCard({ items, choices, focus, onShow, onChoose }: SuspiciousP
           <Icon name="warning" size={22} />
         </span>
         <span className="stack gap-4">
-          <h3>Suspicious instructions found</h3>
+          <h3>{t("Suspicious instructions found")}</h3>
           <p className="muted small">
-            By default each instruction is cut out of what the AI reads (shown struck through). If you keep one, the
-            AI is still told that source text is data and must never be followed. Hidden characters and hidden text
-            are always removed.
+            {t("By default each instruction is cut out of what the AI reads (shown struck through). If you keep one, the AI is still told that source text is data and must never be followed. Hidden characters and hidden text are always removed.")}
           </p>
         </span>
       </div>
@@ -468,28 +458,27 @@ function SuspiciousCard({ items, choices, focus, onShow, onChoose }: SuspiciousP
                 className={focus === item.id ? 'suspicious-item is-focus' : 'suspicious-item'}
                 onClick={() => onShow(item.id)}
                 disabled={item.start === null}
-                title={item.start === null ? 'Removed from the text, so it cannot be shown there' : 'Show it in the source'}
+                title={item.start === null ? t("Removed from the text, so it cannot be shown there") : t("Show it in the source")}
               >
                 <span className="row gap-8 wrap">
-                  <strong>{item.label}</strong>
+                  <strong>{t(item.label)}</strong>
                   <span className="muted small">
-                    {item.source_id} · page {item.page}
-                  </span>
-                  {removed && <span className="chip chip-red chip-xs">Removed from what the AI reads</span>}
+                    {t("{source_id} · page {page}", { source_id: item.source_id, page: item.page })}</span>
+                  {removed && <span className="chip chip-red chip-xs">{t("Removed from what the AI reads")}</span>}
                 </span>
                 <span className={removed ? 'suspicious-text struck' : 'suspicious-text'}>{item.text}</span>
-                {item.kind !== 'instruction' && <span className="muted small">{item.detail}</span>}
+                {item.kind !== 'instruction' && <span className="muted small">{t(item.detail)}</span>}
               </button>
               {item.kind === 'instruction' && item.choice && (
                 <select
                   className="input select-sm"
-                  aria-label={`What to do with instruction ${item.id}`}
+                  aria-label={t("What to do with instruction {id}", { id: item.id })}
                   value={choices[item.id]}
                   onChange={(e) => onChoose(item.id, e.target.value as InstructionChoice)}
                 >
                   {INSTRUCTION_CHOICES.map((o) => (
                     <option key={o.value} value={o.value}>
-                      {o.label}
+                      {t(o.label)}
                     </option>
                   ))}
                 </select>
@@ -536,10 +525,10 @@ function SourceView({ sources, findings, suspicious, choices, focus }: {
         if (choices[s.id] === 'remove' && s.remove) {
           // the whole sentence the AI will not read, struck through
           const [a, b] = s.remove
-          add(s.page, { start: a, end: b, id: s.id, className: 'scan-mark mark-removed', title: 'Removed from what the AI reads' })
+          add(s.page, { start: a, end: b, id: s.id, className: 'scan-mark mark-removed', title: t("Removed from what the AI reads") })
         } else {
           ;(s.spans ?? [[s.start!, s.end!]]).forEach(([a, b]) =>
-            add(s.page, { start: a, end: b, id: s.id, className: 'scan-mark mark-injection', title: `${s.label} · kept` }),
+            add(s.page, { start: a, end: b, id: s.id, className: 'scan-mark mark-injection', title: t("{label} · kept", { label: s.label }) }),
           )
         }
       })
@@ -570,7 +559,7 @@ function SourceView({ sources, findings, suspicious, choices, focus }: {
   return (
     <section className="card card-pad stack gap-12">
       <div className="row gap-10 wrap">
-        <h2>Source</h2>
+        <h2>{t("Source")}</h2>
         <div className="grow" />
         {sources.length > 1 &&
           sources.map((s) => (
@@ -585,18 +574,18 @@ function SourceView({ sources, findings, suspicious, choices, focus }: {
           ))}
       </div>
       <div className="row gap-10 wrap small legend">
-        <span className="scan-mark mark-high">High risk</span>
-        <span className="scan-mark mark-medium">Medium</span>
-        <span className="scan-mark mark-low">Low</span>
-        <span className="scan-mark mark-indicator">Indicator</span>
-        <span className="scan-mark mark-injection">Aimed at the AI</span>
-        <span className="scan-mark mark-removed">Removed</span>
-        <span className="muted">Click a row above to find it here.</span>
+        <span className="scan-mark mark-high">{t("High risk")}</span>
+        <span className="scan-mark mark-medium">{t("Medium")}</span>
+        <span className="scan-mark mark-low">{t("Low")}</span>
+        <span className="scan-mark mark-indicator">{t("Indicator")}</span>
+        <span className="scan-mark mark-injection">{t("Aimed at the AI")}</span>
+        <span className="scan-mark mark-removed">{t("Removed")}</span>
+        <span className="muted">{t("Click a row above to find it here.")}</span>
       </div>
       <div className="source-text is-wide" ref={box}>
         {current.pages.map((page, index) => (
           <div key={index} className="scan-page">
-            {current.pages.length > 1 && <div className="scan-page-label">Page {index + 1}</div>}
+            {current.pages.length > 1 && <div className="scan-page-label">{t("Page {value}", { value: index + 1 })}</div>}
             {highlight(page, marks.get(index + 1) ?? [], focus)}
           </div>
         ))}
@@ -614,7 +603,7 @@ function highlight(page: string, marks: Mark[], focus: string | null): ReactNode
     if (start < at) return
     parts.push(page.slice(at, start))
     parts.push(
-      <mark key={i} data-mark={m.id} className={m.id === focus ? `${m.className} is-focus` : m.className} title={m.title}>
+      <mark key={i} data-mark={m.id} className={m.id === focus ? `${m.className} is-focus` : m.className} title={t(m.title)}>
         {page.slice(start, end)}
       </mark>,
     )

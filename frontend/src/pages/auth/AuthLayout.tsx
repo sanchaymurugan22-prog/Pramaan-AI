@@ -6,6 +6,7 @@ import { Icon, type IconName } from '../../components/Icon'
 import { LogoSeal } from '../../components/Logo'
 import { Mandala } from '../../components/Mandala'
 import { TricolourStrip } from '../../components/TricolourStrip'
+import { t } from '../../i18n'
 
 const FEATURES: { icon: IconName; title: string; note: string }[] = [
   { icon: 'wifiOff', title: 'Works fully offline', note: 'Your data never leaves this computer' },
@@ -18,7 +19,7 @@ export function BrandMark({ big = false }: { big?: boolean }) {
     <div className="row gap-12">
       <LogoSeal size={big ? 58 : 42} />
       <div className="stack">
-        <span className={big ? 'brand-name brand-name-big' : 'brand-name'}>Pramaan AI</span>
+        <span className={big ? 'brand-name brand-name-big' : 'brand-name'}>{t("Pramaan AI")}</span>
         {big && <span className="brand-devanagari">प्रमाण</span>}
       </div>
     </div>
@@ -39,13 +40,12 @@ export function SplitLayout({ tone, children }: { tone: 'saffron' | 'green'; chi
         <BrandMark big />
         <div className="stack gap-12 auth-brand-copy">
           <h1 className="auth-headline">
-            One report in.
+            {t("One report in.")}
             <br />
-            Every format out.
+            {t("Every format out.")}
           </h1>
           <p className="auth-lead">
-            Turn threat reports, policies and news into advisories, briefings, slides and posts, safely and in your
-            language.
+            {t("Turn threat reports, policies and news into advisories, briefings, slides and posts, safely and in your language.")}
           </p>
         </div>
         <ul className="auth-features">
@@ -55,14 +55,14 @@ export function SplitLayout({ tone, children }: { tone: 'saffron' | 'green'; chi
                 <Icon name={f.icon} size={20} color={f.icon === 'wifiOff' ? 'var(--green-dark)' : 'var(--saffron-dark)'} />
               </span>
               <span className="stack">
-                <strong>{f.title}</strong>
+                <strong>{t(f.title)}</strong>
                 <span className="muted small">{f.note}</span>
               </span>
             </li>
           ))}
         </ul>
         <div className="grow" />
-        <p className="muted small auth-built-on">Built on Indian AI · Sarvam · BharatGen · AI4Bharat</p>
+        <p className="muted small auth-built-on">{t("Built on Indian AI · Sarvam · BharatGen · AI4Bharat")}</p>
       </aside>
       <main className="auth-form-side">
         <TricolourStrip />

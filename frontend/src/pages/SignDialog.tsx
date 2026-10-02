@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { getSignInfo, reviewJob, type JobDetail, type SignInfo } from '../api'
 import { Icon } from '../components/Icon'
+import { t } from '../i18n'
 
 type Props = { job: JobDetail; notes: string; onClose: () => void; onSigned: (job: JobDetail) => void }
 
@@ -16,7 +17,7 @@ export function SignDialog({ job, notes, onClose, onSigned }: Props) {
   useEffect(() => {
     getSignInfo(job.id)
       .then(setInfo)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Could not prepare signing.'))
+      .catch((e) => setError(e instanceof Error ? e.message : t("Could not prepare signing.")))
   }, [job.id])
 
   useEffect(() => {
@@ -33,7 +34,7 @@ export function SignDialog({ job, notes, onClose, onSigned }: Props) {
       setPin('')
       onSigned(signed)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not sign.')
+      setError(e instanceof Error ? e.message : t("Could not sign."))
     } finally {
       setBusy(false)
     }
@@ -48,10 +49,10 @@ export function SignDialog({ job, notes, onClose, onSigned }: Props) {
             <Icon name="key" size={22} color="var(--green-dark)" />
           </span>
           <div className="stack gap-2 grow">
-            <h2 id="sign-title">{isTest ? 'Sign with the test key' : 'Sign with your DSC token'}</h2>
-            <span className="muted small">Your signature seals every file so no one can change it unnoticed.</span>
+            <h2 id="sign-title">{isTest ? t("Sign with the test key") : t("Sign with your DSC token")}</h2>
+            <span className="muted small">{t("Your signature seals every file so no one can change it unnoticed.")}</span>
           </div>
-          <button type="button" className="icon-btn icon-btn-sm" aria-label="Close" onClick={onClose} disabled={busy}>
+          <button type="button" className="icon-btn icon-btn-sm" aria-label={t("Close")} onClick={onClose} disabled={busy}>
             <Icon name="cross" size={18} />
           </button>
         </div>
@@ -61,50 +62,48 @@ export function SignDialog({ job, notes, onClose, onSigned }: Props) {
             <div className={info.signer.error ? 'signer-box signer-box-bad' : 'signer-box'}>
               <Icon name={info.signer.error ? 'warning' : 'shieldCheck'} size={20} />
               <span className="stack grow">
-                <strong>{info.signer.label}</strong>
+                <strong>{t(info.signer.label)}</strong>
                 <span className="small">
                   {info.signer.error ??
                     (isTest
-                      ? 'For development and the demo: made on this computer, stored encrypted. Not a legal DSC.'
-                      : 'Certificate read from the token.')}
+                      ? t("For development and the demo: made on this computer, stored encrypted. Not a legal DSC.")
+                      : t("Certificate read from the token."))}
                 </span>
               </span>
               {!info.signer.error && (
                 <span className="chip chip-green chip-xs">
                   <Icon name="check" size={12} strokeWidth={2.4} />
-                  Ready
+                  {t("Ready")}
                 </span>
               )}
             </div>
             <dl className="sign-details">
-              <dt>Signed by</dt>
-              <dd>{info.signed_by} · Reviewer</dd>
-              <dt>Certificate</dt>
+              <dt>{t("Signed by")}</dt>
+              <dd>{t("{signed_by} · Reviewer", { signed_by: info.signed_by })}</dd>
+              <dt>{t("Certificate")}</dt>
               <dd>{info.signer.certificate_class ?? '—'}</dd>
               {info.signer.key_id && (
                 <>
-                  <dt>Key fingerprint</dt>
+                  <dt>{t("Key fingerprint")}</dt>
                   <dd className="mono">{info.signer.key_id}</dd>
                 </>
               )}
             </dl>
             <p className="sign-summary">
-              You are signing{' '}
+              {t("You are signing")}{' '}
               <strong>
-                {info.outputs} output{info.outputs === 1 ? '' : 's'} = {info.files} file{info.files === 1 ? '' : 's'}
-              </strong>{' '}
-              for job #{info.job_id} v{info.version}. Each file gets a QR code, and the job gets a numbered entry in the
-              record book.
+                {t("{outputs} output{value} = {files} file{value2}", { outputs: info.outputs, value: info.outputs === 1 ? '' : 's', files: info.files, value2: info.files === 1 ? '' : 's' })}</strong>{' '}
+              {t("for job #")}{info.job_id} v{info.version}{t(". Each file gets a QR code, and the job gets a numbered entry in the record book.")}
             </p>
             {info.needs_pin && (
               <label className="field">
-                <span className="field-label">Token PIN</span>
+                <span className="field-label">{t("Token PIN")}</span>
                 <input className="input" type="password" value={pin} onChange={(e) => setPin(e.target.value)} autoComplete="off" />
               </label>
             )}
             <label className="row gap-10 toggle-row">
               <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
-              <span>I have reviewed these outputs and approve them for release</span>
+              <span>{t("I have reviewed these outputs and approve them for release")}</span>
             </label>
           </>
         )}
@@ -112,12 +111,12 @@ export function SignDialog({ job, notes, onClose, onSigned }: Props) {
 
         <div className="row gap-10">
           <button type="button" className="btn btn-outline" onClick={onClose} disabled={busy}>
-            Cancel
+            {t("Cancel")}
           </button>
           <div className="grow" />
           <button type="button" className="btn btn-green" onClick={sign} disabled={!info || !agreed || busy || Boolean(info?.signer.error)}>
             <Icon name="shieldCheck" size={18} strokeWidth={2} />
-            {busy ? 'Signing…' : `Sign ${info?.files ?? ''} file${info?.files === 1 ? '' : 's'}`}
+            {busy ? t("Signing…") : t("Sign {n} file{n2}", { n: info?.files ?? '', n2: info?.files === 1 ? '' : 's' })}
           </button>
         </div>
       </section>

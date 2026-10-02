@@ -9,6 +9,7 @@ import { Mandala } from '../components/Mandala'
 import { TlpLabel } from '../components/TlpLabel'
 import { links } from '../router'
 import { jobNo, LANGUAGE_LABELS, todayLabel } from './format'
+import { t } from '../i18n'
 
 function waitingFor(iso: string | null, now: number): string {
   if (!iso) return ''
@@ -25,13 +26,13 @@ function checksChip(item: QueueItem) {
     return (
       <span className="chip chip-green chip-xs">
         <Icon name="check" size={12} strokeWidth={2.4} />
-        All checks passed
+        {t("All checks passed")}
       </span>
     )
   return (
     <span className="chip chip-yellow chip-xs">
       <Icon name="warning" size={12} strokeWidth={2.4} />
-      {notes} note{notes === 1 ? '' : 's'} to check
+      {notes} {t("note")}{notes === 1 ? '' : 's'} {t("to check")}
     </span>
   )
 }
@@ -67,7 +68,7 @@ export function ReviewQueue() {
           setQueue(q)
           setError('')
         })
-        .catch((e) => setError(e instanceof Error ? e.message : 'Could not load the review queue.'))
+        .catch((e) => setError(e instanceof Error ? e.message : t("Could not load the review queue.")))
         .finally(() => {
           timer = window.setTimeout(load, 30000) // new submissions appear by themselves
         })
@@ -88,12 +89,12 @@ export function ReviewQueue() {
         </div>
         <div className="hero-body">
           <div className="eyebrow eyebrow-green">{todayLabel()}</div>
-          <h1>Namaste, {firstName(user.full_name)}</h1>
+          <h1>{t("Namaste, {full_name}", { full_name: firstName(user.full_name) })}</h1>
           <p>
             {queue === null
-              ? 'Loading the review queue…'
+              ? t("Loading the review queue…")
               : waiting.length === 0
-                ? 'Nothing is waiting for review.'
+                ? t("Nothing is waiting for review.")
                 : `${waiting.length} kit${waiting.length === 1 ? ' is' : 's are'} waiting for you` +
                   (emergencies ? `, including ${emergencies} emergency alert${emergencies === 1 ? '' : 's'} on fast track.` : '.')}
           </p>
@@ -101,12 +102,12 @@ export function ReviewQueue() {
             <div className="row gap-8 wrap">
               <span className={queue.signer.ready ? 'chip chip-green' : 'chip chip-red'}>
                 <Icon name="usb" size={14} strokeWidth={2.2} />
-                {queue.signer.ready ? (queue.signer.kind === 'test' ? 'Test signing key ready' : 'DSC token connected') : 'Signing key not ready'}
+                {queue.signer.ready ? (queue.signer.kind === 'test' ? t("Test signing key ready") : t("DSC token connected")) : t("Signing key not ready")}
               </span>
               {user.emergency_duty && (
                 <span className="chip chip-saffron">
                   <Icon name="siren" size={14} strokeWidth={2.2} />
-                  On duty for emergencies
+                  {t("On duty for emergencies")}
                 </span>
               )}
             </div>
@@ -118,25 +119,25 @@ export function ReviewQueue() {
         <Stat
           icon="history"
           tone="green"
-          label="Waiting for you"
+          label={t("Waiting for you")}
           value={s ? String(s.waiting) : '–'}
           note={s?.oldest_submitted_at ? `Oldest: ${waitingFor(s.oldest_submitted_at, now)}` : 'All clear'}
         />
         <Stat
           icon="award"
           tone="navy"
-          label="Signed today"
+          label={t("Signed today")}
           value={s ? String(s.signed_today) : '–'}
           note={s?.signed_today ? `${s.files_in_last_kit} files in the last kit` : 'None yet'}
         />
         <Stat
           icon="clock"
           tone="saffron"
-          label="Average review time"
+          label={t("Average review time")}
           value={s?.average_review_minutes !== null && s ? `${s.average_review_minutes} min` : '–'}
           note="This week"
         />
-        <Stat icon="arrowLeft" tone="red" label="Sent back this week" value={s ? String(s.sent_back_this_week) : '–'} note="With notes to operators" />
+        <Stat icon="arrowLeft" tone="red" label={t("Sent back this week")} value={s ? String(s.sent_back_this_week) : '–'} note="With notes to operators" />
       </div>
 
       {error && <div className="alert alert-red">{error}</div>}
@@ -145,9 +146,9 @@ export function ReviewQueue() {
         <section className="card card-pad stack gap-14" aria-labelledby="queue-title">
           <div className="row gap-10 wrap">
             <h2 id="queue-title" className="grow">
-              Review queue
+              {t("Review queue")}
             </h2>
-            <div className="segmented" role="group" aria-label="Show">
+            <div className="segmented" role="group" aria-label={t("Show")}>
               {(['all', 'emergency', 'kits'] as const).map((f) => (
                 <button key={f} type="button" aria-pressed={filter === f} className={filter === f ? 'is-on' : ''} onClick={() => setFilter(f)}>
                   {{ all: 'All', emergency: 'Emergency', kits: 'Kits' }[f]}
@@ -155,7 +156,7 @@ export function ReviewQueue() {
               ))}
             </div>
           </div>
-          {queue && shown.length === 0 && <p className="muted">Nothing here. New jobs appear by themselves.</p>}
+          {queue && shown.length === 0 && <p className="muted">{t("Nothing here. New jobs appear by themselves.")}</p>}
           <ul className="clean-list-plain stack gap-10">
             {shown.map((item) => (
               <li key={item.id} className={item.fast_track ? 'queue-item is-emergency' : 'queue-item'}>
@@ -164,38 +165,36 @@ export function ReviewQueue() {
                     {item.fast_track ? (
                       <span className="chip chip-red chip-xs">
                         <Icon name="bolt" size={12} strokeWidth={2.4} />
-                        Emergency
+                        {t("Emergency")}
                       </span>
                     ) : (
                       item.tlp && <TlpLabel tlp={item.tlp} />
                     )}
                     <strong className="queue-title">
-                      {item.title}
+                      {t(item.title)}
                       {item.version > 1 && ` · v${item.version}`}
                     </strong>
                   </div>
                   <div className="row gap-10 wrap small muted">
-                    <span>From {item.submitted_by ?? item.owner ?? 'an Operator'}</span>
+                    <span>{t("From {value}", { value: item.submitted_by ?? item.owner ?? t("an Operator") })}</span>
                     <span>
-                      {item.outputs.length} output{item.outputs.length === 1 ? '' : 's'} ×{' '}
-                      {item.languages.map((l) => LANGUAGE_LABELS[l] ?? l).join(' · ')}
-                    </span>
+                      {t("{length} output{value} × {value2}", { length: item.outputs.length, value: item.outputs.length === 1 ? '' : 's', value2: item.languages.map((l) => LANGUAGE_LABELS[l] ?? l).join(' · ') })}</span>
                     <span className="mono">{jobNo(item.id)}</span>
                     {checksChip(item)}
                   </div>
                   {item.submit_notes && <span className="small">“{item.submit_notes}”</span>}
-                  {!item.can_review && <span className="small over-limit">You worked on this job: another Reviewer must check it.</span>}
+                  {!item.can_review && <span className="small over-limit">{t("You worked on this job: another Reviewer must check it.")}</span>}
                 </div>
                 <div className="stack gap-6 end-items">
-                  <span className="small muted">Waiting {waitingFor(item.submitted_at, now)}</span>
+                  <span className="small muted">{t("Waiting {submitted_at}", { submitted_at: waitingFor(item.submitted_at, now) })}</span>
                   {item.can_review ? (
                     <a href={links.reviewJob(item.id)} className={item.fast_track ? 'btn btn-sm btn-red' : 'btn btn-sm btn-green-outline'}>
-                      Review<span className="sr-only"> {item.title}</span>
+                      {t("Review")}<span className="sr-only"> {t(item.title)}</span>
                       <Icon name="arrowRight" size={16} strokeWidth={2} />
                     </a>
                   ) : (
                     <a href={links.job(item.id)} className="btn btn-sm btn-outline">
-                      View<span className="sr-only"> {item.title}</span>
+                      {t("View")}<span className="sr-only"> {t(item.title)}</span>
                     </a>
                   )}
                 </div>
@@ -212,21 +211,21 @@ export function ReviewQueue() {
                   <Icon name="usb" size={20} />
                 </span>
                 <span className="stack grow">
-                  <h2 id="key-title">{queue.signer.kind === 'test' ? 'Signing key' : 'DSC token'}</h2>
-                  <span className="muted small">{queue.signer.label} · {queue.signer.holder}</span>
+                  <h2 id="key-title">{queue.signer.kind === 'test' ? t("Signing key") : t("DSC token")}</h2>
+                  <span className="muted small">{t(queue.signer.label)} · {queue.signer.holder}</span>
                 </span>
-                <span className={queue.signer.ready ? 'chip chip-green chip-xs' : 'chip chip-red chip-xs'}>{queue.signer.ready ? 'Ready' : 'Not ready'}</span>
+                <span className={queue.signer.ready ? 'chip chip-green chip-xs' : 'chip chip-red chip-xs'}>{queue.signer.ready ? t("Ready") : t("Not ready")}</span>
               </div>
               <dl className="facts-table">
                 {queue.signer.key_id && (
                   <div>
-                    <dt>Key fingerprint</dt>
+                    <dt>{t("Key fingerprint")}</dt>
                     <dd className="mono">{queue.signer.key_id}</dd>
                   </div>
                 )}
                 <div>
-                  <dt>Signing count today</dt>
-                  <dd>{queue.stats.signed_today} kits</dd>
+                  <dt>{t("Signing count today")}</dt>
+                  <dd>{t("{signed_today} kits", { signed_today: queue.stats.signed_today })}</dd>
                 </div>
               </dl>
               {queue.signer.error && <p className="small over-limit">{queue.signer.error}</p>}
@@ -235,14 +234,14 @@ export function ReviewQueue() {
           <section className="card card-pad stack gap-12" aria-labelledby="today-title">
             <div className="row">
               <h2 id="today-title" className="grow">
-                Signed today
+                {t("Signed today")}
               </h2>
               <a href={links.records} className="btn btn-link">
-                All records
+                {t("All records")}
                 <Icon name="arrowRight" size={16} strokeWidth={2} />
               </a>
             </div>
-            {queue && queue.signed_today.length === 0 && <p className="muted small">Nothing signed yet today.</p>}
+            {queue && queue.signed_today.length === 0 && <p className="muted small">{t("Nothing signed yet today.")}</p>}
             <ul className="clean-list-plain">
               {queue?.signed_today.map((r) => (
                 <li key={r.record_no} className="signed-row">

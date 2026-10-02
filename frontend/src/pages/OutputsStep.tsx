@@ -9,6 +9,7 @@ import { TlpLabel } from '../components/TlpLabel'
 import { links, navigate } from '../router'
 import { OriginBadge } from '../components/JobsTable'
 import { jobNo } from './format'
+import { t } from '../i18n'
 
 // Labels for the setting dropdowns, in the order they are shown
 const SETTING_FIELDS: { key: keyof JobSettings; label: string }[] = [
@@ -53,13 +54,13 @@ export function OutputsStep({ jobId, health }: { jobId: number; health: Health |
         const quick = QUICK_OUTPUTS.filter((k) => allowed.includes(k))
         setSelected(suggested.length > 0 ? suggested : quick.length > 0 ? quick : allowed.slice(0, 2))
       })
-      .catch(() => setError('Could not reach the backend. Is it running? (scripts/start.sh)'))
+      .catch(() => setError(t("Could not reach the backend. Is it running? (scripts/start.sh)")))
   }, [jobId])
 
   if (!job || !options || !settings) {
     return (
       <main className="page">
-        {error ? <div className="alert alert-red">{error}</div> : <p className="muted">Loading…</p>}
+        {error ? <div className="alert alert-red">{error}</div> : <p className="muted">{t("Loading…")}</p>}
       </main>
     )
   }
@@ -67,7 +68,7 @@ export function OutputsStep({ jobId, health }: { jobId: number; health: Health |
     return (
       <main className="page">
         <div className="alert alert-yellow">
-          This job has already started. <a href={links.job(job.id)}>Open its results</a>.
+          {t("This job has already started.")} <a href={links.job(job.id)}>{t("Open its results")}</a>.
         </div>
       </main>
     )
@@ -76,7 +77,7 @@ export function OutputsStep({ jobId, health }: { jobId: number; health: Health |
     return (
       <main className="page">
         <div className="alert alert-yellow">
-          Finish the safety check first. <a href={links.safety(job.id)}>Go to the Safety check</a>.
+          {t("Finish the safety check first.")} <a href={links.safety(job.id)}>{t("Go to the Safety check")}</a>.
         </div>
       </main>
     )
@@ -94,14 +95,14 @@ export function OutputsStep({ jobId, health }: { jobId: number; health: Health |
 
   async function generate() {
     if (!job || !settings) return
-    if (selected.length === 0) return setError('Tick at least one output.')
+    if (selected.length === 0) return setError(t("Tick at least one output."))
     setSubmitting(true)
     setError('')
     try {
       await startJob(job.id, selected, settings, languageInfo?.translation.ready ? languages : [])
       navigate(links.progress(job.id)) // step 4: watch the AI write (design 12)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong.')
+      setError(e instanceof Error ? e.message : t("Something went wrong."))
       setSubmitting(false)
     }
   }
@@ -111,14 +112,13 @@ export function OutputsStep({ jobId, health }: { jobId: number; health: Health |
       <div className="page-head">
         <div className="stack gap-2">
           <div className="eyebrow">
-            New transformation · Job {jobNo(job.id)} · {job.title}
-          </div>
-          <h1>Outputs and settings</h1>
+            {t("New transformation · Job {id} · {title}", { id: jobNo(job.id), title: job.title })}</div>
+          <h1>{t("Outputs and settings")}</h1>
           <OriginBadge job={job} />
         </div>
         <div className="grow" />
         <a className="btn btn-outline" href={links.dashboard}>
-          Cancel
+          {t("Cancel")}
         </a>
       </div>
       <Stepper current={3} />
@@ -127,18 +127,18 @@ export function OutputsStep({ jobId, health }: { jobId: number; health: Health |
         <div className="stack gap-20">
           <section className="card card-pad stack gap-14">
             <div className="row gap-12 wrap">
-              <h2>Outputs</h2>
+              <h2>{t("Outputs")}</h2>
               <TlpLabel tlp={job.tlp} />
               <div className="grow" />
-              <span className="muted small">{selected.length} selected</span>
+              <span className="muted small">{t("{length} selected", { length: selected.length })}</span>
               <button type="button" className="btn btn-link" onClick={() => setSelected(allSelected ? [] : allowedKeys)}>
-                {allSelected ? 'Clear all' : 'Select all'}
+                {allSelected ? t("Clear all") : t("Select all")}
               </button>
             </div>
             {offReason && (
               <div className="alert alert-yellow row gap-10">
                 <Icon name="lock" size={18} />
-                <span>{offReason} Go back to the Safety check to choose TLP:GREEN or TLP:CLEAR if this is meant for the public.</span>
+                <span>{t("{offReason} Go back to the Safety check to choose TLP:GREEN or TLP:CLEAR if this is meant for the public.", { offReason: offReason })}</span>
               </div>
             )}
             <div className="output-grid">
@@ -154,11 +154,11 @@ export function OutputsStep({ jobId, health }: { jobId: number; health: Health |
                     <input type="checkbox" checked={checked} disabled={disabled} onChange={() => toggleOutput(type.key)} />
                     <span className="stack gap-2 grow">
                       <span className="row gap-10 wrap">
-                        <span className="output-option-title">{type.label}</span>
-                        {type.public && <span className="chip chip-saffron chip-xs">Public</span>}
-                        {disabled && <span className="chip chip-neutral chip-xs">Off · TLP:{job.tlp}</span>}
+                        <span className="output-option-title">{t(type.label)}</span>
+                        {type.public && <span className="chip chip-saffron chip-xs">{t("Public")}</span>}
+                        {disabled && <span className="chip chip-neutral chip-xs">{t("Off · TLP:{tlp}", { tlp: job.tlp })}</span>}
                       </span>
-                      <span className="output-option-desc">{disabled ? 'Switched off by the sharing label' : type.description}</span>
+                      <span className="output-option-desc">{disabled ? t("Switched off by the sharing label") : type.description}</span>
                     </span>
                   </label>
                 )
@@ -166,29 +166,30 @@ export function OutputsStep({ jobId, health }: { jobId: number; health: Health |
             </div>
             {health?.ai_mode === 'local' && (
               <p className="hint">
-                The local AI is slow on this laptop (about 1 word a second). The fact sheet takes about 10 minutes and
-                each short output about 5–7 minutes. Try 2 short outputs first.
+                {t("The local AI is slow on this laptop (about 1 word a second). The fact sheet takes about 10 minutes and each short output about 5–7 minutes. Try 2 short outputs first.")}
               </p>
             )}
           </section>
 
           <section className="card card-pad stack gap-14">
-            <h2>Settings</h2>
+            <h2>{t("Settings")}</h2>
             <div className="settings-grid">
               {SETTING_FIELDS.map(({ key, label }) => (
                 <label key={key} className="field">
                   <span className="field-label">{label}</span>
                   <select className="input" value={settings[key]} onChange={(e) => setSettings({ ...settings, [key]: e.target.value })}>
                     {options.settings[key].map((choice) => (
-                      <option key={choice}>{choice}</option>
+                      <option key={choice} value={choice}>
+                        {t(choice)}
+                      </option>
                     ))}
                   </select>
                 </label>
               ))}
             </div>
             <div className="field">
-              <span className="field-label">Level of detail</span>
-              <div className="segmented" role="radiogroup" aria-label="Level of detail">
+              <span className="field-label">{t("Level of detail")}</span>
+              <div className="segmented" role="radiogroup" aria-label={t("Level of detail")}>
                 {DETAIL_LEVELS.map((level) => (
                   <button
                     key={level.value}
@@ -198,7 +199,7 @@ export function OutputsStep({ jobId, health }: { jobId: number; health: Health |
                     className={settings.detail_level === level.value ? 'is-on' : ''}
                     onClick={() => setSettings({ ...settings, detail_level: level.value })}
                   >
-                    {level.label}
+                    {t(level.label)}
                   </button>
                 ))}
               </div>
@@ -206,33 +207,29 @@ export function OutputsStep({ jobId, health }: { jobId: number; health: Health |
             <LanguagePicker info={languageInfo} selected={languages} onChange={setLanguages} />
             {languages.length > 0 && (
               <p className="muted small">
-                Each output is written in English first, then machine translated (IndicTrans2, on this computer). A
-                Reviewer ticks “Checked by a native speaker” for every translation before it can be signed.
+                {t("Each output is written in English first, then machine translated (IndicTrans2, on this computer). A Reviewer ticks “Checked by a native speaker” for every translation before it can be signed.")}
               </p>
             )}
           </section>
         </div>
 
         <aside className="card card-pad stack gap-14 new-summary">
-          <h2>Your kit</h2>
+          <h2>{t("Your kit")}</h2>
           <div className="row gap-10 kit-count">
             <span className="kit-number">{selected.length * (1 + languages.length)}</span>
             <span className="muted">
-              output{selected.length * (1 + languages.length) === 1 ? '' : 's'}
-              {languages.length > 0 && ` · ${selected.length} × ${1 + languages.length} languages`}
-            </span>
+              {t("output{value}{value2}", { value: selected.length * (1 + languages.length) === 1 ? '' : 's', value2: languages.length > 0 && t(" · {length} × {n} languages", { length: selected.length, n: 1 + languages.length }) })}</span>
           </div>
           <p className="muted small">
-            All written from one fact sheet, so every output says the same thing. Hidden values are replaced by
-            placeholders before the AI reads anything.
+            {t("All written from one fact sheet, so every output says the same thing. Hidden values are replaced by placeholders before the AI reads anything.")}
           </p>
           {error && <div className="alert alert-red">{error}</div>}
           <button type="button" className="btn btn-lg btn-saffron" disabled={submitting} onClick={generate}>
-            {submitting ? 'Starting…' : 'Generate'}
+            {submitting ? t("Starting…") : t("Generate")}
           </button>
           <a className="btn btn-outline" href={links.safety(job.id)}>
             <Icon name="arrowLeft" size={18} strokeWidth={2} />
-            Back to safety check
+            {t("Back to safety check")}
           </a>
         </aside>
       </div>

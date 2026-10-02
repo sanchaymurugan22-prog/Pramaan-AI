@@ -4,6 +4,7 @@ import { Icon } from '../components/Icon'
 import { Stepper } from '../components/Stepper'
 import { useLanguages } from '../languages'
 import { links, navigate } from '../router'
+import { t } from '../i18n'
 
 // Only these file types can be read by the backend
 const DOCUMENTS = ['.txt', '.pdf', '.docx']
@@ -41,7 +42,7 @@ export function NewTransformation() {
         return [...current, ...fresh]
       })
     }
-    setError(skipped > 0 ? `Skipped ${skipped} file(s). Use .txt, .pdf or .docx files, or a recording (.mp3, .wav, .m4a, .mp4 …).` : '')
+    setError(skipped > 0 ? t("Skipped {skipped} file(s). Use .txt, .pdf or .docx files, or a recording (.mp3, .wav, .m4a, .mp4 …).", { skipped: skipped }) : '')
   }
 
   // Drag and drop files onto the Source card
@@ -54,7 +55,7 @@ export function NewTransformation() {
 
   async function submit(event: FormEvent) {
     event.preventDefault()
-    if (!text.trim() && files.length === 0) return setError('Paste some text or add a file.')
+    if (!text.trim() && files.length === 0) return setError(t("Paste some text or add a file."))
 
     const form = new FormData()
     form.append('title', title)
@@ -68,7 +69,7 @@ export function NewTransformation() {
       const job = await createJob(form)
       navigate(links.safety(job.id))
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong.')
+      setError(e instanceof Error ? e.message : t("Something went wrong."))
       setSubmitting(false)
     }
   }
@@ -77,12 +78,12 @@ export function NewTransformation() {
     <main className="page">
       <div className="page-head">
         <div className="stack gap-2">
-          <div className="eyebrow">New transformation</div>
-          <h1>Add sources</h1>
+          <div className="eyebrow">{t("New transformation")}</div>
+          <h1>{t("Add sources")}</h1>
         </div>
         <div className="grow" />
         <a className="btn btn-outline" href={links.dashboard}>
-          Cancel
+          {t("Cancel")}
         </a>
       </div>
       <Stepper current={1} />
@@ -97,18 +98,18 @@ export function NewTransformation() {
           onDragLeave={() => setDragging(false)}
           onDrop={onDrop}
         >
-          <h2>Source</h2>
+          <h2>{t("Source")}</h2>
           <label className="field">
-            <span className="field-label">Title (optional)</span>
+            <span className="field-label">{t("Title (optional)")}</span>
             <input
               className="input"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="We will use the document's heading if you leave this empty"
+              placeholder={t("We will use the document's heading if you leave this empty")}
             />
           </label>
           <label className="field">
-            <span className="field-label">Paste text</span>
+            <span className="field-label">{t("Paste text")}</span>
             <textarea
               className="input textarea"
               value={text}
@@ -116,25 +117,25 @@ export function NewTransformation() {
                 setText(e.target.value)
                 if (error) setError('')
               }}
-              placeholder="Paste a report, advisory or notice here…"
+              placeholder={t("Paste a report, advisory or notice here…")}
               rows={11}
             />
           </label>
           <div className="field">
-            <span className="field-label">…or add files (.txt, .pdf, .docx) or a recording (.mp3, .wav, .m4a, .mp4)</span>
+            <span className="field-label">{t("…or add files (.txt, .pdf, .docx) or a recording (.mp3, .wav, .m4a, .mp4)")}</span>
             <div className="row gap-10 wrap">
               <button type="button" className="btn btn-outline" onClick={() => fileInput.current?.click()}>
                 <Icon name="upload" size={18} strokeWidth={2} />
-                Choose files
+                {t("Choose files")}
               </button>
-              <span className="muted small">or drag files here · Try the files in the samples folder</span>
+              <span className="muted small">{t("or drag files here · Try the files in the samples folder")}</span>
             </div>
             <input
               ref={fileInput}
               type="file"
               multiple
               accept={ALLOWED.join(',')}
-              aria-label="Choose source files (.txt, .pdf, .docx) or recordings"
+              aria-label={t("Choose source files (.txt, .pdf, .docx) or recordings")}
               hidden
               onChange={(e) => addFiles(e.target.files)}
             />
@@ -144,12 +145,12 @@ export function NewTransformation() {
                   <li key={`${file.name}-${index}`}>
                     <Icon name={isRecording(file) ? 'volume' : 'file'} size={18} color="var(--muted)" />
                     <span className="grow">{file.name}</span>
-                    <span className="chip chip-green chip-xs">Added</span>
+                    <span className="chip chip-green chip-xs">{t("Added")}</span>
                     <span className="muted small">{Math.ceil(file.size / 1024)} KB</span>
                     <button
                       type="button"
                       className="icon-btn icon-btn-sm"
-                      aria-label={`Remove ${file.name}`}
+                      aria-label={t("Remove {name}", { name: file.name })}
                       onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}
                     >
                       <Icon name="cross" size={16} />
@@ -160,7 +161,7 @@ export function NewTransformation() {
             )}
             {files.some(isRecording) && (
               <label className="field">
-                <span className="field-label">Language spoken in the recording</span>
+                <span className="field-label">{t("Language spoken in the recording")}</span>
                 <select className="input" value={spoken} onChange={(e) => setSpoken(e.target.value)}>
                   {(sttLanguages.length ? sttLanguages : []).map((l) => (
                     <option key={l.code} value={l.code}>
@@ -169,8 +170,7 @@ export function NewTransformation() {
                   ))}
                 </select>
                 <span className="field-help">
-                  The recording is turned into text on this computer (IndicConformer for Hindi and Tamil, Whisper for
-                  English). A 10-minute recording takes a few minutes. The text is then checked like any other source.
+                  {t("The recording is turned into text on this computer (IndicConformer for Hindi and Tamil, Whisper for English). A 10-minute recording takes a few minutes. The text is then checked like any other source.")}
                 </span>
               </label>
             )}
@@ -178,15 +178,13 @@ export function NewTransformation() {
         </section>
 
         <aside className="card card-pad stack gap-14 new-summary">
-          <h2>Next: safety check</h2>
+          <h2>{t("Next: safety check")}</h2>
           <p className="muted small">
-            Before any AI reads your sources, Pramaan looks for private data (Aadhaar, PAN, phone numbers,
-            passwords, internal addresses…), classification markings and hidden instructions aimed at the AI.
-            You then decide what to hide. This takes a few seconds and never leaves this computer.
+            {t("Before any AI reads your sources, Pramaan looks for private data (Aadhaar, PAN, phone numbers, passwords, internal addresses…), classification markings and hidden instructions aimed at the AI. You then decide what to hide. This takes a few seconds and never leaves this computer.")}
           </p>
           {error && <div className="alert alert-red">{error}</div>}
           <button type="submit" className="btn btn-lg btn-saffron" disabled={submitting}>
-            {submitting ? (files.some(isRecording) ? 'Turning speech into text…' : 'Checking…') : 'Next: safety check'}
+            {submitting ? (files.some(isRecording) ? t("Turning speech into text…") : t("Checking…")) : t("Next: safety check")}
             {!submitting && <Icon name="arrowRight" size={18} strokeWidth={2} />}
           </button>
         </aside>

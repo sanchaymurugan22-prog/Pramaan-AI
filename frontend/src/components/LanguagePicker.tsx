@@ -4,6 +4,7 @@
 import { useState } from 'react'
 import type { LanguagesInfo } from '../api'
 import { Icon } from './Icon'
+import { t } from '../i18n'
 
 const FIRST = ['hi', 'ta', 'bn']
 
@@ -17,7 +18,7 @@ type Props = {
 
 export function LanguagePicker({ info, selected, onChange, label = 'Languages', showVoices = false }: Props) {
   const [open, setOpen] = useState(() => selected.some((c) => !FIRST.includes(c)))
-  if (!info) return <p className="muted small">Loading languages…</p>
+  if (!info) return <p className="muted small">{t("Loading languages…")}</p>
   const indian = info.languages.filter((l) => l.code !== 'en')
   const shown = open ? indian : indian.filter((l) => FIRST.includes(l.code) || selected.includes(l.code))
   const hidden = indian.length - shown.length
@@ -33,9 +34,9 @@ export function LanguagePicker({ info, selected, onChange, label = 'Languages', 
         {label}
       </span>
       <div className="row gap-8 wrap" role="group" aria-labelledby="language-picker-label">
-        <button type="button" className="pill is-on" aria-pressed="true" aria-disabled="true" title="English is always made">
+        <button type="button" className="pill is-on" aria-pressed="true" aria-disabled="true" title={t("English is always made")}>
           <Icon name="check" size={14} strokeWidth={2.6} />
-          English
+          {t("English")}
         </button>
         {shown.map((lang) => {
           const on = selected.includes(lang.code)
@@ -60,11 +61,10 @@ export function LanguagePicker({ info, selected, onChange, label = 'Languages', 
         })}
         {hidden > 0 && (
           <button type="button" className="pill pill-more" onClick={() => setOpen(true)} disabled={!ready}>
-            + {hidden} more
-          </button>
+            {t("+ {hidden} more", { hidden: hidden })}</button>
         )}
       </div>
-      {!ready && <span className="field-help">Translation is not available on this computer: {info.translation.detail}</span>}
+      {!ready && <span className="field-help">{t("Translation is not available on this computer: {detail}", { detail: t(info.translation.detail) })}</span>}
     </div>
   )
 }

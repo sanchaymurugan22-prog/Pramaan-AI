@@ -12,6 +12,7 @@ import { Icon } from '../components/Icon'
 import { shortTime } from './format'
 import { links } from '../router'
 import { SignedRecord } from './SignedRecord'
+import { t } from '../i18n'
 
 export function ReviewPanel({ job, onChange }: { job: JobDetail; onChange: (job: JobDetail) => void }) {
   const { user } = useAuth()
@@ -28,7 +29,7 @@ export function ReviewPanel({ job, onChange }: { job: JobDetail; onChange: (job:
       onChange(await action())
       setNotes('')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'That did not work.')
+      setError(e instanceof Error ? e.message : t("That did not work."))
     } finally {
       setBusy(false)
     }
@@ -41,7 +42,7 @@ export function ReviewPanel({ job, onChange }: { job: JobDetail; onChange: (job:
     <div className="alert alert-red stack gap-4" role="status">
       <strong className="row gap-8">
         <Icon name="arrowLeft" size={18} strokeWidth={2.2} />
-        Sent back by {lastSentBack.by} · {shortTime(lastSentBack.created_at)}
+        {t("Sent back by")} {lastSentBack.by} · {shortTime(lastSentBack.created_at)}
       </strong>
       <span className="pre-line">{lastSentBack.notes}</span>
     </div>
@@ -54,10 +55,9 @@ export function ReviewPanel({ job, onChange }: { job: JobDetail; onChange: (job:
         {user.role === 'operator' && (
           <section className="card card-pad-sm review-panel">
             <div className="stack gap-4 grow">
-              <strong>Need to change it?</strong>
+              <strong>{t("Need to change it?")}</strong>
               <span className="muted small">
-                Signed files cannot be changed. A new version needs a new review and a new signature; the new record says
-                which one it replaces.
+                {t("Signed files cannot be changed. A new version needs a new review and a new signature; the new record says which one it replaces.")}
               </span>
               {error && <span className="form-error">{error}</span>}
             </div>
@@ -66,12 +66,12 @@ export function ReviewPanel({ job, onChange }: { job: JobDetail; onChange: (job:
               className="btn btn-saffron-outline"
               disabled={busy}
               onClick={() => {
-                if (window.confirm(`Start version ${job.version + 1} of this job? It will need a new review and signature.`))
+                if (window.confirm(t("Start version {n} of this job? It will need a new review and signature.", { n: job.version + 1 })))
                   run(() => newVersion(job.id))
               }}
             >
               <Icon name="pencil" size={18} strokeWidth={2} />
-              Start a new version
+              {t("Start a new version")}
             </button>
           </section>
         )}
@@ -85,8 +85,7 @@ export function ReviewPanel({ job, onChange }: { job: JobDetail; onChange: (job:
       return (
         <div className="hint row gap-8" role="status">
           <Icon name="eye" size={18} />
-          Submitted for review{lastSubmitted ? ` by ${lastSubmitted.by} · ${shortTime(lastSubmitted.created_at)}` : ''}. It cannot be
-          changed until a Reviewer approves it or sends it back.
+          {lastSubmitted ? t("Submitted for review by {by} · {n}.", { by: lastSubmitted.by, n: shortTime(lastSubmitted.created_at) }) : t("Submitted for review.")}{' '}{t("It cannot be changed until a Reviewer approves it or sends it back.")}
         </div>
       )
     }
@@ -97,23 +96,22 @@ export function ReviewPanel({ job, onChange }: { job: JobDetail; onChange: (job:
         {recordBox}
         <section className="card card-pad-sm review-panel">
           <div className="stack gap-4 grow">
-            <strong>{job.status === 'sent_back' ? 'Made the changes?' : 'Finished checking?'}</strong>
+            <strong>{job.status === 'sent_back' ? t("Made the changes?") : t("Finished checking?")}</strong>
             <span className="muted small">
-              A Reviewer checks the job and approves and signs it, or sends it back with notes. It is locked while it is
-              with them.
+              {t("A Reviewer checks the job and approves and signs it, or sends it back with notes. It is locked while it is with them.")}
             </span>
             <input
               className="input"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Note for the reviewer (optional)"
-              aria-label="Note for the reviewer"
+              placeholder={t("Note for the reviewer (optional)")}
+              aria-label={t("Note for the reviewer")}
             />
             {error && <span className="form-error">{error}</span>}
           </div>
           <button type="button" className="btn btn-saffron" disabled={busy} onClick={() => run(() => submitForReview(job.id, notes))}>
             <Icon name="arrowRight" size={18} strokeWidth={2} />
-            {job.status === 'sent_back' ? `Submit again (v${job.version + 1})` : 'Submit for review'}
+            {job.status === 'sent_back' ? t("Submit again (v{n})", { n: job.version + 1 }) : t("Submit for review")}
           </button>
         </section>
       </>
@@ -125,14 +123,12 @@ export function ReviewPanel({ job, onChange }: { job: JobDetail; onChange: (job:
     return (
       <section className="card card-pad-sm review-panel">
         <div className="stack gap-4 grow">
-          <strong>Waiting for review (version {job.version})</strong>
+          <strong>{t("Waiting for review (version {version})", { version: job.version })}</strong>
           <span className="muted small">
-            {lastSubmitted ? `Submitted by ${lastSubmitted.by} · ${shortTime(lastSubmitted.created_at)}. ` : ''}Comment on lines, approve and
-            sign, or send it back on the review page.
-          </span>
+            {t("{value}Comment on lines, approve and sign, or send it back on the review page.", { value: lastSubmitted ? t("Submitted by {by} · {n}. ", { by: lastSubmitted.by, n: shortTime(lastSubmitted.created_at) }) : '' })}</span>
         </div>
         <a className="btn btn-green" href={links.reviewJob(job.id)}>
-          Open the review
+          {t("Open the review")}
           <Icon name="arrowRight" size={18} strokeWidth={2} />
         </a>
       </section>

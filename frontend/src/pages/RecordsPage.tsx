@@ -8,6 +8,7 @@ import { Icon } from '../components/Icon'
 import { TlpLabel } from '../components/TlpLabel'
 import { links } from '../router'
 import { shortHash, shortTime } from './format'
+import { t } from '../i18n'
 
 const FILTERS: { key: RecordStatus | ''; label: string }[] = [
   { key: '', label: 'All' },
@@ -36,7 +37,7 @@ export function RecordsPage({ admin }: { admin: boolean }) {
     let stopped = false
     listRecords(query, status)
       .then((b) => !stopped && setBook(b))
-      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load the records.'))
+      .catch((e) => setError(e instanceof Error ? e.message : t("Could not load the records.")))
     return () => {
       stopped = true
     }
@@ -48,7 +49,7 @@ export function RecordsPage({ admin }: { admin: boolean }) {
       setCheck(await verifyRecordBook())
       setLoads((n) => n + 1)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not check the record book.')
+      setError(e instanceof Error ? e.message : t("Could not check the record book."))
     } finally {
       setChecking(false)
     }
@@ -59,24 +60,24 @@ export function RecordsPage({ admin }: { admin: boolean }) {
     <main className="page">
       <div className="page-head">
         <div className="stack gap-4">
-          <div className={admin ? 'eyebrow eyebrow-navy' : 'eyebrow eyebrow-green'}>{admin ? 'Admin' : 'Archive'}</div>
-          <h1>{admin ? 'Record book' : 'Signed records'}</h1>
+          <div className={admin ? 'eyebrow eyebrow-navy' : 'eyebrow eyebrow-green'}>{admin ? t("Admin") : t("Archive")}</div>
+          <h1>{admin ? t("Record book") : t("Signed records")}</h1>
           <p className="muted">
             {admin
-              ? 'Every signed document is recorded here. Each entry holds the fingerprint of the one before it, so any change is exposed.'
-              : 'Every document your team has signed. An Admin can withdraw a record if an advisory is withdrawn.'}
+              ? t("Every signed document is recorded here. Each entry holds the fingerprint of the one before it, so any change is exposed.")
+              : t("Every document your team has signed. An Admin can withdraw a record if an advisory is withdrawn.")}
           </p>
         </div>
         <div className="grow" />
         {book && book.records.length > 0 && (
           <a className="btn btn-outline" href={csvHref(book.records)} download="pramaan-signed-records.csv">
             <Icon name="download" size={18} strokeWidth={2} />
-            Export list
+            {t("Export list")}
           </a>
         )}
         <button type="button" className={admin ? 'btn btn-navy' : 'btn btn-green'} onClick={verify} disabled={checking}>
           <Icon name="shieldCheck" size={18} strokeWidth={2} />
-          {checking ? 'Checking…' : 'Check the whole chain'}
+          {checking ? t("Checking…") : t("Check the whole chain")}
         </button>
       </div>
 
@@ -87,11 +88,9 @@ export function RecordsPage({ admin }: { admin: boolean }) {
           </span>
           <span className="stack">
             <strong>
-              Chain intact · {check.checked} of {check.checked} entries verified
-            </strong>
+              {t("Chain intact · {checked} of {checked2} entries verified", { checked: check.checked, checked2: check.checked })}</strong>
             <span className="small">
-              Every hash and signature matches, and all {check.files_checked} signed files still have their fingerprints.
-            </span>
+              {t("Every hash and signature matches, and all {files_checked} signed files still have their fingerprints.", { files_checked: check.files_checked })}</span>
           </span>
         </div>
       )}
@@ -99,7 +98,7 @@ export function RecordsPage({ admin }: { admin: boolean }) {
         <div className="alert alert-red stack gap-4" role="alert">
           <strong className="row gap-8">
             <Icon name="warning" size={18} strokeWidth={2.2} />
-            BROKEN at entry {check.broken.seq} ({check.broken.record_no}). The {check.checked} entries before it are intact.
+            {t("BROKEN at entry")} {check.broken.seq} ({check.broken.record_no}{t("). The")} {check.checked} {t("entries before it are intact.")}
           </strong>
           <span>{check.broken.reason}</span>
         </div>
@@ -107,12 +106,12 @@ export function RecordsPage({ admin }: { admin: boolean }) {
       {error && <div className="alert alert-red">{error}</div>}
 
       <div className="stat-grid stat-grid-3">
-        <Stat icon="shieldCheck" tone="green" label="Active records" value={String(counts.active)} note="Genuine when checked" />
-        <Stat icon="cross" tone="red" label="Withdrawn" value={String(counts.withdrawn)} note={`${counts.replaced} replaced by a newer version`} />
+        <Stat icon="shieldCheck" tone="green" label={t("Active records")} value={String(counts.active)} note="Genuine when checked" />
+        <Stat icon="cross" tone="red" label={t("Withdrawn")} value={String(counts.withdrawn)} note={`${counts.replaced} replaced by a newer version`} />
         <Stat
           icon="hash"
           tone="navy"
-          label="Record chain"
+          label={t("Record chain")}
           value={check ? (check.ok ? 'Intact' : 'Broken') : `${book?.entries ?? 0} entries`}
           note={book?.last_check ? `Last checked ${shortTime(book.last_check.at)} by ${book.last_check.by}` : 'Not checked yet'}
         />
@@ -121,11 +120,10 @@ export function RecordsPage({ admin }: { admin: boolean }) {
       {admin && book && book.chain.length > 0 && (
         <section className="card card-pad stack gap-14">
           <div className="row">
-            <h2>Latest entries</h2>
+            <h2>{t("Latest entries")}</h2>
             <div className="grow" />
             <span className="muted small">
-              Showing {book.chain.length} of {book.entries}
-            </span>
+              {t("Showing {length} of {entries}", { length: book.chain.length, entries: book.entries })}</span>
           </div>
           <div className="chain-cards">
             {book.chain.map((entry, i) => (
@@ -135,15 +133,15 @@ export function RecordsPage({ admin }: { admin: boolean }) {
                   <div className="row">
                     <strong className="mono">#{entry.seq}</strong>
                     <div className="grow" />
-                    {i === book.chain.length - 1 && <span className="chip chip-green chip-xs">Latest</span>}
+                    {i === book.chain.length - 1 && <span className="chip chip-green chip-xs">{t("Latest")}</span>}
                   </div>
-                  <span className="chain-card-title">{entry.kind === 'withdraw' ? `Withdrawal of ${entry.record_no}` : entry.title}</span>
+                  <span className="chain-card-title">{entry.kind === 'withdraw' ? t("Withdrawal of {record_no}", { record_no: entry.record_no }) : entry.title}</span>
                   <span className="muted small">
                     {entry.record_no} · {shortTime(entry.created_at)}
                   </span>
-                  <span className="muted small">Fingerprint</span>
+                  <span className="muted small">{t("Fingerprint")}</span>
                   <span className="mono small">{shortHash(entry.entry_hash)}</span>
-                  <span className="muted small">Previous</span>
+                  <span className="muted small">{t("Previous")}</span>
                   <span className="mono small">{shortHash(entry.prev_hash)}</span>
                 </article>
               </div>
@@ -158,37 +156,37 @@ export function RecordsPage({ admin }: { admin: boolean }) {
             <span className="search-icon">
               <Icon name="search" size={18} strokeWidth={1.8} />
             </span>
-            <input type="search" aria-label="Search by title or record number" placeholder="Search by title or record number" value={text} onChange={(e) => setText(e.target.value)} />
+            <input type="search" aria-label={t("Search by title or record number")} placeholder={t("Search by title or record number")} value={text} onChange={(e) => setText(e.target.value)} />
           </label>
           <div className="grow" />
           <div className="segmented">
             {FILTERS.map((f) => (
               <button key={f.key} type="button" className={status === f.key ? 'is-on' : ''} onClick={() => setStatus(f.key)}>
-                {f.label}
+                {t(f.label)}
               </button>
             ))}
           </div>
         </div>
         <div className="table-scroll">
         <table className="data-table">
-          <caption className="sr-only">{admin ? 'The record book' : 'Signed records'}</caption>
+          <caption className="sr-only">{admin ? t("The record book") : t("Signed records")}</caption>
           <thead>
             <tr>
-              <th>Record</th>
-              <th>Title</th>
-              <th>Signed by</th>
-              <th>Date</th>
-              <th>Files</th>
-              <th>Sharing</th>
-              <th>Status</th>
-              {admin && <th aria-label="Actions" />}
+              <th>{t("Record")}</th>
+              <th>{t("Title")}</th>
+              <th>{t("Signed by")}</th>
+              <th>{t("Date")}</th>
+              <th>{t("Files")}</th>
+              <th>{t("Sharing")}</th>
+              <th>{t("Status")}</th>
+              {admin && <th aria-label={t("Actions")} />}
             </tr>
           </thead>
           <tbody>
             {book?.records.map((r) => (
               <tr key={r.record_no}>
                 <td className="mono nowrap">
-                  <a href={r.verify_url} target="_blank" rel="noreferrer" title="Open on the verify page">
+                  <a href={r.verify_url} target="_blank" rel="noreferrer" title={t("Open on the verify page")}>
                     {r.record_no}
                   </a>
                 </td>
@@ -204,14 +202,14 @@ export function RecordsPage({ admin }: { admin: boolean }) {
                   {r.status === 'active' && (
                     <span className="chip chip-green chip-xs">
                       <Icon name="check" size={12} strokeWidth={2.4} />
-                      Active
+                      {t("Active")}
                     </span>
                   )}
-                  {r.status === 'replaced' && <span className="chip chip-yellow chip-xs">Replaced by {r.replaced_by}</span>}
+                  {r.status === 'replaced' && <span className="chip chip-yellow chip-xs">{t("Replaced by {replaced_by}", { replaced_by: r.replaced_by })}</span>}
                   {r.status === 'withdrawn' && (
                     <span className="chip chip-red chip-xs" title={r.withdrawn?.reason}>
                       <Icon name="cross" size={12} strokeWidth={2.4} />
-                      Withdrawn
+                      {t("Withdrawn")}
                     </span>
                   )}
                 </td>
@@ -219,7 +217,7 @@ export function RecordsPage({ admin }: { admin: boolean }) {
                   <td className="right">
                     {!r.withdrawn && (
                       <button type="button" className="btn btn-link btn-xs withdraw-link" onClick={() => setWithdrawing(r)}>
-                        Withdraw
+                        {t("Withdraw")}
                       </button>
                     )}
                   </td>
@@ -229,30 +227,29 @@ export function RecordsPage({ admin }: { admin: boolean }) {
           </tbody>
         </table>
         </div>
-        {book && book.records.length === 0 && <p className="muted">No records yet. A record is made when a Reviewer approves and signs a job.</p>}
+        {book && book.records.length === 0 && <p className="muted">{t("No records yet. A record is made when a Reviewer approves and signs a job.")}</p>}
       </section>
 
       {admin && (
         <div className="record-extras">
           <section className="card card-pad stack gap-12">
-            <h2>Public verify page</h2>
+            <h2>{t("Public verify page")}</h2>
             <p className="muted">
-              The “Is this real?” site with the latest records and the public key, as a .zip. Copy it to the public web
-              server (one-way, e.g. by USB). It contains no secrets: titles of TLP:RED / AMBER records are not in it.
+              {t("The “Is this real?” site with the latest records and the public key, as a .zip. Copy it to the public web server (one-way, e.g. by USB). It contains no secrets: titles of TLP:RED / AMBER records are not in it.")}
             </p>
             <a className="btn btn-navy" href={verifyBundleUrl} download>
               <Icon name="download" size={18} strokeWidth={2} />
-              Export verify bundle
+              {t("Export verify bundle")}
             </a>
           </section>
           <section className="card card-pad stack gap-12">
-            <h2>Public key</h2>
+            <h2>{t("Public key")}</h2>
             <p className="muted">
-              Verification pages and phones use this to check signatures, even offline. It contains no secret information.
+              {t("Verification pages and phones use this to check signatures, even offline. It contains no secret information.")}
             </p>
             <a className="btn btn-navy-outline" href={publicKeyUrl} download>
               <Icon name="download" size={18} strokeWidth={2} />
-              Download public key
+              {t("Download public key")}
             </a>
           </section>
         </div>
@@ -290,7 +287,7 @@ function Stat(props: { icon: 'shieldCheck' | 'cross' | 'hash'; tone: string; lab
         <Icon name={props.icon} size={22} />
       </div>
       <div className="stack gap-2">
-        <span className="stat-label">{props.label}</span>
+        <span className="stat-label">{t(props.label)}</span>
         <span className="stat-value">{props.value}</span>
         <span className="stat-note">{props.note}</span>
       </div>
@@ -310,7 +307,7 @@ function WithdrawDialog({ record, onClose, onDone }: { record: RecordItem; onClo
       await withdrawRecord(record.record_no, reason)
       onDone()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not withdraw it.')
+      setError(e instanceof Error ? e.message : t("Could not withdraw it."))
     } finally {
       setBusy(false)
     }
@@ -320,27 +317,24 @@ function WithdrawDialog({ record, onClose, onDone }: { record: RecordItem; onClo
     <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <section className="card dialog" role="dialog" aria-modal="true" aria-labelledby="withdraw-title">
         <div className="stack gap-4">
-          <h2 id="withdraw-title">Withdraw {record.record_no}?</h2>
+          <h2 id="withdraw-title">{t("Withdraw {record_no}?", { record_no: record.record_no })}</h2>
           <span className="muted">{record.title}</span>
         </div>
         <p className="muted">
-          The record is not deleted: a signed “withdrawn” entry is added to the record book. Anyone who checks it on the
-          verify page then sees it is withdrawn, and why
-          {record.tlp === 'RED' || record.tlp === 'AMBER' ? ' (for a TLP:RED / AMBER record only “Withdrawn by the issuing office”)' : ''}.
-        </p>
+          {t("The record is not deleted: a signed “withdrawn” entry is added to the record book. Anyone who checks it on the verify page then sees it is withdrawn, and why{value}.", { value: record.tlp === 'RED' || record.tlp === 'AMBER' ? t(" (for a TLP:RED / AMBER record only “Withdrawn by the issuing office”)") : '' })}</p>
         <label className="field">
-          <span className="field-label">Reason</span>
+          <span className="field-label">{t("Reason")}</span>
           <textarea className="input textarea" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
         </label>
         {error && <div className="alert alert-red">{error}</div>}
         <div className="row gap-10">
           <button type="button" className="btn btn-outline" onClick={onClose}>
-            Cancel
+            {t("Cancel")}
           </button>
           <div className="grow" />
           <button type="button" className="btn btn-red-outline" onClick={submit} disabled={busy || reason.trim().length < 5}>
             <Icon name="cross" size={18} strokeWidth={2} />
-            Withdraw record
+            {t("Withdraw record")}
           </button>
         </div>
       </section>

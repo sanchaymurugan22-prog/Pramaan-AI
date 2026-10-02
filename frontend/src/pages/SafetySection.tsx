@@ -4,6 +4,7 @@ import { Icon } from '../components/Icon'
 import { TlpLabel } from '../components/TlpLabel'
 import { choiceLabel, TLP_LEVELS } from './safety'
 import { outputKinds, shortTime } from './format'
+import { t } from '../i18n'
 
 // The small "Safety" section of the Results page (Stage 6A): the sharing label, what was hidden,
 // outputs the label switched off, suspicious instructions, and every safety decision (who, when, what).
@@ -22,39 +23,36 @@ export function SafetySection({ job }: { job: JobDetail }) {
   return (
     <section className="card card-pad-sm stack gap-10 safety-section">
       <div className="row gap-12 wrap">
-        <span className="section-label">Safety</span>
+        <span className="section-label">{t("Safety")}</span>
         {job.tlp && <TlpLabel tlp={job.tlp} />}
-        {level && <span className="small">{level.title}</span>}
+        {level && <span className="small">{t(level.title)}</span>}
         <span className="muted small">·</span>
         <span className="small">
           {safety.findings.length === 0
-            ? 'No private data found'
-            : `${counts.hide_public} hidden in public outputs, ${counts.hide_all} hidden everywhere, ${counts.keep} kept`}
+            ? t("No private data found")
+            : t("{hide_public} hidden in public outputs, {hide_all} hidden everywhere, {keep} kept", { hide_public: counts.hide_public, hide_all: counts.hide_all, keep: counts.keep })}
         </span>
         {safety.indicators.length > 0 && (
-          <span className="small muted">· {safety.indicators.length} attack indicator{safety.indicators.length === 1 ? '' : 's'}</span>
+          <span className="small muted">{t("· {length} attack indicator{value}", { length: safety.indicators.length, value: safety.indicators.length === 1 ? '' : 's' })}</span>
         )}
         {safety.suspicious.length > 0 && (
           <span className="chip chip-red chip-xs">
-            {safety.suspicious.length} suspicious item{safety.suspicious.length === 1 ? '' : 's'}
-            {removedCount > 0 && ` · ${removedCount} removed from what the AI read`}
-          </span>
+            {t("{length} suspicious item{value}{value2}", { length: safety.suspicious.length, value: safety.suspicious.length === 1 ? '' : 's', value2: removedCount > 0 && t(" · {removedCount} removed from what the AI read", { removedCount: removedCount }) })}</span>
         )}
         <div className="grow" />
         <button type="button" className="btn btn-outline btn-xs" onClick={() => setOpen(!open)} aria-expanded={open}>
           <Icon name="shield" size={16} />
-          {open ? 'Hide details' : `Decisions (${job.safety_decisions.length})`}
+          {open ? t("Hide details") : t("Decisions ({length})", { length: job.safety_decisions.length })}
         </button>
       </div>
       {off.length > 0 && (
         <p className="small muted">
-          <Icon name="lock" size={14} /> Switched off by TLP:{job.tlp}: {outputKinds(off)}. {safety.switched_off[off[0]]}
+          <Icon name="lock" size={14} /> {t("Switched off by TLP:")}{job.tlp}: {outputKinds(off)}. {safety.switched_off[off[0]]}
         </p>
       )}
       {blocked.length > 0 && (
         <div className="alert alert-red small">
-          Private data found in: {blocked.map((o) => o.label).join(', ')}. These cannot be downloaded until it is edited out.
-        </div>
+          {t("Private data found in: {value}. These cannot be downloaded until it is edited out.", { value: blocked.map((o) => o.label).join(', ') })}</div>
       )}
       {open && (
         <div className="stack gap-10">
@@ -62,18 +60,18 @@ export function SafetySection({ job }: { job: JobDetail }) {
             <ul className="decision-list">
               {[...safety.findings, ...safety.indicators].map((f) => (
                 <li key={f.id}>
-                  <span className="mono muted">{f.id}</span> {f.label} <span className="muted">({f.count}×)</span> →{' '}
+                  <span className="mono muted">{f.id}</span> {t(f.label)} <span className="muted">({f.count}×)</span> →{' '}
                   <strong>{choiceLabel(f.choice)}</strong>
                 </li>
               ))}
             </ul>
           )}
-          <span className="section-label">Decision log</span>
+          <span className="section-label">{t("Decision log")}</span>
           <ol className="decision-list">
             {job.safety_decisions.map((d) => (
               <li key={d.id}>
                 <span className="muted">{d.created_at ? shortTime(d.created_at) : ''}</span> <strong>{d.actor}</strong> ·{' '}
-                {d.detail}
+                {t(d.detail)}
               </li>
             ))}
           </ol>
@@ -91,16 +89,15 @@ export function LeakAlert({ output }: { output: JobOutput }) {
     <div className="alert alert-red stack gap-6" role="alert">
       <strong className="row gap-8">
         <Icon name="warning" size={18} strokeWidth={2.2} />
-        Private data found
+        {t("Private data found")}
       </strong>
       <span>
-        This output contains values you chose to hide. It cannot be downloaded until you edit them out (Edit, then
-        remove or replace them).
+        {t("This output contains values you chose to hide. It cannot be downloaded until you edit them out (Edit, then remove or replace them).")}
       </span>
       <ul className="clean-list">
         {leaks.map((leak, i) => (
           <li key={i}>
-            {leak.label} “{leak.found}” in <strong>{leak.where}</strong>{' '}
+            {t(leak.label)} “{leak.found}{t("” in")} <strong>{leak.where}</strong>{' '}
             <span className="muted">({choiceLabel(leak.choice)})</span>
           </li>
         ))}

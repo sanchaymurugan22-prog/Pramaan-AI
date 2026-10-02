@@ -6,13 +6,14 @@ import { OUTPUT_ICONS } from '../components/outputIcons'
 import { links } from '../router'
 import { jobNo, shortTime } from './format'
 import { ScoreBadge } from './TracePanels'
+import { t } from '../i18n'
 
 // Design "21 · Version compare (v1 vs v2)". Two versions of a job side by side, word by word
 // (backend/app/pipeline/compare.py). Added words are green, bold and underlined; removed words are red
 // and struck through; screen readers hear "added" / "removed" (<ins> and <del>), so nothing depends on colour.
 
 function Pieces({ pieces, side }: { pieces: DiffPiece[]; side: 'left' | 'right' }) {
-  if (pieces.length === 0) return <span className="muted">{side === 'left' ? '(not in this version)' : '(removed)'}</span>
+  if (pieces.length === 0) return <span className="muted">{side === 'left' ? t("(not in this version)") : t("(removed)")}</span>
   return (
     <>
       {pieces.map((p, i) =>
@@ -20,13 +21,13 @@ function Pieces({ pieces, side }: { pieces: DiffPiece[]; side: 'left' | 'right' 
           <span key={i}>{p.text}</span>
         ) : p.kind === 'added' ? (
           <ins key={i} className="diff-add">
-            <span className="sr-only">[added: </span>
+            <span className="sr-only">{t("[added:")} </span>
             {p.text}
             <span className="sr-only">]</span>
           </ins>
         ) : (
           <del key={i} className="diff-del">
-            <span className="sr-only">[removed: </span>
+            <span className="sr-only">{t("[removed:")} </span>
             {p.text}
             <span className="sr-only">]</span>
           </del>
@@ -51,11 +52,11 @@ export function VersionCompare({ jobId }: { jobId: number }) {
         setData(found)
         setError('')
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Could not compare the versions.'))
+      .catch((e) => setError(e instanceof Error ? e.message : t("Could not compare the versions.")))
   }, [jobId, left, right])
 
   if (!data) {
-    return <main className="page">{error ? <div className="alert alert-red">{error}</div> : <p className="muted">Loading…</p>}</main>
+    return <main className="page">{error ? <div className="alert alert-red">{error}</div> : <p className="muted">{t("Loading…")}</p>}</main>
   }
   const s = data.summary
   const output = data.outputs.find((o) => o.output_id === outputId) ?? data.outputs.find((o) => o.changed) ?? data.outputs[0]
@@ -66,24 +67,23 @@ export function VersionCompare({ jobId }: { jobId: number }) {
     <main className="page">
       <div className="page-head">
         <div className="stack gap-2">
-          <div className="eyebrow">Job {jobNo(data.job_id)} · Version compare</div>
+          <div className="eyebrow">{t("Job {job_id} · Version compare", { job_id: jobNo(data.job_id) })}</div>
           <h1>
-            {data.right.label} vs {data.left.key === 0 ? 'the first AI draft' : data.left.label.toLowerCase()}
-          </h1>
+            {t("{label} vs {value}", { label: data.right.label, value: data.left.key === 0 ? t("the first AI draft") : data.left.label.toLowerCase() })}</h1>
           <p className="muted page-lead">
             {s.outputs_changed === 0
-              ? 'Nothing changed between these versions.'
-              : `${s.outputs_changed} of ${s.outputs} outputs changed · ${s.words_added} words added, ${s.words_removed} removed.`}
+              ? t("Nothing changed between these versions.")
+              : t("{outputs_changed} of {outputs} outputs changed · {words_added} words added, {words_removed} removed.", { outputs_changed: s.outputs_changed, outputs: s.outputs, words_added: s.words_added, words_removed: s.words_removed })}
           </p>
         </div>
         <div className="grow" />
         <a className="btn btn-outline" href={links.job(data.job_id)}>
           <Icon name="arrowLeft" size={18} strokeWidth={2} />
-          Back to results
+          {t("Back to results")}
         </a>
         {user.role === 'operator' && latest && (data.right.status === 'draft' || data.right.status === 'sent back') && (
           <a className="btn btn-saffron" href={links.job(data.job_id)}>
-            Send {data.right.label.replace('Version ', 'v')} for review
+            {t("Send")} {data.right.label.replace('Version ', 'v')} {t("for review")}
             <Icon name="send" size={18} strokeWidth={2} />
           </a>
         )}
@@ -91,7 +91,7 @@ export function VersionCompare({ jobId }: { jobId: number }) {
 
       <div className="filter-bar">
         <label className="select-wrap">
-          <span className="small">Old</span>
+          <span className="small">{t("Old")}</span>
           <select className="input select-plain" value={data.left.key} onChange={(e) => setLeft(Number(e.target.value))}>
             {data.versions.map((v) => (
               <option key={v.key} value={v.key}>
@@ -102,7 +102,7 @@ export function VersionCompare({ jobId }: { jobId: number }) {
         </label>
         <Icon name="arrowRight" size={18} color="var(--muted)" />
         <label className="select-wrap">
-          <span className="small">New</span>
+          <span className="small">{t("New")}</span>
           <select className="input select-plain" value={data.right.key} onChange={(e) => setRight(Number(e.target.value))}>
             {data.versions.map((v) => (
               <option key={v.key} value={v.key}>
@@ -114,13 +114,13 @@ export function VersionCompare({ jobId }: { jobId: number }) {
       </div>
 
       {(s.numbers.length > 0 || s.lists.length > 0) && (
-        <div className="stat-grid" aria-label="What changed">
+        <div className="stat-grid" aria-label={t("What changed")}>
           {s.numbers.slice(0, 4).map((n) => (
             <section key={n.label} className="change-card tone-saffron">
               <span className="small muted">{n.label}</span>
               <span className="change-value">
                 {n.before} <span aria-hidden="true">→</span>
-                <span className="sr-only"> changed to </span> {n.after}
+                <span className="sr-only"> {t("changed to")} </span> {n.after}
               </span>
             </section>
           ))}
@@ -131,7 +131,7 @@ export function VersionCompare({ jobId }: { jobId: number }) {
               </span>
               <span className="change-value">
                 {l.after > l.before ? '+' : '−'}
-                {Math.abs(l.after - l.before)} {Math.abs(l.after - l.before) === 1 ? 'item' : 'items'}
+                {Math.abs(l.after - l.before)} {Math.abs(l.after - l.before) === 1 ? t("item") : t("items")}
               </span>
             </section>
           ))}
@@ -139,15 +139,15 @@ export function VersionCompare({ jobId }: { jobId: number }) {
       )}
 
       <div className="row gap-14 wrap small">
-        <ins className="diff-add">Added</ins>
-        <del className="diff-del">Removed</del>
+        <ins className="diff-add">{t("Added")}</ins>
+        <del className="diff-del">{t("Removed")}</del>
         <label className="row gap-6">
           <input type="checkbox" checked={onlyChanged} onChange={(e) => setOnlyChanged(e.target.checked)} />
-          Show only the parts that changed
+          {t("Show only the parts that changed")}
         </label>
       </div>
 
-      <div className="tab-bar" role="group" aria-label="Output">
+      <div className="tab-bar" role="group" aria-label={t("Output")}>
         {data.outputs.map((o) => (
           <button
             key={o.output_id}
@@ -158,7 +158,7 @@ export function VersionCompare({ jobId }: { jobId: number }) {
           >
             <Icon name={OUTPUT_ICONS[o.type] ?? 'file'} size={18} />
             {o.label}
-            <span className={o.changed ? 'tab-count tab-changed' : 'tab-count'}>{o.changed ? 'Changed' : 'Same'}</span>
+            <span className={o.changed ? 'tab-count tab-changed' : 'tab-count'}>{o.changed ? t("Changed") : t("Same")}</span>
           </button>
         ))}
       </div>
@@ -178,8 +178,8 @@ export function VersionCompare({ jobId }: { jobId: number }) {
                     {version.status}
                   </span>
                 </div>
-                {info.version === null && <p className="muted">This output did not exist in this version.</p>}
-                {fields.length === 0 && info.version !== null && <p className="muted">No changes in the {output.label}.</p>}
+                {info.version === null && <p className="muted">{t("This output did not exist in this version.")}</p>}
+                {fields.length === 0 && info.version !== null && <p className="muted">{t("No changes in the {label}.", { label: output.label })}</p>}
                 {fields.map((f) => (
                   <div key={f.path.join('.')} className="compare-field">
                     <span className="section-label">{f.label}</span>

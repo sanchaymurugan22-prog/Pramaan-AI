@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 // The Pramaan AI seal: navy circle with a saffron -> white -> green tick.
 export function LogoSeal({ size = 42 }: { size?: number }) {
   return (
@@ -17,8 +18,8 @@ export function Logo() {
     <div className="logo">
       <LogoSeal />
       <div className="logo-text">
-        <span className="logo-name">Pramaan AI</span>
-        <span className="logo-tagline">प्रमाण · Content you can prove</span>
+        <span className="logo-name">{t("Pramaan AI")}</span>
+        <span className="logo-tagline">{t("प्रमाण · Content you can prove")}</span>
       </div>
     </div>
   )
