@@ -102,3 +102,32 @@ def test_a_mention_notifies_that_person():
     assert operator.get("/api/notifications", params={"mentions": "true"}).json()["items"] == []
     assert second.id and signed_in_client("reviewer", "mention.second").get(
         "/api/notifications", params={"mentions": "true"}).json()["items"]
+
+
+def test_a_first_name_shared_with_the_author_still_reaches_the_other_person():
+    """v1.2, found in testing: "@Test please check" from "Test Reviewer (Claude)" on a job by "Test Operator (Claude)"
+    reached nobody: two people are called "Test", so the name counted as unclear, although one of them was the
+    author. A third "Quillon" who did not work on the job is not told either."""
+    make_user("quillon.operator", "operator", full_name="Quillon Operator (Claude)")
+    make_user("quillon.reviewer", "reviewer", full_name="Quillon Reviewer (Claude)")
+    make_user("quillon.other", "operator", full_name="Quillon Bystander")
+    owner, author = signed_in_client("operator", "quillon.operator"), signed_in_client("reviewer", "quillon.reviewer")
+    created = owner.post("/api/jobs", data={"text": SAMPLE_REPORT.read_text(encoding="utf-8") + uuid.uuid4().hex,
+                                            "outputs": ["x_thread"]})
+    job = wait_for(created.json()["id"])
+    assert owner.post(f"/api/jobs/{job['id']}/submit", json={}).status_code == 200
+    made = author.post(f"/api/jobs/{job['id']}/comments", json={"output_id": by(job, "x_thread")["id"],
+                                                                "text": "@Quillon please check"})
+    assert made.status_code == 201, made.text
+    assert made.json()["mentioned"] == ["Quillon Operator (Claude)"]
+    mentions = owner.get("/api/notifications", params={"mentions": "true"}).json()["items"]
+    assert [n["kind"] for n in mentions] == ["mention"] and n_job(mentions) == job["id"]
+    assert signed_in_client("operator", "quillon.other").get(
+        "/api/notifications", params={"mentions": "true"}).json()["items"] == []
+    # the full name works without the part in brackets, and with it
+    again = author.post(f"/api/jobs/{job['id']}/comments", json={"text": "@QuillonOperator and @quillon.operator.claude"})
+    assert again.json()["mentioned"] == ["Quillon Operator (Claude)"]
+
+
+def n_job(items: list[dict]) -> int:
+    return items[0]["job_id"]

@@ -74,19 +74,35 @@ MENTION = re.compile(r"(?<![\w@])@(\w[\w.\-]*\w|\w)")
 
 
 def _squash(text: str) -> str:
-    return re.sub(r"[\s._\-]", "", text).lower()
+    """Letters and digits only, small: "Test Operator (Claude)" -> "testoperatorclaude"."""
+    return re.sub(r"[\W_]", "", text).lower()
 
 
-def mentioned(db: Session, text: str) -> list[User]:
-    """The people named with @ in a comment: by full name, employee id, or first name (when only one active
-    Operator or Reviewer has it). Admins are not mentioned: they do not see jobs."""
-    people = list(db.scalars(select(User).where(User.is_active.is_(True), User.role.in_(("operator", "reviewer")))))
+def _names(user: User) -> set[str]:
+    """What a mention may say for this person: the full name (also without a part in brackets: "@TestOperator"
+    for "Test Operator (Claude)") and the employee id."""
+    names = {_squash(user.full_name), _squash(re.sub(r"\([^)]*\)", "", user.full_name))}
+    if user.employee_id:
+        names.add(_squash(user.employee_id))
+    return names - {""}
+
+
+def mentioned(db: Session, text: str, author_id: int | None = None, job_people: set[int] = frozenset()) -> list[User]:
+    """The people named with @ in a comment: by full name, employee id, or first name. A first name shared by
+    several people means the one who worked on this job (`job_people`), if exactly one did; otherwise nobody
+    (better than telling the wrong person). The author is never mentioned, and is left out BEFORE deciding
+    (v1.2: "@Test" from "Test Reviewer" did not reach "Test Operator", the only other "Test").
+    Admins are not mentioned: they do not see jobs."""
+    people = [u for u in db.scalars(select(User).where(User.is_active.is_(True), User.role.in_(("operator", "reviewer"))))
+              if u.id != author_id]
     found: list[User] = []
     for token in MENTION.findall(text):
         key = _squash(token)
-        matches = [u for u in people if key in (_squash(u.full_name), _squash(u.employee_id or "-"))]
+        matches = [u for u in people if key in _names(u)]
         if not matches:
             first = [u for u in people if u.full_name.split() and _squash(u.full_name.split()[0]) == key]
+            if len(first) > 1:
+                first = [u for u in first if u.id in job_people]
             matches = first if len(first) == 1 else []
         found += [u for u in matches if u not in found]
     return found

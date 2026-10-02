@@ -75,7 +75,7 @@ def add_comment(job_id: int, form: NewComment, db: Session = Depends(get_session
     db.add(comment)
     db.flush()
     where = comment_json(comment, db)["output_label"] or "the job"
-    people = [p for p in notifications.mentioned(db, text) if p.id != user.id]
+    people = notifications.mentioned(db, text, author_id=user.id, job_people={job.owner_id} | worked_on_by(db, job))
     for person in people:
         notifications.notify(db, person.id, "mention", f"{user.full_name} mentioned you on “{job.title}”",
                              f"{where}: {text}", job)
