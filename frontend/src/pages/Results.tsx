@@ -644,20 +644,26 @@ function Sources({ job }: { job: JobDetail }) {
 }
 
 // A card with a title row, an optional "Show JSON" toggle, and a body.
-function Card({ title, right, json, children }: { title: ReactNode; right?: ReactNode; json?: unknown; children: ReactNode }) {
+// meta: small facts under the title (version, time); right: the buttons, kept together on one line (v1.2: on a
+// translated output "JSON" used to drop to a line of its own)
+function Card({ title, meta, right, json, children }: { title: ReactNode; meta?: ReactNode; right?: ReactNode; json?: unknown; children: ReactNode }) {
   const [showJson, setShowJson] = useState(false)
   return (
     <section className="card card-pad stack gap-14">
-      <div className="row gap-10 wrap">
-        <h2>{title}</h2>
-        <div className="grow" />
-        {right}
-        {json !== undefined && (
-          <button type="button" className="btn btn-outline btn-xs" onClick={() => setShowJson(!showJson)}>
-            <Icon name="code" size={16} strokeWidth={2} />
-            {showJson ? t("Hide JSON") : 'JSON'}
-          </button>
-        )}
+      <div className="card-head">
+        <div className="stack gap-6">
+          <h2>{title}</h2>
+          {meta && <div className="row gap-8 wrap">{meta}</div>}
+        </div>
+        <div className="card-head-tools">
+          {right}
+          {json !== undefined && (
+            <button type="button" className="btn btn-outline btn-xs" onClick={() => setShowJson(!showJson)}>
+              <Icon name="code" size={16} strokeWidth={2} />
+              {showJson ? t("Hide JSON") : 'JSON'}
+            </button>
+          )}
+        </div>
       </div>
       {showJson ? <pre className="json-box">{JSON.stringify(json, null, 2)}</pre> : children}
     </section>
@@ -830,12 +836,16 @@ function OutputCard({ job, output, meta, now, editing, onEdit, onSaved, viewed, 
     )
   }
 
-  const toolbar = hasText && (
+  const facts = hasText ? (
     <>
       <span className={output.origin === 'human' ? 'chip chip-saffron' : 'chip chip-neutral'} title={t("Latest version")}>
         {output.origin === 'human' && <Icon name="pencil" size={14} strokeWidth={2.2} />}v{output.version} · {t(output.origin_label)}
       </span>
       {status}
+    </>
+  ) : status
+  const toolbar = hasText && (
+    <>
       <button type="button" className="btn btn-outline btn-xs" onClick={() => setShowVersions(!showVersions)} aria-expanded={showVersions}>
         <Icon name="history" size={16} />
         {t("Versions")}
@@ -875,7 +885,7 @@ function OutputCard({ job, output, meta, now, editing, onEdit, onSaved, viewed, 
 
   return (
     <Card title={translated ? <>{t(output.label)} <span className="muted" lang={output.language}>· {language?.native ?? output.language}</span></> : t(output.label)}
-          right={toolbar || status} json={(viewed?.content ?? output.content) || undefined}>
+          meta={facts} right={toolbar || undefined} json={(viewed?.content ?? output.content) || undefined}>
       {translated && !viewed && <TranslationNote output={output} />}
       {canChange && !translated && output.type !== 'sms' && output.status === 'done' && !viewed && !editing && (
         <div className="rewrite-row" role="group" aria-label={t("Rewrite with the AI")}>

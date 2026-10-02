@@ -5,7 +5,7 @@ import { Icon, type IconName } from '../components/Icon'
 import { JobsTable } from '../components/JobsTable'
 import { Mandala } from '../components/Mandala'
 import { links } from '../router'
-import { aiLabel, LANGUAGE_LABELS, shortTime, todayLabel } from './format'
+import { aiLabel, LANGUAGE_NAMES, shortTime, todayLabel } from './format'
 import { t } from '../i18n'
 
 // Design "08 · Operator dashboard". Every number is real (GET /api/dashboard); "hours saved" is an
@@ -54,7 +54,7 @@ function Hero({ data }: { data: Dashboard | null }) {
 function StatCards({ data }: { data: Dashboard | null }) {
   const s = data?.stats
   const change = s ? s.jobs_this_week - s.jobs_last_week : 0
-  const languageNames = s?.languages.map((l) => (l === 'en' ? 'English' : LANGUAGE_LABELS[l] ?? l)).join(', ')
+  const languageNames = s?.languages.map((l) => LANGUAGE_NAMES[l] ?? l).join(', ') // "English, हिन्दी", not "हि"
   const stats: { label: string; value: string; note: string; icon: IconName; tone: string }[] = [
     {
       label: t("Jobs this week"), value: s ? String(s.jobs_this_week) : '–', icon: 'history', tone: 'saffron',

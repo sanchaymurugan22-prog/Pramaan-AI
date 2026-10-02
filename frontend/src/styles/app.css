@@ -343,7 +343,8 @@ h3 { font-size: 18px; font-weight: 600; line-height: 1.35; }
 .output-option-title { font-family: var(--font-heading); font-weight: 600; font-size: 15.5px; }
 .output-option-desc { font-size: 14px; color: var(--muted); }
 
-.settings-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+/* as many dropdowns in a row as fit at 210px or more (v1.2: four in a row cut "IT and security teams" short) */
+.settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
 .segmented { display: inline-flex; padding: 4px; gap: 4px; border-radius: 14px; background: var(--neutral-chip); align-self: flex-start; }
 .segmented button {
   min-height: 40px; padding: 0 22px; border: 0; border-radius: 10px; background: transparent; cursor: pointer;
@@ -1578,6 +1579,12 @@ button.number-tile { border: 1px solid var(--line); text-align: left; font-famil
 /* Stage 8: English | हिन्दी at the top right */
 .topbar-lang { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; align-self: center; flex-shrink: 0; }
 .topbar-lang button { min-height: 34px; padding: 0 12px; font-size: 14px; }
+
+/* Results: a card's title (with its version and time below it) and its buttons. The buttons stay together:
+   when they do not fit beside the title, the whole group moves below it (v1.2) */
+.card-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px 16px; }
+.card-head-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-left: auto; }
+.card-head-tools .btn { white-space: nowrap; }
 
 /* Results: "Shorter / More formal / Simpler" (design 14) */
 .rewrite-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }

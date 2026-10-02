@@ -25,10 +25,12 @@ export const ROLE_TONE: Record<Role, 'saffron' | 'green' | 'navy'> = {
   admin: 'navy',
 }
 
-// "Priya Sharma" -> "PS"
+// "Priya Sharma" -> "PS". A part in brackets and anything that does not start with a letter are left out
+// (v1.2: "Test Operator (Claude)" gave "T(", now "TO").
 export function initials(name: string): string {
-  const parts = name.trim().split(/\s+/)
-  return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase()
+  const parts = name.replace(/\([^)]*\)?/g, ' ').split(/\s+/).filter((w) => /^\p{L}/u.test(w))
+  const first = (word: string | undefined) => (word ? Array.from(word)[0] : '')
+  return (first(parts[0]) + (parts.length > 1 ? first(parts[parts.length - 1]) : '')).toUpperCase()
 }
 
 export function firstName(name: string): string {
