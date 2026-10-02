@@ -20,7 +20,9 @@ def write_txt(info: ExportInfo, content: dict, path: Path | BinaryIO) -> Path | 
 
 
 def post_text(info: ExportInfo, content: dict) -> str:
-    if info.output_type == "x_thread":
+    if info.output_type == "sms":  # Stage 8: the emergency alert's text message, exactly as it will be sent
+        body = text_of(content.get("message"))
+    elif info.output_type == "x_thread":
         tweets = [text_of(t) for t in content.get("tweets", []) if text_of(t)]
         body = "\n\n".join(f"{number}/{len(tweets)} {tweet}" for number, tweet in enumerate(tweets, start=1))
     else:

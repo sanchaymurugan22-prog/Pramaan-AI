@@ -9,4 +9,5 @@ export const OUTPUT_ICONS: Record<string, IconName> = {
   linkedin_post: 'share',
   x_thread: 'share',
   infographic: 'image',
+  sms: 'phone', // Stage 8: the emergency alert's text message
 }

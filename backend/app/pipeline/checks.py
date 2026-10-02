@@ -271,7 +271,12 @@ def format_rules(output_type: str, content: dict, truncated: bool) -> list[dict]
     def over(items, limit: int, name: str, measure=len, unit: str = "characters") -> list[str]:
         return [f"{name} {n} is {measure(t)} {unit}" for n, t in enumerate(items, start=1) if measure(t) > limit]
 
-    if output_type == "x_thread":
+    if output_type == "sms":  # Stage 8: 160 characters in one SMS; 70 for Indian scripts (UCS-2)
+        text = (c.get("message") or {}).get("text", "")
+        limit = 70 if any(ord(ch) > 0x7F for ch in text) else 160
+        parts = 1 if len(text) <= limit else -(-len(text) // (limit - 7))
+        rule("At most 3 SMS messages", [] if parts <= 3 else [f"{parts} messages"])
+    elif output_type == "x_thread":
         tweets = [t.get("text", "") for t in c.get("tweets", [])]
         rule("Every post is 280 characters or less (X limit)", over(tweets, 280, "Post"))
         rule("2 to 5 posts", [] if 2 <= len(tweets) <= 5 else [f"{len(tweets)} posts"])

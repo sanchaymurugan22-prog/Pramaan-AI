@@ -595,8 +595,29 @@ export function IndicatorTable({ indicators }: { indicators: FactSheet['indicato
 
 // Picks the right view for an output type. Unknown types just show their JSON.
 // The facts and warnings come from the surrounding <TraceProvider> (see trace.tsx).
+// Stage 8: the emergency alert as the text message people receive, with its length
+function SmsView({ c }: { c: { message?: { text: string } } }) {
+  const text = c.message?.text ?? ''
+  const unicode = /[^\x00-\x7f]/.test(text)
+  const limit = unicode ? 70 : 160
+  const parts = text.length <= limit ? 1 : Math.ceil(text.length / (limit - 7))
+  return (
+    <div className="sms-view stack gap-8">
+      <div className="sms-bubble">
+        <Traced path={['message', 'text']} text={text} />
+      </div>
+      <span className={parts > 1 ? 'small over-limit' : 'small count-ok'}>
+        {text.length} / {limit} characters · {parts === 1 ? 'fits one SMS' : `${parts} SMS parts`}
+        {unicode && ' (Indian scripts: 70 characters in one SMS)'}
+      </span>
+    </div>
+  )
+}
+
 export function OutputBody({ type, content, meta }: { type: string; content: Record<string, unknown>; meta: ViewMeta }) {
   switch (type) {
+    case 'sms':
+      return <SmsView c={content as { message?: { text: string } }} />
     case 'x_thread':
       return <XThreadView c={content as XThread} />
     case 'linkedin_post':

@@ -41,7 +41,7 @@ from app.db import Job, Output, Source, User, as_utc, get_session, utc_now
 from app.exporters import formats_for
 from app.pipeline import ingest, runner
 from app.pipeline.checks import CHECKS_VERSION, fact_sheet_check, recheck_job
-from app.pipeline.output_types import DEFAULT_SETTINGS, OUTPUT_ORDER, OUTPUT_TYPES, SETTING_OPTIONS
+from app.pipeline.output_types import CHOOSABLE, DEFAULT_SETTINGS, OUTPUT_ORDER, OUTPUT_TYPES, SETTING_OPTIONS
 from app.pipeline.segments import segments
 from app.pipeline.versions import ORIGIN_LABELS, current_version
 from app.safety.decisions import decision_json, record
@@ -57,7 +57,7 @@ def options(user: User = Depends(signed_in)):
     return {
         "output_types": [
             {"key": key, "label": spec["label"], "description": spec["description"], "public": spec["public"]}
-            for key, spec in OUTPUT_TYPES.items()
+            for key, spec in OUTPUT_TYPES.items() if key in CHOOSABLE
         ],
         "settings": SETTING_OPTIONS,
         "default_settings": DEFAULT_SETTINGS,
@@ -349,7 +349,7 @@ def _translation_info(output: Output, job: Job) -> dict:
 def _selected_outputs(outputs: list[str], required: bool) -> list[str]:
     # A browser may send the outputs as one comma-separated value; accept both forms.
     selected = [o.strip() for value in outputs for o in value.split(",") if o.strip()]
-    unknown = [o for o in selected if o not in OUTPUT_TYPES]
+    unknown = [o for o in selected if o not in CHOOSABLE]
     if unknown:
         raise HTTPException(400, f"Unknown output type(s): {', '.join(unknown)}")
     if required and not selected:

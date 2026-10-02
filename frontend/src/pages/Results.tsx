@@ -38,7 +38,7 @@ type Tab = 'facts' | 'social' | number
 type TabInfo = { key: Tab; label: string; icon: IconName; outputs: JobOutput[] }
 
 // The order of the tabs in the designs 13-18
-const TAB_ORDER = ['advisory', 'executive_summary', 'presentation', 'video_package', 'social', 'infographic']
+const TAB_ORDER = ['sms', 'advisory', 'executive_summary', 'presentation', 'video_package', 'social', 'infographic']
 const SOCIAL = ['linkedin_post', 'x_thread']
 
 // Stage 8: the output of a type in the chosen language (the English one if it was not translated into it)

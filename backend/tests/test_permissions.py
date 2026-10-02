@@ -38,6 +38,7 @@ MATRIX = [
     ("POST", "/api/jobs/{job}/outputs/{output}/regenerate", {OP}, None),
     ("POST", "/api/jobs/{job}/languages", {OP}, {"languages": []}),  # Stage 8
     ("POST", "/api/jobs/{job}/outputs/{output}/native-check", {RV}, {"checked": True}),
+    ("POST", "/api/jobs/{job}/native-check-all", {RV}, None),
     ("GET", "/api/jobs/{job}/outputs/{output}/versions", {OP, RV}, None),
     ("GET", "/api/jobs/{job}/outputs/{output}/listen", {OP, RV}, None),  # Stage 8
     ("GET", "/api/jobs/{job}/outputs/{output}/versions/1", {OP, RV}, None),
@@ -79,6 +80,7 @@ MATRIX = [
     ("POST", "/api/watch/check", {OP}, None),
     ("POST", "/api/alerts/check", {OP}, {"message": "Do not open unknown links. Report fraud by calling 1930."}),
     ("POST", "/api/alerts", {OP}, {"type": "Other", "severity": "Advisory", "message": "x"}),
+    ("POST", "/api/alerts/preview", {OP}, {"message": "Report fraud by calling 1930.", "languages": ["hi"]}),  # Stage 8
     # admin
     ("GET", "/api/admin/overview", {AD}, None),
     ("GET", "/api/admin/ai", {AD}, None),

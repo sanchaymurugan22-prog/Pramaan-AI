@@ -49,7 +49,9 @@ def segments(output_type: str, content: dict) -> list[Segment]:
         if isinstance(item, dict) and isinstance(item.get("text"), str):
             out.append(Segment([*path, "text"], label, item["text"], _ids(item)))
 
-    if output_type == "x_thread":
+    if output_type == "sms":  # Stage 8: the emergency alert as a text message
+        grounded(["message"], "Message")
+    elif output_type == "x_thread":
         for i, _ in enumerate(_list(c, "tweets")):
             grounded(["tweets", i], f"Post {i + 1}")
     elif output_type == "linkedin_post":

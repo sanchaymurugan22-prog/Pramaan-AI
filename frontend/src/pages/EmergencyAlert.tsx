@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react'
-import { checkAlert, createAlert, type AlertCheck } from '../api'
+import { checkAlert, createAlert, previewAlert, type AlertCheck, type AlertPreview } from '../api'
 import { Icon } from '../components/Icon'
+import { LanguagePicker } from '../components/LanguagePicker'
+import { Toggle } from '../components/Toggle'
+import { useLanguages } from '../languages'
 import { links, navigate } from '../router'
 
 // Design "22 · Emergency alert". The operator writes a short public alert; the app checks it (no panic
 // wording, no private data, SMS length) as they type. "Send for fast-track approval" makes a TLP:CLEAR
 // job whose source is this message, the AI writes the public outputs, and the job goes to the Reviewers
 // by itself, first in their queue. Nothing is published until a Reviewer approves and signs it.
-// (backend/app/routes/alerts.py) Other languages and voice come in Stage 8.
+// (backend/app/routes/alerts.py) Stage 8: the alert in every chosen language (IndicTrans2, on this computer), each
+// within the SMS length (160 characters in English, 70 in Indian scripts), with a voice announcement where a voice
+// exists. The SMS itself is an output of the job: translated, checked, ticked by a native speaker and signed.
 
 const TYPES = ['Cyber fraud', 'Flood', 'Cyclone', 'Heatwave', 'Health', 'Other']
 const SEVERITIES = ['Advisory', 'Warning', 'Emergency']
@@ -27,6 +32,26 @@ export function EmergencyAlert() {
   const [check, setCheck] = useState<AlertCheck | null>(null)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+  const info = useLanguages()
+  const [chosen, setChosen] = useState<string[] | null>(null) // null: every language (the default)
+  const allIndian = info?.languages.filter((l) => l.code !== 'en').map((l) => l.code) ?? []
+  const languages = info?.translation.ready ? (chosen ?? allIndian) : []
+  const [voice, setVoice] = useState(true)
+  const [preview, setPreview] = useState<AlertPreview[] | null>(null)
+  const [previewing, setPreviewing] = useState(false)
+  const voices = info?.languages.filter((l) => l.voice).map((l) => l.native) ?? []
+
+  async function showPreview() {
+    setPreviewing(true)
+    setError('')
+    try {
+      setPreview((await previewAlert(message, languages)).languages)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not translate the preview.')
+    } finally {
+      setPreviewing(false)
+    }
+  }
 
   // The public-release check, a moment after typing stops
   useEffect(() => {
@@ -50,7 +75,7 @@ export function EmergencyAlert() {
     setSending(true)
     setError('')
     try {
-      const job = await createAlert({ type, severity, area, message, outputs })
+      const job = await createAlert({ type, severity, area, message, outputs, languages, voice })
       navigate(links.progress(job.id))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not send the alert.')
@@ -64,7 +89,7 @@ export function EmergencyAlert() {
         <div className="stack gap-2">
           <div className="eyebrow eyebrow-red">Emergency mode</div>
           <h1>Urgent public alert</h1>
-          <p className="muted page-lead">Short public alerts that go to fast-track review. Nothing is sent until it is signed.</p>
+          <p className="muted page-lead">Short alerts in all 22 languages with voice announcements. Goes to fast-track review.</p>
         </div>
         <div className="grow" />
         <span className="chip chip-red">
@@ -148,13 +173,26 @@ export function EmergencyAlert() {
             </div>
           </fieldset>
 
-          <div className="toggle-row is-disabled">
-            <span className="stack gap-1 grow">
-              <span className="toggle-label">Voice announcement</span>
-              <span className="toggle-detail">Indian voices for every language come in Stage 8</span>
-            </span>
-            <span className="chip chip-neutral">Stage 8</span>
-          </div>
+          <LanguagePicker
+            info={info}
+            selected={languages}
+            onChange={(codes) => {
+              setChosen(codes)
+              setPreview(null)
+            }}
+            label="Languages"
+            showVoices
+          />
+          <Toggle
+            label="Add voice announcement"
+            detail={
+              voices.length
+                ? `Indian voices on this computer: ${voices.join(', ')}. Other languages: text only.`
+                : 'No voices on this computer: text only.'
+            }
+            on={voice}
+            onChange={setVoice}
+          />
           <div className="toggle-row">
             <span className="stack gap-1 grow">
               <span className="toggle-label">QR code for verification</span>
@@ -171,9 +209,11 @@ export function EmergencyAlert() {
 
         <section className="card card-pad stack gap-14 preview-card" aria-labelledby="preview-title">
           <div className="row gap-10 wrap">
-            <h2 id="preview-title">Preview</h2>
+            <h2 id="preview-title">Preview in every language</h2>
             <div className="grow" />
-            <span className="chip chip-neutral">English · 1 of 22 languages</span>
+            <span className="chip chip-neutral">
+              {preview ? `${preview.length + 1} of ${languages.length + 1} ready` : `English · ${languages.length} more to translate`}
+            </span>
           </div>
           <article className="lang-card" lang="en">
             <div className="row gap-8">
@@ -182,9 +222,50 @@ export function EmergencyAlert() {
             </div>
             <p className="lang-text">{message.trim() || 'Your message appears here as people will read it.'}</p>
           </article>
+          {languages.length > 0 && (
+            <button type="button" className="btn btn-outline" onClick={showPreview} disabled={previewing || chars < 20}>
+              <Icon name="globe" size={18} strokeWidth={2} />
+              {previewing ? 'Translating…' : preview ? 'Translate the preview again' : `Show it in ${languages.length} languages`}
+            </button>
+          )}
+          {preview && (
+            <div className="stack gap-10 lang-cards" aria-live="polite">
+              {preview.map((p) => (
+                <article key={p.code} className="lang-card" lang={p.code} dir={p.rtl ? 'rtl' : undefined}>
+                  <div className="row gap-8 wrap" dir="ltr">
+                    <strong className="lang-name">{p.native}</strong>
+                    <span className="muted small" lang="en">
+                      {p.name}
+                    </span>
+                    <div className="grow" />
+                    <span className={p.sms_parts > 1 ? 'small over-limit' : 'small count-ok'} lang="en">
+                      {p.chars} / {p.limit} · {p.sms_parts === 1 ? 'one SMS' : `${p.sms_parts} SMS`}
+                    </span>
+                    {voice &&
+                      (p.voice ? (
+                        <span className="chip chip-green chip-xs" title={`Voice: ${p.voice}`} lang="en">
+                          <Icon name="volume" size={12} />
+                          Voice
+                        </span>
+                      ) : (
+                        <span className="chip chip-neutral chip-xs" lang="en">
+                          Text only
+                        </span>
+                      ))}
+                  </div>
+                  <p className="lang-text">{p.text}</p>
+                  {p.changed.length > 0 && (
+                    <span className="small over-limit" dir="ltr" lang="en">
+                      Changed in translation: {p.changed.join(', ')}. Check it before sending.
+                    </span>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
           <p className="muted small">
-            Hindi, Tamil, Bengali and the other scheduled languages are added in Stage 8 (IndicTrans2, on this computer).
-            Until then the alert and its outputs are in English.
+            Machine translated on this computer (IndicTrans2). A Reviewer ticks “Checked by a native speaker” for every
+            language before the alert can be signed.
           </p>
         </section>
       </div>

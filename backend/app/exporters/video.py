@@ -88,6 +88,15 @@ def write_mp3(info: ExportInfo, content: dict, target) -> None:
     target.write(audio.mp3_from_wav(wav))
 
 
+def write_announcement(info: ExportInfo, content: dict, target) -> None:
+    """Stage 8: the emergency alert's voice announcement (the SMS text, read aloud, said twice)."""
+    text = (content.get("message") or {}).get("text", "")
+    if tts.voice_for(info.language) is None:
+        raise ValueError(tts.not_available(info.language))
+    wav = _speak(text, info.language)
+    target.write(audio.mp3_from_wav(audio.join_wavs([wav, wav], pause=1.2)))
+
+
 def write_mp4(info: ExportInfo, content: dict, target) -> None:
     lines, wav = narration(info, content)
     scenes = content.get("scenes") or []

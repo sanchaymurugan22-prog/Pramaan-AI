@@ -62,6 +62,15 @@ FACTSHEET_SCHEMA = obj(
 # ---- the 7 outputs, in the order they are generated (shortest first) -----------------------
 
 OUTPUT_TYPES: dict[str, dict] = {
+    # Stage 8: the emergency alert itself, as a text message. Not written by the AI: its English is what the
+    # Operator typed; its translations, checks, signing and voice files work like any other output's.
+    "sms": {
+        "label": "SMS alert",
+        "description": "The alert as a text message, with a voice announcement",
+        "public": True,
+        "alert_only": True,  # made only by the Emergency alert screen
+        "schema": obj({"message": GROUNDED_TEXT}),
+    },
     "x_thread": {
         "label": "X thread",
         "description": "Short public thread, up to 5 posts",
@@ -146,6 +155,8 @@ OUTPUT_TYPES: dict[str, dict] = {
 }
 
 OUTPUT_ORDER = list(OUTPUT_TYPES)  # short outputs first
+# What "New transformation" and the watch folder offer (the SMS alert belongs to the Emergency alert screen)
+CHOOSABLE = [key for key, spec in OUTPUT_TYPES.items() if not spec.get("alert_only")]
 
 # ---- settings the operator can choose (shown as dropdowns in the UI) -----------------------
 

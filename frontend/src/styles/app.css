@@ -1573,3 +1573,5 @@ button.number-tile { border: 1px solid var(--line); text-align: left; font-famil
 .video-player { width: 100%; max-width: 760px; border-radius: 14px; background: #000; aspect-ratio: 16 / 9; }
 .video-preview audio { width: 100%; max-width: 760px; }
 .listen-audio { width: 100%; max-width: 520px; }
+.sms-bubble { max-width: 520px; padding: 14px 18px; border-radius: 18px 18px 18px 4px; background: var(--green-light);
+  border: 1px solid var(--green-mid); font-size: 17px; line-height: 1.55; }

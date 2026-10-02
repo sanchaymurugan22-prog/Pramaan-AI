@@ -15,7 +15,7 @@ from app import watch
 from app.auth.deps import allow
 from app.config import settings
 from app.db import Job, User, WatchFile, as_utc, get_session
-from app.pipeline.output_types import OUTPUT_TYPES
+from app.pipeline.output_types import CHOOSABLE
 
 router = APIRouter(prefix="/api/watch", tags=["watch"])
 OPERATOR = allow("operator")
@@ -64,7 +64,7 @@ def update_watch(body: WatchUpdate, db: Session = Depends(get_session), user: Us
             raise HTTPException(400, f"There is no folder data/watch/{body.folder.strip()}. Make it first.")
         row.folder = body.folder.strip().rstrip("/")
     if body.outputs is not None:
-        unknown = [o for o in body.outputs if o not in OUTPUT_TYPES]
+        unknown = [o for o in body.outputs if o not in CHOOSABLE]
         if unknown or not body.outputs:
             raise HTTPException(400, "Choose at least one known output for the kit.")
         row.outputs = list(dict.fromkeys(body.outputs))

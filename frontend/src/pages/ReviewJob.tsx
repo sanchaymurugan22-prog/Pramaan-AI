@@ -2,7 +2,7 @@
 // Click any sentence to see where it comes from (source trace, right) and to comment on it. Comments go to
 // the Operator if the job is sent back (design 28, SendBack.tsx). "Approve & sign" signs every file.
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { addComment, getJob, recordQrUrl, setNativeCheck, takeBackComment, type JobDetail, type JobOutput } from '../api'
+import { addComment, getJob, recordQrUrl, setNativeCheck, takeBackComment, tickAllTranslations, type JobDetail, type JobOutput } from '../api'
 import { useAuth } from '../auth'
 import { Icon, type IconName } from '../components/Icon'
 import { OUTPUT_ICONS } from '../components/outputIcons'
@@ -209,6 +209,19 @@ export function ReviewJob({ jobId }: { jobId: number }) {
     }
   }
 
+  // Stage 8: an alert in 22 languages; the Reviewer confirms native speakers read every one (each is recorded)
+  async function tickAll() {
+    const ok = window.confirm(
+      `Tick “Checked by a native speaker” for all ${toCheck} translations?\n\nOnly do this if a native speaker of each language has read it against the English.`,
+    )
+    if (!ok || !job) return
+    try {
+      setJob(await tickAllTranslations(job.id))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not tick them.')
+    }
+  }
+
   async function takeBack(id: number) {
     try {
       await takeBackComment(job!.id, id)
@@ -292,6 +305,12 @@ export function ReviewJob({ jobId }: { jobId: number }) {
               ? `${job.languages.length} languages · ${toCheck} translation${toCheck === 1 ? '' : 's'} to check`
               : 'English'}
           </span>
+          {!mine && toCheck > 1 && (
+            <button type="button" className="btn btn-outline btn-xs" onClick={tickAll}>
+              <Icon name="check" size={16} strokeWidth={2.2} />
+              Tick all {toCheck} translations
+            </button>
+          )}
         </nav>
 
         <section className="card card-pad stack gap-14" aria-label={active.label}>

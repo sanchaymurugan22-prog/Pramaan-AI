@@ -93,6 +93,14 @@ def _run(db, job: Job) -> None:
             _translate(db, job, output, masker, report)
             recheck_job(db, job)
             continue
+        if output.type == "sms":  # Stage 8: the alert's text message is what the Operator wrote, not the AI's
+            if not output.content_json:
+                message = (job.alert_json or {}).get("message", "")
+                save_version(db, output, {"message": {"text": message, "fact_ids": []}}, "operator")
+            output.status, output.finished_at, output.seconds = "done", utc_now(), 0.0
+            db.commit()
+            recheck_job(db, job)
+            continue
         output.status, output.error, output.started_at = "generating", None, utc_now()
         step = f"Writing the {OUTPUT_TYPES[output.type]['label']}"
         report(step)

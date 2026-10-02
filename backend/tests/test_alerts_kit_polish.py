@@ -43,7 +43,7 @@ def test_an_alert_goes_to_fast_track_review_by_itself():
     job = response.json()
     assert job["created_via"] == "emergency" and job["tlp"] == "CLEAR"
     assert job["alert"]["message"] == CALM and job["alert"]["sms_parts"] == 1
-    assert sorted(o["type"] for o in job["outputs"]) == ["infographic", "x_thread"]
+    assert sorted(o["type"] for o in job["outputs"]) == ["infographic", "sms", "x_thread"]  # Stage 8: + the SMS
     assert job["sources"][0]["filename"] == "emergency-alert.txt"
 
     done = wait_for(job["id"])

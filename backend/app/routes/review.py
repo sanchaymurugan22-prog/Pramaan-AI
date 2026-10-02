@@ -200,6 +200,29 @@ def native_check(job_id: int, output_id: int, body: NativeCheck, db: Session = D
     return job_detail(job)
 
 
+@router.post("/jobs/{job_id}/native-check-all")
+def native_check_all(job_id: int, db: Session = Depends(get_session), user: User = Depends(allow("reviewer"))):
+    """Stage 8: tick "Checked by a native speaker" for every translation at once (an emergency alert in 22
+    languages), after the Reviewer confirmed that native speakers read them. Each one is recorded."""
+    from app.lang import languages
+
+    job = _get_job(db, job_id)
+    if job.status != "in_review":
+        raise HTTPException(409, "The native-speaker check is ticked while the job is being reviewed.")
+    if user.id in worked_on_by(db, job):
+        raise HTTPException(403, SEPARATION)
+    ticked = []
+    for output in job.outputs:
+        if output.language != "en" and not (output.native_checked_by and output.native_checked_version == output.version):
+            output.native_checked_by, output.native_checked_at, output.native_checked_version = user.id, utc_now(), output.version
+            ticked.append(f"{OUTPUT_TYPES[output.type]['label']} ({languages.get(output.language).name}) v{output.version}")
+    db.commit()
+    if ticked:
+        audit.log("review", "native_check", f"Ticked the native-speaker check of {len(ticked)} translations of job "
+                                            f"#{job.id} at once: {', '.join(ticked)}", actor=user, target=f"job {job.id}")
+    return job_detail(job)
+
+
 @router.get("/jobs/{job_id}/sign-info")
 def sign_info(job_id: int, db: Session = Depends(get_session), user: User = Depends(allow("reviewer"))):
     """For the sign dialog: who signs with what, and how much."""

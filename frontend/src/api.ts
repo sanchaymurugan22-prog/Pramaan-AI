@@ -914,9 +914,34 @@ export const checkWatchNow = () => request<WatchState>('/api/watch/check', { met
 // ---- emergency alert (Stage 9A, backend/app/routes/alerts.py) -----------------------------------
 
 export type AlertCheck = PublicCheck & { chars: number; sms_parts: number; max_chars: number; fits_one_sms: boolean }
-export type NewAlert = { type: string; severity: string; area: string; message: string; outputs: string[] }
+export type NewAlert = {
+  type: string
+  severity: string
+  area: string
+  message: string
+  outputs: string[]
+  languages: string[] // Stage 8: the SMS and every output in these languages too
+  voice: boolean // Stage 8: a voice announcement in every language that has a voice
+}
 export const checkAlert = (message: string) => request<AlertCheck>('/api/alerts/check', sendJson('POST', { message }))
 export const createAlert = (alert: NewAlert) => request<JobDetail>('/api/alerts', sendJson('POST', alert))
+// Stage 8: the alert in each language, for the preview cards
+export type AlertPreview = {
+  code: string
+  name: string
+  native: string
+  rtl: boolean
+  text: string
+  chars: number
+  limit: number // 160 for English, 70 for Indian scripts
+  sms_parts: number
+  changed: string[] // numbers or codes that did not survive the translation
+  voice: string | null
+}
+export const previewAlert = (message: string, languages: string[]) =>
+  request<{ languages: AlertPreview[] }>('/api/alerts/preview', sendJson('POST', { message, languages }))
+export const tickAllTranslations = (jobId: number) =>
+  request<JobDetail>(`/api/jobs/${jobId}/native-check-all`, sendJson('POST', {}))
 
 // ---- Admin system pages (Stage 9B, backend/app/routes/admin_system.py and admin_files.py) --------
 

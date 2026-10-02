@@ -32,6 +32,7 @@ FORMATS: dict[str, list[str]] = {
     "video_package": ["docx", "srt", "mp4"],  # Stage 8: + "mp3" (narration) when the language has a voice
     "linkedin_post": ["txt"],
     "x_thread": ["txt"],
+    "sms": ["txt"],  # Stage 8: + "mp3" (the voice announcement) when the language has a voice
 }
 
 MEDIA_TYPES = {
@@ -51,11 +52,19 @@ def formats_for(output) -> list[str]:
     """The file types this output can be downloaded as. Stage 8: a video package also comes as narration
     (.mp3) when a voice can read its language (app/lang/tts.py)."""
     formats = list(FORMATS.get(output.type, []))
-    if output.type == "video_package":
+    if output.type in ("video_package", "sms"):
         from app.lang import tts
-        if tts.voice_for(output.language) is not None:
-            formats.insert(formats.index("mp4"), "mp3")
+        if tts.voice_for(output.language) is not None and _voice_wanted(output):
+            formats.insert(formats.index("mp4") if "mp4" in formats else len(formats), "mp3")
     return formats
+
+
+def _voice_wanted(output) -> bool:
+    """An emergency alert has a "voice announcement" switch (on by default)."""
+    if output.type != "sms":
+        return True
+    job = getattr(output, "job", None)
+    return bool(((job.alert_json if job else None) or {}).get("voice", True))
 
 
 class ExportError(Exception):
@@ -104,7 +113,7 @@ def export_output(job, output, fmt: str) -> ExportedFile:
                           "then download it.")
     if fmt not in formats_for(output):
         allowed = ", ".join(formats_for(output)) or "none"
-        if fmt == "mp3" and output.type == "video_package":
+        if fmt == "mp3" and output.type in ("video_package", "sms"):
             from app.lang import tts
             raise ExportError(tts.not_available(output.language) + f" It can be downloaded as: {allowed}.")
         raise ExportError(f"A {OUTPUT_TYPES[output.type]['label']} can be downloaded as: {allowed}.")
@@ -143,6 +152,9 @@ def _writer(output_type: str, fmt: str):
     if fmt == "srt":
         from app.exporters.srt import write_srt
         return write_srt
+    if fmt == "mp3" and output_type == "sms":
+        from app.exporters.video import write_announcement
+        return write_announcement
     if fmt == "mp3":
         from app.exporters.video import write_mp3
         return write_mp3
