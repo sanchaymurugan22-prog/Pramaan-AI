@@ -396,15 +396,37 @@ function Preview({ findings, suspicious, choices, sources }: {
   const where = hidden.occurrences.find((o) => !insideRemoved(o))!
   const page = sources.find((s) => s.id === where.source_id)?.pages[where.page - 1]
   if (!page) return null
-  const start = jsIndex(page, where.start)
-  const end = jsIndex(page, where.end)
-  const before = page.slice(Math.max(0, start - 60), start).replace(/^\S*\s/, '').replace(/\s+/g, ' ')
-  const after = page.slice(end, end + 60).replace(/\s\S*$/, '').replace(/\s+/g, ' ')
+  // v1.2: EVERY hidden value on this page is masked in the preview, not only this one (an e-mail address in the
+  // words around it used to show as it is)
+  const spans = findings
+    .filter((f) => choices[f.id] !== 'keep')
+    .flatMap((f) => f.occurrences
+      .filter((o) => o.source_id === where.source_id && o.page === where.page)
+      .map((o) => ({ start: jsIndex(page, o.start), end: jsIndex(page, o.end), redaction: f.redaction })))
+    .sort((a, b) => a.start - b.start || b.end - a.end)
+  // about 60 characters on each side; widened so a hidden value is never cut in half at the edge
+  let from = Math.max(0, jsIndex(page, where.start) - 60)
+  let to = Math.min(page.length, jsIndex(page, where.end) + 60)
+  for (const s of spans) {
+    if (s.start < from && s.end > from) from = s.start
+    if (s.start < to && s.end > to) to = s.end
+  }
+  const parts: ReactNode[] = []
+  let at = from
+  for (const s of spans) {
+    if (s.start < at || s.start >= to || s.end <= from) continue // outside, or inside one already masked
+    parts.push(page.slice(at, s.start).replace(/\s+/g, ' '))
+    parts.push(<span key={s.start} className="redaction">{s.redaction}</span>)
+    at = s.end
+  }
+  parts.push(page.slice(at, to).replace(/\s+/g, ' '))
+  // start and end on whole words
+  if (from > 0 && typeof parts[0] === 'string') parts[0] = parts[0].replace(/^\S*\s/, '')
+  const last = parts.length - 1
+  if (to < page.length && typeof parts[last] === 'string') parts[last] = (parts[last] as string).replace(/\s\S*$/, '')
   return (
     <div className="preview-box">
-      {t("Preview in public outputs: “…")}{before}
-      <span className="redaction">{hidden.redaction}</span>
-      {after}…”
+      {t("Preview in public outputs: “…")}{parts}…”
     </div>
   )
 }
