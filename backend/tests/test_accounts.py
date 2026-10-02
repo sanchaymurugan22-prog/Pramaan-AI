@@ -1,6 +1,7 @@
 """Stage 6B part 1: accounts. First-time setup, password rules, lockout, access and reset requests,
 and the Admin's changes (with the "last Admin" protection)."""
 
+import re
 from datetime import timedelta
 
 import pytest
@@ -9,7 +10,7 @@ from fastapi.testclient import TestClient
 from app.auth import accounts
 from app.auth.accounts import AccountError, SignInError
 from app.auth.passwords import check_rules, PasswordRuleError, hash_password, temporary_password, verify_password
-from app.db import AccountRequest, SessionLocal, User, utc_now
+from app.db import AccountRequest, AuditEntry, SessionLocal, User, utc_now
 from app.main import app
 from tests.auth_helpers import ORIGIN, TEST_PASSWORD, empty_accounts, make_user
 
@@ -59,11 +60,13 @@ def test_first_time_setup_makes_the_first_admin_once():
             "username": "rahul", "full_name": "Rahul Kumar", "role": "operator", "reason": "Cyber ops",
             "password": TEST_PASSWORD}).status_code == 409
 
-        bad = client.post("/api/auth/setup", json={"username": "kavya", "full_name": "Kavya Nair", "password": "short"})
+        code = accounts.setup_code()  # printed in the server's terminal
+        bad = client.post("/api/auth/setup", json={"username": "kavya", "full_name": "Kavya Nair", "password": "short",
+                                                    "setup_code": code})
         assert bad.status_code == 400 and "12 characters" in bad.json()["detail"]
 
         made = client.post("/api/auth/setup", json={"username": "Kavya.Nair", "full_name": "Kavya  Nair",
-                                                     "password": TEST_PASSWORD})
+                                                     "password": TEST_PASSWORD, "setup_code": code.lower()})
         assert made.status_code == 201, made.text
         user = made.json()["user"]
         assert (user["username"], user["full_name"], user["role"]) == ("kavya.nair", "Kavya Nair", "admin")
@@ -72,8 +75,36 @@ def test_first_time_setup_makes_the_first_admin_once():
 
         assert client.get("/api/auth/status").json()["needs_setup"] is False
         again = client.post("/api/auth/setup", json={"username": "evil", "full_name": "Evil Admin",
-                                                      "password": TEST_PASSWORD})
+                                                      "password": TEST_PASSWORD, "setup_code": code})
         assert again.status_code == 409
+
+
+def test_first_time_setup_needs_the_code_printed_in_the_terminal(capsys):
+    """v1.2: only the person at the server's terminal can make the first Admin."""
+    with empty_accounts():
+        code = accounts.setup_code(new=True)
+        printed = capsys.readouterr().err
+        assert f"Setup code:  {code}" in printed and re.fullmatch(r"[A-Z2-9]{4}-[A-Z2-9]{4}", code)
+        form = {"username": "first.admin", "full_name": "First Admin", "password": TEST_PASSWORD}
+        for wrong in ("", "AAAA-AAAA"):
+            refused = client.post("/api/auth/setup", json=form | {"setup_code": wrong})
+            assert refused.status_code == 403 and "printed in the terminal" in refused.json()["detail"]
+        assert client.get("/api/auth/status").json()["needs_setup"] is True
+        # five wrong tries in all: a new code is printed, the old one stops working
+        for _ in range(accounts.SETUP_TRIES - 3):
+            client.post("/api/auth/setup", json=form | {"setup_code": "BBBB-BBBB"})
+        last = client.post("/api/auth/setup", json=form | {"setup_code": "CCCC-CCCC"})
+        assert last.status_code == 403 and "NEW code" in last.json()["detail"]
+        new_code = accounts.setup_code()
+        assert new_code != code and f"Setup code:  {new_code}" in capsys.readouterr().err
+        assert client.post("/api/auth/setup", json=form | {"setup_code": code}).status_code == 403
+        # the right code, typed loosely (spaces, small letters), works once
+        made = client.post("/api/auth/setup", json=form | {"setup_code": f" {new_code.lower().replace('-', ' ')} "})
+        assert made.status_code == 201, made.text
+        # the code is never written to the audit trail
+        with SessionLocal() as db:
+            rows = [e.detail for e in db.query(AuditEntry).all()]
+        assert any("wrong setup code" in r for r in rows) and not any(new_code in r or code in r for r in rows)
 
 
 # ---- signing in and lockout ----------------------------------------------------------------------

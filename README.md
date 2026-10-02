@@ -148,7 +148,9 @@ or try everything with test engines: in `.env` set `TRANSLATE_ENGINE=mock`, `TTS
 ```
 
 Open <http://localhost:5173>. The first time, **First-time setup** creates the first Admin (there are no
-built-in accounts). As that Admin, add an Operator and a Reviewer on **Users & access** (each gets a
+built-in accounts). It asks for the **setup code** that the backend prints in the terminal where you ran
+`start.sh` (a box saying "Setup code: XXXX-XXXX"), so only the person who installed Pramaan AI can become
+its first Admin. The code works once; after 5 wrong tries or a restart a new one is printed. As that Admin, add an Operator and a Reviewer on **Users & access** (each gets a
 temporary password, shown once).
 
 **4. Try it:** sign in as the Operator → **New transformation** → choose

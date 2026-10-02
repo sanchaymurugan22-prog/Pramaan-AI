@@ -13,7 +13,8 @@ from fastapi.responses import JSONResponse
 
 from app import watch
 from app.config import settings
-from app.db import init_db
+from app.auth import accounts
+from app.db import SessionLocal, init_db
 from app.pipeline import runner
 from app.routes import admin, admin_files, admin_system, alerts, auth, comments, dashboard, jobs, languages, notifications, outputs, profile, records, review, safety, search, system, watch as watch_routes
 
@@ -23,6 +24,9 @@ async def lifespan(app: FastAPI):
     # On start: create any missing database tables, then carry on with jobs that were
     # still running when the server last stopped.
     init_db()
+    with SessionLocal() as db:  # v1.2: a new computer: print the one-time setup code in this terminal
+        if accounts.needs_setup(db):
+            accounts.setup_code()
     runner.resume_unfinished()
     watch.start_timer()  # Stage 9A: new files in watch folders become draft jobs
     yield

@@ -148,7 +148,9 @@ Job states: `ready` → **Submit for review** → `in_review` (locked: nobody ca
 **Start a new version** (needs a new review and a new signature; the new record replaces the old one).
 
 **Accounts**
-- *First-time setup*: only while there are no users; makes the first Admin. Then it is closed.
+- *First-time setup*: only while there are no users; makes the first Admin. Then it is closed. It needs the
+  one-time **setup code** printed in the terminal where the backend runs (v1.2): someone else on the network
+  who opens the page first cannot become the Admin. A new code is printed after 5 wrong tries or a restart.
 - *Request access* (sign-in page): name, employee ID (Stage 9B; it becomes the username), official email,
   division, Operator or Reviewer, preferred language, and a password (stored only as a hash). An Admin approves (can change the role) or rejects it. Admin accounts are
   made only by an Admin.
@@ -443,7 +445,7 @@ POST/PUT/DELETE needs an `Origin` header from `ALLOWED_ORIGINS` (browsers send i
 | Call | Who | What it does |
 |---|---|---|
 | `GET /api/auth/status` | anyone | does the app need First-time setup? who is signed in? |
-| `POST /api/auth/setup` | anyone, only while there are no users | `{"username", "full_name", "password"}`: the first Admin, signed in |
+| `POST /api/auth/setup` | anyone with the setup code, only while there are no users | `{"setup_code", "username", "full_name", "password"}`: the first Admin, signed in (wrong code: 403) |
 | `POST /api/auth/login` · `/logout` | anyone | `{"username", "password"}` → session cookie; 401 wrong, 423 locked |
 | `POST /api/auth/request-access` · `/forgot` | anyone | ask an Admin for an account / a new password |
 | `GET /api/auth/me` · `POST /api/auth/change-password` | signed in | `{"current_password", "new_password"}` |

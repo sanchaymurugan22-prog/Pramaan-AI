@@ -11,7 +11,8 @@ the laptop) and shown from **My jobs** and the **AI models** page.
 
 ## Prepare (the evening before, about 45 minutes, mostly waiting)
 
-1. **Accounts.** Start the app (`./scripts/start.sh`), create the Admin at First-time setup, then on
+1. **Accounts.** Start the app (`./scripts/start.sh`), create the Admin at First-time setup (type the setup code
+   printed in the terminal), then on
    **Users & access** add an Operator (**Priya Sharma**, EMP-20311, Cyber operations) and a Reviewer
    (**Arjun Mehta**, EMP-10452, Reviewer, *On emergency duty*). Sign in once as each and set their
    passwords.

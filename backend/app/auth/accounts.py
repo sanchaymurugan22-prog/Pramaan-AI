@@ -15,6 +15,8 @@ Rules:
 """
 
 import re
+import secrets
+import sys
 import threading
 from datetime import datetime, timedelta
 
@@ -165,8 +167,61 @@ def needs_setup(db: Session) -> bool:
     return db.scalar(select(func.count(User.id))) == 0
 
 
+# v1.2: the one-time setup code. Without it, anyone who could open the page before the installer did (for
+# example on the office network) could make themselves the first Admin. The server prints the code in ITS
+# terminal (the window where scripts/start.sh runs), which only the person who installed it can see. It is
+# kept in memory only (never in a file, the database, the logs or the audit trail), used once, and replaced
+# after SETUP_TRIES wrong tries, so it cannot be guessed.
+SETUP_TRIES = 5
+_CODE_LETTERS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # no 0/O, 1/I/L: easy to read and type
+_code_lock = threading.Lock()
+_setup_code: str | None = None
+_wrong_codes = 0
+
+
+def setup_code(new: bool = False) -> str:
+    """The current setup code, e.g. "K7P4-M9QX" (made and printed in the terminal when first needed)."""
+    global _setup_code, _wrong_codes
+    with _code_lock:
+        if _setup_code is None or new:
+            _setup_code = "-".join("".join(secrets.choice(_CODE_LETTERS) for _ in range(4)) for _ in range(2))
+            _wrong_codes = 0
+            _print_setup_code(_setup_code)
+        return _setup_code
+
+
+def _print_setup_code(code: str) -> None:
+    line = "=" * 64
+    print(f"\n{line}\n  Pramaan AI - First-time setup\n\n  Setup code:  {code}\n\n"
+          "  Type this code on the First-time setup page to create the first Admin.\n"
+          "  It works once. A new code is printed here after 5 wrong tries or a restart.\n"
+          f"{line}\n", file=sys.stderr, flush=True)  # the terminal (not the log files)
+
+
+def _check_setup_code(typed: str) -> None:
+    """Raises AccountError if the code is wrong (after SETUP_TRIES wrong tries, a new code is printed)."""
+    global _wrong_codes
+    expected = setup_code()
+    cleaned = re.sub(r"[\s-]", "", typed or "").upper()
+    if secrets.compare_digest(cleaned.encode(), expected.replace("-", "").encode()):
+        return
+    with _code_lock:
+        _wrong_codes += 1
+        too_many = _wrong_codes >= SETUP_TRIES
+    if too_many:
+        setup_code(new=True)
+        raise AccountError("Wrong setup code, too many times. A NEW code is now printed in the terminal where "
+                           "Pramaan AI was started.")
+    raise AccountError("Wrong setup code. It is printed in the terminal (the window where Pramaan AI was "
+                       "started, for example by scripts/start.sh).")
+
+
 def create_first_admin(db: Session, username: str, full_name: str, password: str,
-                       employee_id: str | None = None, email: str | None = None) -> User:
+                       employee_id: str | None = None, email: str | None = None, code: str = "") -> User:
+    global _setup_code
+    if not needs_setup(db):
+        raise AccountError("Setup is already done. Sign in, or ask your Admin for an account.")
+    _check_setup_code(code)
     employee_id, email = clean_employee_id(employee_id), clean_email(email)
     if not (username or "").strip() and employee_id is None:
         raise AccountError("Enter a username or an employee ID.")
@@ -180,6 +235,8 @@ def create_first_admin(db: Session, username: str, full_name: str, password: str
                     division="Administration")  # setup signs the new Admin in
         db.add(user)
         db.commit()
+    with _code_lock:
+        _setup_code = None  # used: it never works again
     return user
 
 

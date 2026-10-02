@@ -109,7 +109,7 @@ flowchart TD
 | Internet attacks | The office computer needs no network; the public page holds no secrets and is updated one way by USB |
 
 Secrets never appear in logs (a test checks this); there are no default accounts; the first Admin is made at
-setup. Admin security settings (scanner checks, classification words, sign-out time, lockout) apply at once
+setup, with a one-time code printed in the server's terminal (v1.2). Admin security settings (scanner checks, classification words, sign-out time, lockout) apply at once
 and are recorded in the audit trail.
 
 ## Indian technology

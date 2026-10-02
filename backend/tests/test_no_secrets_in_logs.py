@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from app import crypto
-from app.auth import sessions
+from app.auth import accounts, sessions
 from app.config import ensure_secret
 from app.db import AuditEntry, Record, SessionLocal, engine
 from app.main import app
@@ -29,7 +29,8 @@ def test_no_password_or_key_in_logs_or_audit(tmp_path, monkeypatch, caplog, caps
         client = TestClient(app, headers=ORIGIN)
         # first-time setup, sign-in, wrong passwords up to a lock
         assert client.post("/api/auth/setup", json={"username": "log.admin", "full_name": "Log Admin",
-                                                    "password": SETUP_PASSWORD}).status_code == 201
+                                                    "password": SETUP_PASSWORD,
+                                                    "setup_code": accounts.setup_code()}).status_code == 201
         secrets_seen.append(client.cookies.get(sessions.COOKIE_NAME))
         anonymous = TestClient(app, headers=ORIGIN)
         for _ in range(5):

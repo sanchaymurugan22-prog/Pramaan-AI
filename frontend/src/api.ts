@@ -564,7 +564,7 @@ export const checkComputer = () => request<ComputerCheck>('/api/auth/computer')
 export const getProfile = () => request<{ user: User } & FormOptions>('/api/profile')
 export const saveProfile = (change: { language?: string; prefs?: Prefs }) =>
   request<{ user: User }>('/api/profile', sendJson('PUT', change))
-export const firstTimeSetup = (form: { username: string; full_name: string; password: string; employee_id?: string; email?: string }) =>
+export const firstTimeSetup = (form: { setup_code: string; username: string; full_name: string; password: string; employee_id?: string; email?: string }) =>
   request<{ user: User }>('/api/auth/setup', sendJson('POST', form))
 export const changePassword = (current_password: string, new_password: string) =>
   request<{ user: User }>('/api/auth/change-password', sendJson('POST', { current_password, new_password }))

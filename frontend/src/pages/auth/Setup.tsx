@@ -12,7 +12,7 @@ const STEPS = ['Check this computer', 'Install AI models', 'Create Admin account
 const CURRENT = 2
 
 export function Setup({ onDone }: { onDone: (user: User) => void }) {
-  const [form, setForm] = useState({ full_name: '', username: '', employee_id: '', email: '' })
+  const [form, setForm] = useState({ setup_code: '', full_name: '', username: '', employee_id: '', email: '' })
   const [computer, setComputer] = useState<ComputerCheck | null>(null)
 
   useEffect(() => {
@@ -83,6 +83,23 @@ export function Setup({ onDone }: { onDone: (user: User) => void }) {
               </div>
             </div>
             <FormError message={error} />
+            {/* v1.2: only the person who installed Pramaan AI sees this code (in the server's terminal) */}
+            <label className="field">
+              <span className="field-label">{t("Setup code")}</span>
+              <input
+                className="input mono"
+                value={form.setup_code}
+                onChange={(e) => setForm((f) => ({ ...f, setup_code: e.target.value }))}
+                placeholder="XXXX-XXXX"
+                autoComplete="off"
+                spellCheck={false}
+                required
+                autoFocus
+              />
+              <span className="field-help">
+                {t("Printed in the terminal window where Pramaan AI was started (scripts/start.sh). It shows that you installed it.")}
+              </span>
+            </label>
             <div className="form-grid-2">
               <label className="field">
                 <span className="field-label">{t("Full name")}</span>
@@ -92,7 +109,6 @@ export function Setup({ onDone }: { onDone: (user: User) => void }) {
                   onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
                   autoComplete="name"
                   required
-                  autoFocus
                 />
               </label>
               <label className="field">

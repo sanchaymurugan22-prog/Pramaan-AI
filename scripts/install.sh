@@ -200,4 +200,5 @@ printf '\nPramaan AI is installed.\n'
 echo "  Start the app:            ./scripts/start.sh          then open http://localhost:5173"
 [ "$HAS_MODEL" = 1 ] && echo "  Start the local AI:       ./scripts/start-ai.sh       (in a second terminal; loading takes a few minutes)"
 echo "  Public verify page:       ./scripts/serve-verify.sh   (optional, port 8090)"
-echo "The first time, the app asks you to create the first Admin account."
+echo "The first time, the app asks you to create the first Admin account, with the setup code"
+echo "that the backend prints in the terminal where start.sh runs."

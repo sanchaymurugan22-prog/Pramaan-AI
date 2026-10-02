@@ -2,7 +2,8 @@
 
 These work WITHOUT being signed in:
 GET  /api/auth/status          does the app need First-time setup? who is signed in (if anyone)?
-POST /api/auth/setup           First-time setup: make the first Admin (only while there are no users), signed in
+POST /api/auth/setup           First-time setup: make the first Admin (only while there are no users, and only
+                               with the one-time setup code printed in the server's terminal), signed in
 POST /api/auth/login           sign in: sets the session cookie
 POST /api/auth/request-access  "Request access": ask an Admin for an Operator or Reviewer account
 POST /api/auth/forgot          "Forgot password": ask an Admin to set a temporary password
@@ -149,6 +150,7 @@ def change_password(form: PasswordChange, db: Session = Depends(get_session),
 
 
 class SetupForm(BaseModel):
+    setup_code: str = ""  # v1.2: printed in the server's terminal
     username: str = ""
     full_name: str
     password: str
@@ -163,9 +165,12 @@ def setup(form: SetupForm, request: Request, response: Response, db: Session = D
         raise HTTPException(409, "Setup is already done. Sign in, or ask your Admin for an account.")
     try:
         user = accounts.create_first_admin(db, form.username, form.full_name, form.password,
-                                           employee_id=form.employee_id, email=form.email)
+                                           employee_id=form.employee_id, email=form.email, code=form.setup_code)
     except AccountError as exc:
-        raise HTTPException(409 if "already done" in str(exc) else 400, str(exc))
+        status = 409 if "already done" in str(exc) else 403 if "setup code" in str(exc) else 400
+        if status == 403:
+            audit.log("security", "setup_code_wrong", "First-time setup refused: wrong setup code")
+        raise HTTPException(status, str(exc))
     _set_cookie(request, response, sessions.start(db, user))
     audit.log("users", "first_admin", f"First-time setup: made the first Admin account ({user.username}) and signed in",
               actor=user, target=f"user {user.username}")
