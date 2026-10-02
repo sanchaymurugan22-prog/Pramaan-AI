@@ -72,7 +72,9 @@ trap cleanup EXIT
 trap 'exit 0' INT TERM
 
 echo "Starting backend on http://localhost:8000 ..."
-(cd backend && exec .venv/bin/uvicorn app.main:app --reload --host 127.0.0.1 --port 8000) &
+# --reload-dir app: watch only our code. Without it the reloader checks every file under backend/, including the
+# ~13,000 in .venv, four times a second (most of one CPU core on the 2017 MacBook).
+(cd backend && exec .venv/bin/uvicorn app.main:app --reload --reload-dir app --host 127.0.0.1 --port 8000) &
 BACKEND_PID=$!
 
 echo "Starting frontend on http://localhost:5173 ..."

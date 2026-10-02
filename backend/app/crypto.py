@@ -16,6 +16,7 @@ read from a hardware token when the app starts (see README, "Encryption at rest"
 
 import logging
 import os
+import tempfile
 from functools import lru_cache
 from pathlib import Path
 
@@ -92,13 +93,17 @@ def decrypt(blob: bytes) -> bytes:
 
 
 def write_file(path: Path, data: bytes) -> Path:
-    """Encrypt and save. Written to a temporary name first, so a half-written file is never read."""
+    """Encrypt and save. Written to a temporary name first, so a half-written file is never read. The
+    temporary name is unique, so two downloads saving the same file at the same moment do not collide."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.part")
-    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(descriptor, "wb") as file:
-        file.write(encrypt(data))
-    os.replace(temporary, path)
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".part", dir=path.parent)  # mode 0600
+    try:
+        with os.fdopen(descriptor, "wb") as file:
+            file.write(encrypt(data))
+        os.replace(temporary, path)
+    except BaseException:
+        Path(temporary).unlink(missing_ok=True)
+        raise
     return path
 
 

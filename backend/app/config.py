@@ -105,6 +105,14 @@ class Settings:
     # onnx = IndicConformer (Hindi, Tamil) and Whisper small (English) | mock = tests
     stt_engine: str = _get("STT_ENGINE", "onnx").lower()
 
+    # --- exports (files made from outputs) ---
+    # Files are made by a small pool of export workers (never by the web server's own loop), each with a time
+    # limit: a file that takes longer gives a clear error instead of a page that never loads.
+    export_workers: int = max(1, int(_get("EXPORT_WORKERS", "2")))
+    export_timeout_seconds: float = float(_get("EXPORT_TIMEOUT_SECONDS", "120"))
+    # Video (.mp4) and narration (.mp3) read the script aloud first, which takes minutes on a slow laptop
+    media_export_timeout_seconds: float = float(_get("MEDIA_EXPORT_TIMEOUT_SECONDS", "900"))
+
     # --- watch folder (Stage 9A) ---
     # How often switched-on watch folders (inside data/watch/) are checked for new files. 0 = never.
     watch_interval_seconds: float = float(_get("WATCH_INTERVAL_SECONDS", "60"))

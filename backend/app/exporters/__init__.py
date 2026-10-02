@@ -11,9 +11,15 @@ to the browser.
     video_package                -> .srt (subtitles), .docx (script and storyboard), .mp4 (video) and
                                     .mp3 (narration, when a voice can read the language; Stage 8)
     linkedin_post, x_thread      -> .txt
+
+Every file is made by one of a few export workers (EXPORT_WORKERS), with a time limit (EXPORT_TIMEOUT_SECONDS,
+MEDIA_EXPORT_TIMEOUT_SECONDS for video and narration). A file that is not ready in time gives ExportTimeout,
+a clear message, instead of a request that never ends.
 """
 
 import io
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -71,6 +77,10 @@ class ExportError(Exception):
     """The file cannot be made (for example, the output is not finished yet)."""
 
 
+class ExportTimeout(ExportError):
+    """The file was not ready within its time limit (or every export worker was busy)."""
+
+
 @dataclass
 class ExportedFile:
     name: str   # e.g. job12-advisory.pdf
@@ -123,10 +133,34 @@ def export_output(job, output, fmt: str) -> ExportedFile:
     return exported
 
 
+# The export workers. A few threads, shared by every request: downloads, the campaign kit and signing.
+_workers = ThreadPoolExecutor(max_workers=settings.export_workers, thread_name_prefix="pramaan-export")
+
+
+def time_limit(fmt: str) -> float:
+    """Seconds a file may take: video and narration read the text aloud first, so they get longer."""
+    return settings.media_export_timeout_seconds if fmt in ("mp3", "mp4") else settings.export_timeout_seconds
+
+
 def render(info: ExportInfo, output, fmt: str) -> bytes:
-    """Make the file in memory and return its bytes (never written to disk unencrypted)."""
+    """Make the file in memory and return its bytes (never written to disk unencrypted). It is made by an
+    export worker; this waits at most time_limit(fmt) seconds for it, then raises ExportTimeout."""
+    # Plain values only go to the worker (not the database object, which belongs to this request's session)
+    future = _workers.submit(_render_now, info, output.type, output.content_json, fmt)
+    limit = time_limit(fmt)
+    try:
+        return future.result(timeout=limit)
+    except FutureTimeout:
+        if future.cancel():  # it never started: every worker was busy with other files
+            raise ExportTimeout("Pramaan AI is busy making other files. Please try again in a minute.") from None
+        # A thread cannot be stopped from outside: it finishes in the background and its result is thrown away.
+        raise ExportTimeout(f"Making the {fmt.upper()} file took longer than {limit:g} seconds, so Pramaan AI stopped "
+                            "waiting for it. Please try again; if it happens again, tell your Admin.") from None
+
+
+def _render_now(info: ExportInfo, output_type: str, content: dict, fmt: str) -> bytes:
     buffer = io.BytesIO()
-    _writer(output.type, fmt)(info, output.content_json, buffer)
+    _writer(output_type, fmt)(info, content, buffer)
     return buffer.getvalue()
 
 

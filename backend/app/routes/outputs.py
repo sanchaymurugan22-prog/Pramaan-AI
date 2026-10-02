@@ -34,7 +34,8 @@ from sqlalchemy.orm import Session
 from app import audit
 from app.auth.deps import allow
 from app.db import Job, Output, User, get_session
-from app.exporters import MEDIA_TYPES, formats_for, ExportedFile, ExportError, export_output, file_name, is_blocked
+from app.exporters import (MEDIA_TYPES, formats_for, ExportedFile, ExportError, ExportTimeout, export_output, file_name,
+                           is_blocked)
 from app.exporters.kit import build_kit
 from app.pipeline import runner
 from app.pipeline.checks import recheck_job
@@ -265,6 +266,8 @@ def download_output(
     try:
         # An approved job gives its SIGNED file (with the QR code), exactly as fingerprinted (Stage 7).
         exported = signed_file(job, output, fmt) or export_output(job, output, fmt)
+    except ExportTimeout as exc:
+        raise HTTPException(504, str(exc))
     except ExportError as exc:
         raise HTTPException(409 if output.status != "done" else 400, str(exc))
     how = "Opened" if inline else "Downloaded"
@@ -284,6 +287,8 @@ def download_kit(job_id: int, outputs: str = "", db: Session = Depends(get_sessi
         raise HTTPException(400, f"This job has no {', '.join(sorted(only - {o.type for o in job.outputs}))}.")
     try:
         kit = signed_kit(db, job, only) or build_kit(job, only)
+    except ExportTimeout as exc:
+        raise HTTPException(504, str(exc))
     except ExportError as exc:
         raise HTTPException(409, str(exc))
     which = f" ({', '.join(OUTPUT_TYPES[o]['label'] for o in sorted(only))})" if only else ""

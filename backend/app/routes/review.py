@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 from app import audit, notifications
 from app.auth.deps import allow
 from app.db import Job, OutputVersion, Record, Review, User, as_utc, get_session, utc_now
-from app.exporters import is_blocked
+from app.exporters import ExportError, ExportTimeout, is_blocked
 from app.safety.public_check import check_public_outputs
 from app.pipeline.checks import fact_sheet_check
 from app.pipeline.output_types import OUTPUT_TYPES
@@ -139,6 +139,9 @@ def review_job(job_id: int, body: ReviewDecision, db: Session = Depends(get_sess
         except SigningError as exc:
             db.rollback()
             raise HTTPException(409, f"Could not sign: {exc}")
+        except ExportError as exc:  # a file could not be made (or took too long): nothing was signed
+            db.rollback()
+            raise HTTPException(504 if isinstance(exc, ExportTimeout) else 409, f"Could not sign: {exc}")
         # Signing gave the record number: a second note, so the Operator knows the files are final
         notifications.notify(db, job.owner_id, "signed", f"Signed: record {entry.record_no}",
                              f"{user.full_name} signed {files} file{'s' if files != 1 else ''} of “{job.title}”, "

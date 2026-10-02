@@ -28,7 +28,13 @@ import numpy as np
 import uharfbuzz as hb
 from PIL import Image
 
-_lock = threading.Lock()  # FreeType faces are not safe to use from two threads at once
+# FreeType is NOT thread-safe: every face shares freetype-py's one global FT_Library, and freetype-py calls
+# FreeType through ctypes, which lets other threads run at the same time. Two downloads drawing Indian text at
+# once (or signing, which makes every file) used to crash the whole server (a segfault in FT_Load_Glyph while
+# another thread was opening a face). So EVERY FreeType call - opening a face, reading its size, loading and
+# drawing a glyph - happens while holding this one lock, and each face is opened exactly once.
+_lock = threading.RLock()
+_ft_faces: dict[tuple[str, int], freetype.Face] = {}
 
 
 # ---- fonts ------------------------------------------------------------------------------------------
@@ -40,21 +46,27 @@ def _face_data(path: str) -> bytes:
 
 @cache
 def _hb_font(path: str) -> hb.Font:
-    face = hb.Face(hb.Blob(_face_data(path)))
-    font = hb.Font(face)
-    font.scale = (face.upem, face.upem)
-    return font
+    with _lock:  # made once, then only read (harfbuzz may shape with one font from several threads)
+        face = hb.Face(hb.Blob(_face_data(path)))
+        font = hb.Font(face)
+        font.scale = (face.upem, face.upem)
+        return font
 
 
 @cache
 def _coverage(path: str) -> frozenset[int]:
-    return frozenset(hb.Face(hb.Blob(_face_data(path))).unicodes)
+    with _lock:
+        return frozenset(hb.Face(hb.Blob(_face_data(path))).unicodes)
 
 
-@cache
 def _ft_face(path: str, size: int) -> freetype.Face:
-    face = freetype.Face(path)
-    face.set_char_size(size * 64)
+    """The FreeType face of a font at a size, opened once. Call it (and use the face) only while holding _lock."""
+    key = (path, size)
+    face = _ft_faces.get(key)
+    if face is None:
+        face = freetype.Face(path)
+        face.set_char_size(size * 64)
+        _ft_faces[key] = face  # kept for good: a face freed while another thread draws would crash too
     return face
 
 
@@ -213,9 +225,10 @@ class ShapedFont:
 
     def __init__(self, chain: list[Path], size: int, rtl: bool = False):
         self.chain, self.size, self.rtl = [Path(p) for p in chain], int(size), rtl
-        face = _ft_face(str(self.chain[0]), self.size)
-        self.ascent = face.size.ascender / 64
-        self.descent = -face.size.descender / 64
+        with _lock:
+            face = _ft_face(str(self.chain[0]), self.size)
+            self.ascent = face.size.ascender / 64
+            self.descent = -face.size.descender / 64
 
     def getlength(self, text: str) -> float:
         return measure(text, self.chain, self.size, self.rtl)
@@ -261,7 +274,7 @@ class ShapedDraw:
         with _lock:
             for g in glyphs:
                 face = _ft_face(str(font.chain[g.font]), font.size)
-                face.load_glyph(g.gid, freetype.FT_LOAD_DEFAULT | freetype.FT_LOAD_NO_BITMAP)
+                face.load_glyph(g.gid, freetype.FT_LOAD_NO_HINTING | freetype.FT_LOAD_NO_BITMAP)
                 face.glyph.render(freetype.FT_RENDER_MODE_NORMAL)
                 bitmap = face.glyph.bitmap
                 if bitmap.width == 0 or bitmap.rows == 0:
