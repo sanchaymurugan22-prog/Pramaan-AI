@@ -39,7 +39,7 @@ from app.pipeline.values import KnownValues, find_values
 POINTS = {"linked": 40, "quotes": 25, "values": 20, "format": 15}
 QUOTE_CREDIT = {"exact": 1.0, "close": 0.5, "no": 0.0}
 MISMATCH_CAP = 50        # highest score when the fact sheet does not match the source
-CHECKS_VERSION = 3       # bumped when the checks change, so older results are worked out again
+CHECKS_VERSION = 4       # bumped when the checks change, so older results are worked out again
 
 # ---- sentences ---------------------------------------------------------------------------------
 

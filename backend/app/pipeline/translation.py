@@ -13,6 +13,8 @@ check_translation()  The grounding checks, again, for the translation:
                          have ("Not in the English text");
                        - each field keeps the links of its English sentences (same fact ids; a sentence that
                          was "not linked" in English stays yellow), and the English "not in source" flags;
+                       - a helpline number ("call 1930") must still read as a phone number, not a year
+                         (v1.2, app/lang/helplines.py);
                        - the length and format rules (an X post must still fit in 280 characters).
 A translation shows "Machine translated - needs a native-speaker check" until a Reviewer ticks it.
 """
@@ -21,7 +23,7 @@ import re
 import time
 from collections import Counter
 
-from app.lang import languages, translate
+from app.lang import helplines, languages, translate
 from app.pipeline.checks import CHECKS_VERSION, _score, _warnings, format_rules, sheet_items
 from app.pipeline.generate import add_timings
 from app.pipeline.segments import apply_edits, segments
@@ -84,7 +86,7 @@ def check_translation(output_type: str, translated: dict, english: dict, english
     for s in (english_quality or {}).get("sentences", []):
         english_sentences.setdefault(_key(s["path"]), []).append(s)
 
-    sentences, changed, checked = [], [], 0
+    sentences, changed, checked, helpline_problems = [], [], 0, []
     for segment in segments(output_type, translated):
         if not segment.checked:
             continue
@@ -97,6 +99,10 @@ def check_translation(output_type: str, translated: dict, english: dict, english
         flags += [{"kind": "translation", "label": "Not in the English text", "text": e} for e in extra]
         flags += [f for s in before for f in s.get("not_in_source", [])]  # still not in the source
         changed += [{"label": segment.label, "missing": missing, "extra": extra}] if missing or extra else []
+        # v1.2: "Report cyber fraud on 1930" must not become "... in (the year) 1930"
+        for number in helplines.not_read_as_phone(source.text if source else "", segment.text):
+            flags.append({"kind": "translation", "label": "Helpline number read as a year?", "text": number})
+            helpline_problems.append({"label": segment.label, "number": number})
 
         statuses = {s["status"] for s in before}
         if segment.fact_ids is None:
@@ -121,13 +127,16 @@ def check_translation(output_type: str, translated: dict, english: dict, english
         shown = ", ".join(f"“{v}”" for c in changed for v in c["missing"][:2]) or ", ".join(
             f"“{v}”" for c in changed for v in c["extra"][:2])
         quality["warnings"].insert(0, f"Values changed in translation: {shown}. Compare with the English and correct it.")
+    for problem in helpline_problems:
+        quality["warnings"].insert(0, f"Helpline number {problem['number']} may have been translated as a year or a date "
+                                      f"({problem['label']}). It must say to call {problem['number']}: correct it.")
     # The translator sometimes writes a word in another script (an Urdu word in a Santali text): say where
     foreign = sorted({f"{s['label']}" for s in sentences if languages.foreign_scripts(s["text"], language)})
     if foreign:
         quality["warnings"].append(f"Letters of another script in: {', '.join(foreign[:4])}. A native speaker should "
                                    "check those words.")
     quality["translation"] = {"language": language, "values_checked": checked, "changed": changed,
-                              "other_script": foreign}
+                              "other_script": foreign, "helplines": helpline_problems}
     quality["checks_version"] = CHECKS_VERSION
     return quality
 

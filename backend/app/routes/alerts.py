@@ -70,7 +70,7 @@ async def preview_alert(body: Preview, user: User = Depends(OPERATOR)):
     """Stage 8: the message in each language (machine translated, on this computer), for the preview cards."""
     from fastapi.concurrency import run_in_threadpool
 
-    from app.lang import translate, tts
+    from app.lang import helplines, translate, tts
     from app.pipeline.translation import compare_values
 
     message = body.message.strip()
@@ -81,6 +81,7 @@ async def preview_alert(body: Preview, user: User = Depends(OPERATOR)):
     def one(code: str) -> dict:
         text = translate.translate_texts([message], code)[0]
         missing, extra = compare_values(message, text)
+        extra += [f"{n} (helpline number read as a year?)" for n in helplines.not_read_as_phone(message, text)]
         lang = languages.get(code)
         return {"code": code, "name": lang.name, "native": lang.native, "rtl": lang.rtl, "text": text,
                 "chars": len(text), "limit": lang.sms_limit, "sms_parts": languages.sms_parts(text),

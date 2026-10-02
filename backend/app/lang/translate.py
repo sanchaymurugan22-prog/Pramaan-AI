@@ -6,7 +6,8 @@
 
 The rest of the app calls translate_texts(texts, "hi") and never needs to know which engine is in use.
 Every text should already be MASKED by the caller (hidden values as [PHONE-1]); the engines keep such
-placeholders, numbers, dates, addresses and ids exactly as they are.
+placeholders, numbers, dates, addresses and ids exactly as they are. Helpline numbers get the words "helpline
+number" in front first (v1.2, app/lang/helplines.py), so no engine reads "on 1930" as "in the year 1930".
 """
 
 import json
@@ -14,7 +15,7 @@ import re
 import threading
 
 from app.config import settings
-from app.lang import languages
+from app.lang import helplines, languages
 from app.lang.languages import Language
 
 
@@ -64,6 +65,8 @@ def translate_texts(texts: list[str], language: str) -> list[str]:
         raise TranslateError(f"Pramaan cannot translate into '{language}'.")
     if not any(t.strip() for t in texts):
         return list(texts)
+    # "on 1930" alone reads like a year ("in 1930"): say it is a helpline number (app/lang/helplines.py)
+    texts = [helplines.clarify(t) for t in texts]
     name = engine_name()
     if name == "mock":
         return [mock_translation(t, lang) if t.strip() else t for t in texts]

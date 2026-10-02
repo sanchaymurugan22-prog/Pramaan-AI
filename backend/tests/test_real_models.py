@@ -51,6 +51,18 @@ def test_indictrans2_translates_and_keeps_the_numbers(engines):
         assert missing == [] and extra == [], (code, text)  # 1930, 28, 2026 and 42 survived
 
 
+def test_indictrans2_keeps_a_helpline_a_phone_number(engines):
+    """v1.2: "on 1930" alone became "in (the year) 1930"; with "helpline number" added it stays a phone number."""
+    from app.lang import helplines
+    engines(translate_engine="indictrans2")
+    if not translate.status()["ready"]:
+        pytest.skip("IndicTrans2 is not downloaded")
+    english = "Report cyber fraud on 1930."
+    for code in ("hi", "bn", "ta"):
+        [text] = translate.translate_texts([english], code)
+        assert helplines.not_read_as_phone(english, text) == [], (code, text)
+
+
 def test_the_llm_engine_goes_through_llm_py(engines):
     """TRANSLATE_ENGINE=llm (the fallback) asks the AI of app/ai/llm.py; here the mock AI answers."""
     engines(translate_engine="llm")
