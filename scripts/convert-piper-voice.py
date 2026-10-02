@@ -12,6 +12,7 @@ The espeak-ng-data folder (pronunciation rules, the same for every voice) is cop
 """
 
 import json
+import logging
 import sys
 import tempfile
 from pathlib import Path
@@ -24,6 +25,7 @@ LANGUAGE_NAMES = {"te": "Telugu", "hi": "Hindi", "ml": "Malayalam", "ur": "Urdu"
 
 
 def main(model: Path, out: Path) -> None:
+    logging.getLogger().setLevel(logging.ERROR)  # onnxruntime lists every tensor it leaves unquantised
     config = json.loads(Path(str(model) + ".json").read_text(encoding="utf-8"))
     out.mkdir(parents=True, exist_ok=True)
 

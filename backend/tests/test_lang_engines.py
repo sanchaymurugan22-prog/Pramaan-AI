@@ -154,3 +154,16 @@ def test_mock_never_uses_the_disclaimer_as_a_fact(name):
     for words in ("invented", "not real", "None of it belongs", "fictional", "on purpose"):
         assert words.lower() not in texts.lower(), (name, words)
     assert sheet["key_facts"], name
+
+
+def test_fixes_found_with_the_real_model():
+    hindi = languages.get("hi")
+    # the model writes ":" as the look-alike visarga after a word; real visargas (after a consonant) stay
+    assert indictrans.postprocess("चेतावनीः हमला। अतः प्रातः ठीक", hindi, {}) == "चेतावनी: हमला। अतः प्रातः ठीक"
+    # public labels in any case are protected; a hashtag the model dropped goes back at the end
+    text, found = indictrans.protect("Patch now. #CyberSecurity [CVE id] (sample)")
+    assert set(found.values()) == {"#CyberSecurity", "[CVE id]"}
+    label = next(k for k, v in found.items() if v == "[CVE id]")
+    assert indictrans.postprocess(f"अभी पैच करें। {label} (नमूना)", hindi, found) == "अभी पैच करें। [CVE id] (नमूना) #CyberSecurity"
+    # the Hindi full stop is read as a pause, not as the word "purnviram"
+    assert tts.spoken("नमस्ते।  आज ही पैच लगाएँ। ") == "नमस्ते. आज ही पैच लगाएँ."

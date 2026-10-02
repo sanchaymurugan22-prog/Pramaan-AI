@@ -2,6 +2,8 @@
 
 PUT  /api/jobs/{id}/outputs/{output_id}                  save the operator's edits as a new version, then re-check (no AI)
 POST /api/jobs/{id}/outputs/{output_id}/regenerate       write this one output again from the same fact sheet
+                                                         (a translation: translate it again from the English)
+POST /api/jobs/{id}/languages                            Stage 8: translate the job into more languages
 GET  /api/jobs/{id}/outputs/{output_id}/versions         every version: number, who made it, score, time
 GET  /api/jobs/{id}/outputs/{output_id}/versions/{n}     one old version's text and checks
 
@@ -93,10 +95,58 @@ def edit_output(job_id: int, output_id: int, edit: OutputEdit, db: Session = Dep
     save_version(db, output, content, "human", by=user)
     output.truncated = False  # a person has now read and fixed the text
     output.error = None
+    translations = output.language == "en" and _requeue_translations(job, output)
     db.commit()
-    audit.log("content", "output_edited", f"Edited the {_label(output)} of job #{job.id} (now version {output.version})",
-              actor=user, target=f"job {job.id}")
+    audit.log("content", "output_edited", f"Edited the {_label(output)}{_language(output)} of job #{job.id} "
+                                          f"(now version {output.version})", actor=user, target=f"job {job.id}")
     recheck_job(db, job)
+    if translations:  # Stage 8: the English changed, so its translations are made again from it
+        runner.submit(job.id)
+    return job_detail(job)
+
+
+def _language(output: Output) -> str:
+    from app.lang import languages
+    return "" if output.language == "en" else f" ({languages.get(output.language).name})"
+
+
+def _requeue_translations(job: Job, english: Output) -> bool:
+    """Queue the translations of an English output again. True if there were any."""
+    if not any(o.source_output_id == english.id for o in job.outputs):
+        return False
+    runner.queue_translations(job, english)
+    job.status, job.step, job.error = "generating", "Waiting in the queue", None
+    return True
+
+
+class AddLanguages(BaseModel):
+    languages: list[str]
+
+
+@router.post("/jobs/{job_id}/languages")
+def add_languages(job_id: int, body: AddLanguages, db: Session = Depends(get_session),
+                  user: User = Depends(allow("operator"))):
+    """Stage 8: translate every finished English output of the job into more languages (in the background)."""
+    from app.routes.jobs import add_translations, lang_label, selected_languages
+
+    job = db.get(Job, job_id)
+    if job is None:
+        raise HTTPException(404, f"Job {job_id} not found.")
+    must_be_changeable(job)
+    if job.status in ("draft", "generating"):
+        raise HTTPException(409, "Wait until the outputs are written, then add languages.")
+    codes = selected_languages(body.languages)
+    if not codes:
+        raise HTTPException(400, "Choose at least one Indian language.")
+    english = [o for o in job.outputs if o.language == "en"]
+    added = add_translations(db, job, english, codes)
+    if not added:
+        raise HTTPException(400, "This job already has those languages.")
+    job.status, job.step, job.error = "generating", "Waiting in the queue", None
+    db.commit()
+    audit.log("content", "languages_added", f"Asked for job #{job.id} in {', '.join(lang_label(c) for c in codes)}",
+              actor=user, target=f"job {job.id}")
+    runner.submit(job.id)
     return job_detail(job)
 
 
@@ -110,8 +160,9 @@ def regenerate_output(job_id: int, output_id: int, db: Session = Depends(get_ses
     output.status, output.error, output.started_at = "queued", None, None
     job.status, job.step, job.error = "generating", "Waiting in the queue", None
     db.commit()
-    audit.log("content", "output_regenerate", f"Asked the AI to write the {_label(output)} of job #{job.id} again",
-              actor=user, target=f"job {job.id}")
+    what = "translate" if output.language != "en" else "write"  # a translation is made again from the English
+    audit.log("content", "output_regenerate", f"Asked the AI to {what} the {_label(output)}{_language(output)} of "
+                                              f"job #{job.id} again", actor=user, target=f"job {job.id}")
     runner.submit(job.id)
     return job_detail(job)
 

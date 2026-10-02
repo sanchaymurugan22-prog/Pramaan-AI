@@ -183,9 +183,10 @@ export type Sentence = {
   // heading: a title (not linked); plain: only hashtags or links
   status: 'linked' | 'unlinked' | 'unverified' | 'heading' | 'plain'
   fact_ids: string[]
-  matched_by: 'model' | 'words' | null // words = linked by matching words, the AI did not cite it
+  matched_by: 'model' | 'words' | 'translation' | null // words = linked by matching words, the AI did not cite it
   closest: string | null // unlinked only: the fact that fits best
   not_in_source: NotInSource[]
+  english?: string // Stage 8: a translated field's English text
 }
 
 export type ScorePart = {
@@ -214,6 +215,8 @@ export type Quality = {
   unknown_fact_ids: string[]
   warnings: string[]
   leaks?: Leak[] // Stage 6A leak check
+  // Stage 8: a translation's own check against its English (values that changed, per field)
+  translation?: { language: string; values_checked: number; changed: { label: string; missing: string[]; extra: string[] }[] }
 }
 
 export type Consistency = {
@@ -234,7 +237,7 @@ export type Consistency = {
   agreed: { fact_id: string; value: string; outputs: string[] }[]
 }
 
-export type Origin = 'ai' | 'human' | 'regenerated'
+export type Origin = 'ai' | 'human' | 'regenerated' | 'translated' | 'retranslated'
 
 export type VersionSummary = {
   version: number
@@ -268,7 +271,32 @@ export type JobOutput = {
   tokens: number | null
   started_at: string | null
   finished_at: string | null
+  // Stage 8: outputs in Indian languages, translated from the English output of the same type
+  language_label: string // "English", "हिन्दी (Hindi)"
+  translation: Translation | null // null for English
 }
+
+export type Translation = {
+  source_output_id: number
+  source_version: number | null // the English version it was translated from
+  engine: string // "IndicTrans2 (AI4Bharat)"
+  stale: boolean // the English changed since (it is being translated again)
+  native_check: { checked: boolean; by: string | null; at: string | null }
+}
+
+// Stage 8: GET /api/languages (backend/app/routes/languages.py)
+export type LanguageInfo = {
+  code: string
+  name: string // "Hindi"
+  native: string // "हिन्दी"
+  script: string // "Deva"
+  rtl: boolean
+  sms_limit: number // 160 for English, 70 for Indian scripts
+  translate: boolean // can be translated into on this computer
+  voice: string | null // the voice that reads it aloud, or null: "audio not available"
+  speech_to_text: boolean // a recording in this language can be a source
+}
+export type LanguagesInfo = { translation: { engine: string; ready: boolean; detail: string }; languages: LanguageInfo[] }
 
 export type AiMode = 'local' | 'cloud' | 'mock'
 export type CreatedVia = 'manual' | 'watch' | 'emergency'
@@ -433,8 +461,15 @@ export const saveSafety = (jobId: number, update: { tlp?: Tlp; choices?: Record<
   request<JobDetail>(`/api/jobs/${jobId}/safety`, sendJson('PUT', update))
 
 // Step 3: the outputs and settings; starts the AI
-export const startJob = (jobId: number, outputs: string[], settings: JobSettings) =>
-  request<JobDetail>(`/api/jobs/${jobId}/start`, sendJson('POST', { outputs, settings }))
+export const startJob = (jobId: number, outputs: string[], settings: JobSettings, languages: string[] = []) =>
+  request<JobDetail>(`/api/jobs/${jobId}/start`, sendJson('POST', { outputs, settings, languages }))
+
+// ---- Stage 8: languages ----
+export const getLanguages = () => request<LanguagesInfo>('/api/languages')
+export const addLanguages = (jobId: number, languages: string[]) =>
+  request<JobDetail>(`/api/jobs/${jobId}/languages`, sendJson('POST', { languages }))
+export const setNativeCheck = (jobId: number, outputId: number, checked: boolean) =>
+  request<JobDetail>(`/api/jobs/${jobId}/outputs/${outputId}/native-check`, sendJson('POST', { checked }))
 
 // ---- downloads (real files made from finished outputs; plain links, the browser saves them) ----
 

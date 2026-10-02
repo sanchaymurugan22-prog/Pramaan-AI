@@ -98,7 +98,7 @@ def add_timings(video: dict) -> None:
 
 
 def _sentences(text: str) -> list[str]:
-    return [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
+    return [s.strip() for s in re.split(r"(?<=[.!?।۔])\s+", text) if s.strip()]  # also Hindi । and Urdu ۔
 
 
 def _srt_time(seconds: float) -> str:

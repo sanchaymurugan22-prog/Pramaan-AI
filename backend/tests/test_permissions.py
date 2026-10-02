@@ -21,6 +21,7 @@ ANYONE = {OP, RV, AD}
 # (method, path, roles allowed, JSON body or form data). {job}, {output}, {user}, {record} are filled in below.
 MATRIX = [
     ("GET", "/api/options", ANYONE, None),
+    ("GET", "/api/languages", ANYONE, None),  # Stage 8
     ("GET", "/api/ai/ping", ANYONE, None),
     ("GET", "/api/auth/me", ANYONE, None),
     ("POST", "/api/auth/change-password", ANYONE, {"current_password": "not my password", "new_password": "x"}),
@@ -35,6 +36,8 @@ MATRIX = [
     # outputs
     ("PUT", "/api/jobs/{job}/outputs/{output}", {OP}, {"fields": []}),
     ("POST", "/api/jobs/{job}/outputs/{output}/regenerate", {OP}, None),
+    ("POST", "/api/jobs/{job}/languages", {OP}, {"languages": []}),  # Stage 8
+    ("POST", "/api/jobs/{job}/outputs/{output}/native-check", {RV}, {"checked": True}),
     ("GET", "/api/jobs/{job}/outputs/{output}/versions", {OP, RV}, None),
     ("GET", "/api/jobs/{job}/outputs/{output}/versions/1", {OP, RV}, None),
     ("GET", "/api/jobs/{job}/outputs/{output}/download?format=txt", {OP, RV}, None),

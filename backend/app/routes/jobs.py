@@ -74,6 +74,7 @@ async def create_job(
     objective: Annotated[str, Form()] = DEFAULT_SETTINGS["objective"],
     style: Annotated[str, Form()] = DEFAULT_SETTINGS["style"],
     detail_level: Annotated[str, Form()] = DEFAULT_SETTINGS["detail_level"],
+    languages: Annotated[list[str] | None, Form()] = None,
     db: Session = Depends(get_session),
     user: User = Depends(allow("operator")),
 ):
@@ -81,6 +82,7 @@ async def create_job(
     the Safety check. With `outputs` it starts at once, using the suggested TLP label."""
     # --- check the form ---
     selected = _selected_outputs(outputs or [], required=False)
+    chosen_languages = selected_languages(languages or [])
     job_settings = _clean_settings(
         {"audience": audience, "tone": tone, "objective": objective, "style": style, "detail_level": detail_level}
     )
@@ -108,7 +110,7 @@ async def create_job(
         job.tlp = report["suggested_tlp"]
         record(db, job, "tlp", f"TLP:{job.tlp} used as suggested (started in one step, without the Safety check "
                                f"screen). {report['tlp_reason']}", by=user, value=job.tlp)
-        start_outputs(db, job, selected, job_settings, user)
+        start_outputs(db, job, selected, job_settings, user, chosen_languages)
     db.commit()
 
     log_created(job, user)
@@ -155,6 +157,7 @@ def log_created(job: Job, user: User, how: str = "") -> None:
 class StartRequest(BaseModel):
     outputs: list[str]
     settings: dict[str, str] = {}
+    languages: list[str] = []  # Stage 8: Indian languages to translate every output into ("hi", "ta" ...)
 
 
 @router.post("/jobs/{job_id}/start")
@@ -169,28 +172,37 @@ def start_job(job_id: int, body: StartRequest, db: Session = Depends(get_session
     selected = _selected_outputs(body.outputs, required=True)
     job_settings = _clean_settings(DEFAULT_SETTINGS | body.settings)
     before = len(job.safety_decisions)
-    start_outputs(db, job, selected, job_settings, user)
+    start_outputs(db, job, selected, job_settings, user, selected_languages(body.languages))
     db.commit()
     audit.log_decisions(user, job, job.safety_decisions[before:])
     runner.submit(job.id)
     return job_detail(job)
 
 
-def start_outputs(db: Session, job: Job, selected: list[str], job_settings: dict, user: User) -> None:
+def start_outputs(db: Session, job: Job, selected: list[str], job_settings: dict, user: User,
+                  translate_into: list[str] | None = None) -> None:
     """Create the chosen outputs (short ones first) and mark the job as generating. Public outputs a
-    RED / AMBER label does not allow are refused with the reason."""
+    RED / AMBER label does not allow are refused with the reason. Stage 8: plus one translated output
+    per output and language, made from the English one once it is written."""
     _check_allowed(selected, job.tlp)
     off = switched_off(job.tlp)
     job.settings_json = job_settings
     job.status, job.step, job.error = "generating", "Waiting in the queue", None
     # Short outputs first, so the operator sees results sooner.
+    english = []
     for position, output_type in enumerate(o for o in OUTPUT_ORDER if o in selected):
-        db.add(Output(job=job, type=output_type, position=position))
+        output = Output(job=job, type=output_type, position=position)
+        db.add(output)
+        english.append(output)
+    db.flush()  # the English outputs get their ids: each translation points to its English output
+    add_translations(db, job, english, translate_into or [])
 
     report = copy.deepcopy(job.safety_json or {})
     report["switched_off"] = off
     job.safety_json = report  # a new object, so SQLAlchemy saves the change
     detail = f"Started writing: {_labels(o for o in OUTPUT_ORDER if o in selected)}."
+    if translate_into:
+        detail += f" Translating into: {', '.join(lang_label(c) for c in translate_into)}."
     if off:
         detail += f" Switched off by TLP:{job.tlp}: {_labels(off)}."
     record(db, job, "start", detail, by=user)
@@ -258,6 +270,73 @@ def retry_job(job_id: int, db: Session = Depends(get_session), user: User = Depe
     audit.log("content", "retry", f"Tried job #{job.id} again (outputs that had failed)", actor=user, target=f"job {job.id}")
     runner.submit(job.id)
     return job_detail(job)
+
+
+# ---- Stage 8: languages ---------------------------------------------------------------------
+
+
+def selected_languages(values: list[str]) -> list[str]:
+    """The Indian languages chosen (English is always made). 400 for an unknown one, or when translation
+    is not installed on this computer."""
+    from app.lang import languages, translate
+
+    chosen = list(dict.fromkeys(c.strip() for value in values for c in value.split(",") if c.strip()))
+    chosen = [c for c in chosen if c != "en"]
+    unknown = [c for c in chosen if c not in languages.LANGUAGES]
+    if unknown:
+        raise HTTPException(400, f"Unknown language: {', '.join(unknown)}")
+    if chosen and not translate.status()["ready"]:
+        raise HTTPException(400, f"Translation is not available on this computer: {translate.status()['detail']}")
+    return [c for c in languages.LANGUAGES if c in chosen]  # in the usual order
+
+
+def lang_label(code: str) -> str:
+    from app.lang import languages
+    return languages.label(code)
+
+
+def add_translations(db: Session, job: Job, english: list[Output], codes: list[str]) -> list[Output]:
+    """One queued translated output per English output and language (skips ones the job already has)."""
+    have = {(o.source_output_id, o.language) for o in job.outputs if o.language != "en"}
+    added = []
+    for code in codes:
+        for output in english:
+            if (output.id, code) in have:
+                continue
+            translated = Output(job=job, type=output.type, language=code, position=output.position,
+                                source_output_id=output.id)
+            db.add(translated)
+            added.append(translated)
+    return added
+
+
+def native_check(output: Output, db: Session) -> dict | None:
+    """A translation's native-speaker check: ticked for the current version, by whom and when."""
+    if output.language == "en":
+        return None
+    checked = bool(output.native_checked_by) and output.native_checked_version == output.version
+    who = db.get(User, output.native_checked_by) if checked and db else None
+    return {"checked": checked, "by": who.full_name if who else None,
+            "at": _time(output.native_checked_at) if checked else None}
+
+
+def _translation_info(output: Output, job: Job) -> dict:
+    from sqlalchemy.orm import object_session
+
+    if output.language == "en":
+        return {"language_label": "English", "translation": None}
+    english = next((o for o in job.outputs if o.id == output.source_output_id), None)
+    return {
+        "language_label": lang_label(output.language),
+        "translation": {
+            "source_output_id": output.source_output_id,
+            "source_version": output.source_version,
+            "engine": output.engine,
+            # the English changed since: the translation is being made again (or will be)
+            "stale": bool(english and output.source_version and english.version != output.source_version),
+            "native_check": native_check(output, object_session(job)),
+        },
+    }
 
 
 # ---- helpers ------------------------------------------------------------------------------
@@ -392,7 +471,7 @@ def job_summary(job: Job) -> dict:
         "error": job.error,
         "outputs_done": sum(o.status == "done" for o in job.outputs),
         "outputs_total": len(job.outputs),
-        "output_types": [o.type for o in job.outputs],
+        "output_types": list(dict.fromkeys(o.type for o in job.outputs)),
         "created_at": _time(job.created_at),
         "updated_at": _time(job.updated_at),
         # Stage 9A: for "My jobs" and the dashboard
@@ -404,7 +483,7 @@ def job_summary(job: Job) -> dict:
         "suggested_outputs": job.suggested_outputs,
         "alert": job.alert_json,
         "record_no": job.record_no,
-        "languages": sorted({o.language for o in job.outputs}) or ["en"],
+        "languages": ["en", *sorted({o.language for o in job.outputs} - {"en"})],
         "sources_count": len(job.sources),
     }
 
@@ -467,7 +546,8 @@ def job_detail(job: Job) -> dict:
                 "tokens": o.tokens,
                 "started_at": _time(o.started_at),
                 "finished_at": _time(o.finished_at),
+                **_translation_info(o, job),  # Stage 8
             }
-            for o in job.outputs
+            for o in sorted(job.outputs, key=lambda o: (o.language != "en", o.position, o.language))
         ],
     }

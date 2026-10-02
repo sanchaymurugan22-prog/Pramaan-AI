@@ -2,11 +2,12 @@
 // Click any sentence to see where it comes from (source trace, right) and to comment on it. Comments go to
 // the Operator if the job is sent back (design 28, SendBack.tsx). "Approve & sign" signs every file.
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { addComment, getJob, recordQrUrl, takeBackComment, type JobDetail, type JobOutput } from '../api'
+import { addComment, getJob, recordQrUrl, setNativeCheck, takeBackComment, type JobDetail, type JobOutput } from '../api'
 import { useAuth } from '../auth'
 import { Icon, type IconName } from '../components/Icon'
 import { OUTPUT_ICONS } from '../components/outputIcons'
 import { TlpLabel } from '../components/TlpLabel'
+import { languageByCode, useLanguages } from '../languages'
 import { links, navigate } from '../router'
 import { factLookup, jobNo, shortHash, shortTime } from './format'
 import { OutputBody } from './OutputViews'
@@ -69,6 +70,26 @@ export function automaticChecks(job: JobDetail): Check[] {
     },
     { state: job.tlp ? 'ok' : 'warn', title: 'Sharing label applied', detail: job.tlp ? `TLP:${job.tlp} on every file` : 'No label chosen' },
   ]
+  // Stage 8: translations keep every value, and a native speaker has read each one
+  const translations = job.outputs.filter((o) => o.language !== 'en')
+  if (translations.length > 0) {
+    const changed = translations.filter((o) => (o.quality?.translation?.changed ?? []).length > 0)
+    const checked = translations.filter((o) => o.translation?.native_check.checked)
+    checks.push(
+      {
+        state: changed.length ? 'bad' : 'ok',
+        title: 'Numbers survive translation',
+        detail: changed.length
+          ? `Changed in ${changed.map((o) => `${o.label} (${o.language_label})`).join(', ')}`
+          : `Every number, date and code is the same in ${translations.length} translation${translations.length === 1 ? '' : 's'}`,
+      },
+      {
+        state: checked.length === translations.length ? 'ok' : 'warn',
+        title: 'Checked by a native speaker',
+        detail: `${checked.length} of ${translations.length} translations ticked (needed before signing)`,
+      },
+    )
+  }
   return checks
 }
 
@@ -123,6 +144,8 @@ export function ReviewJob({ jobId }: { jobId: number }) {
   const [comment, setComment] = useState('')
   const [busy, setBusy] = useState(false)
   const [signing, setSigning] = useState(false)
+  const [showEnglish, setShowEnglish] = useState(false) // Stage 8: a translation next to its English
+  const languages = useLanguages()
 
   const reload = useCallback(
     () =>
@@ -162,6 +185,10 @@ export function ReviewJob({ jobId }: { jobId: number }) {
   }
 
   const mine = workedOn(job, user.id)
+  // Stage 8: a translation is compared with its English output; every translation needs a native-speaker check
+  const english = active.translation ? job.outputs.find((o) => o.id === active.translation!.source_output_id) : undefined
+  const activeLang = languageByCode(languages, active.language)
+  const toCheck = job.outputs.filter((o) => o.language !== 'en' && !o.translation?.native_check.checked).length
   const sentence =
     selection.outputId === active.id && selection.sentenceId ? active.quality?.sentences?.find((s) => s.id === selection.sentenceId) ?? null : null
   const comments = job.comments.filter((c) => c.job_version === job.version)
@@ -228,8 +255,9 @@ export function ReviewJob({ jobId }: { jobId: number }) {
             {job.outputs.length} output{job.outputs.length === 1 ? '' : 's'}
           </h2>
           {job.outputs.map((o) => {
-            const ok = outputOk(o)
+            const ok = outputOk(o) && (o.language === 'en' || Boolean(o.translation?.native_check.checked))
             const count = comments.filter((c) => c.output_id === o.id).length
+            const lang = languageByCode(languages, o.language)
             return (
               <button
                 key={o.id}
@@ -242,24 +270,57 @@ export function ReviewJob({ jobId }: { jobId: number }) {
                 }}
               >
                 <Icon name={OUTPUT_ICONS[o.type] ?? 'file'} size={18} />
-                <span className="grow">{o.label}</span>
+                <span className="grow">
+                  {o.label}
+                  {o.language !== 'en' && (
+                    <span className="muted" lang={o.language}>
+                      {' '}
+                      · {lang?.native ?? o.language}
+                    </span>
+                  )}
+                </span>
                 {count > 0 && <span className="tab-count">{count}</span>}
                 <Icon name={ok ? 'check' : 'warning'} size={18} color={ok ? 'var(--green-dark)' : 'var(--saffron-dark)'} strokeWidth={2.2} />
-                <span className="sr-only">{ok ? 'checks passed' : 'has notes to check'}</span>
+                <span className="sr-only">
+                  {ok ? 'checks passed' : o.language !== 'en' && !o.translation?.native_check.checked ? 'needs a native-speaker check' : 'has notes to check'}
+                </span>
               </button>
             )
           })}
-          <span className="muted small">English · other languages in Stage 8</span>
+          <span className="muted small">
+            {job.languages.length > 1
+              ? `${job.languages.length} languages · ${toCheck} translation${toCheck === 1 ? '' : 's'} to check`
+              : 'English'}
+          </span>
         </nav>
 
         <section className="card card-pad stack gap-14" aria-label={active.label}>
+          {active.translation && (
+            <NativeCheckBox job={job} output={active} canTick={!mine} onChange={setJob} english={english}
+                            showEnglish={showEnglish} onShowEnglish={setShowEnglish} />
+          )}
           <TraceProvider value={{ outputId: active.id, byPath, facts, selection, select: setSelection }}>
-            {active.content ? (
-              <OutputBody
-                type={active.type}
-                content={active.content}
-                meta={{ title: job.title, tlp: job.tlp, recordNo: null, audience: job.settings?.audience ?? '', quality: active.quality }}
-              />
+            {active.content && showEnglish && english?.content ? (
+              <div className="compare-languages">
+                <div lang="en">
+                  <span className="section-label">English (v{english.version})</span>
+                  <OutputBody type={english.type} content={english.content}
+                              meta={{ title: job.title, tlp: job.tlp, recordNo: null, audience: job.settings?.audience ?? '', quality: english.quality }} />
+                </div>
+                <div lang={active.language} dir={activeLang?.rtl ? 'rtl' : undefined}>
+                  <span className="section-label">{activeLang?.native ?? active.language}</span>
+                  <OutputBody type={active.type} content={active.content}
+                              meta={{ title: job.title, tlp: job.tlp, recordNo: null, audience: job.settings?.audience ?? '', quality: active.quality }} />
+                </div>
+              </div>
+            ) : active.content ? (
+              <div lang={active.language} dir={activeLang?.rtl ? 'rtl' : undefined}>
+                <OutputBody
+                  type={active.type}
+                  content={active.content}
+                  meta={{ title: job.title, tlp: job.tlp, recordNo: null, audience: job.settings?.audience ?? '', quality: active.quality }}
+                />
+              </div>
             ) : (
               <p className="muted">This output has no text.</p>
             )}
@@ -454,3 +515,65 @@ export function Signed({ jobId }: { jobId: number }) {
     </main>
   )
 }
+
+
+// Stage 8: "Checked by a native speaker" for a translated output. Until it is ticked the job cannot be signed.
+function NativeCheckBox({ job, output, canTick, onChange, english, showEnglish, onShowEnglish }: {
+  job: JobDetail
+  output: JobOutput
+  canTick: boolean
+  onChange: (job: JobDetail) => void
+  english: JobOutput | undefined
+  showEnglish: boolean
+  onShowEnglish: (on: boolean) => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const check = output.translation!.native_check
+  const changed = output.quality?.translation?.changed ?? []
+
+  async function tick(on: boolean) {
+    setBusy(true)
+    setError('')
+    try {
+      onChange(await setNativeCheck(job.id, output.id, on))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save the check.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className={check.checked ? 'notice notice-green stack gap-8' : 'notice notice-yellow stack gap-8'}>
+      <span className="row gap-8">
+        <Icon name={check.checked ? 'shieldCheck' : 'warning'} size={20} />
+        <strong>{check.checked ? 'Checked by a native speaker' : 'Machine translated - needs a native-speaker check'}</strong>
+      </span>
+      <span className="small">
+        Translated from the English (version {output.translation!.source_version ?? '?'}) by {output.translation!.engine}.
+        {changed.length > 0
+          ? ` ${changed.length} part${changed.length === 1 ? '' : 's'} changed a number or code: see the red marks.`
+          : ' Every number, date and code is the same as in the English.'}
+      </span>
+      <div className="row gap-12 wrap">
+        {canTick && (
+          <label className="check-row">
+            <input type="checkbox" checked={check.checked} disabled={busy || job.status !== 'in_review'}
+                   onChange={(e) => tick(e.target.checked)} />
+            <span>I have read this {output.language_label} text against the English: it says the same thing</span>
+          </label>
+        )}
+        {check.checked && check.by && <span className="small">{check.by}{check.at ? ` · ${shortTime(check.at)}` : ''}</span>}
+        {english && (
+          <button type="button" className="btn btn-outline btn-xs" aria-pressed={showEnglish} onClick={() => onShowEnglish(!showEnglish)}>
+            <Icon name="compare" size={16} />
+            {showEnglish ? 'Hide the English' : 'Show the English next to it'}
+          </button>
+        )}
+      </div>
+      {error && <div className="alert alert-red">{error}</div>}
+    </div>
+  )
+}
+

@@ -1,8 +1,8 @@
 """Speech-to-text engines (Stage 8), chosen by STT_ENGINE in .env:
 
   onnx  offline, with onnx-asr + onnxruntime (no PyTorch):
-          Hindi, Tamil  AI4Bharat IndicConformer (ONNX 8-bit, MIT), models/stt/indicconformer-<code>
-          English       OpenAI Whisper small (ONNX 8-bit, MIT), models/stt/whisper-small
+          Hindi, Tamil  AI4Bharat IndicConformer (ONNX, weights quantised to 8 bits, MIT), models/stt/indicconformer-<code>
+          English       OpenAI Whisper small (ONNX, weights quantised to 8 bits, MIT), models/stt/whisper-small
         The default.
   mock  a fixed transcript, for tests.
 
@@ -101,7 +101,9 @@ def _model(language: str):
         if language not in _loaded:
             folder = settings.models_dir / "stt" / MODELS[language]
             kind = "whisper" if language == "en" else "nemo-conformer-ctc"
-            _loaded[language] = onnx_asr.load_model(kind, folder, quantization="int8")
+            # Plain CPU: on macOS onnxruntime would try Apple's CoreML, which needs macOS 14.4+ and floods the log
+            _loaded[language] = onnx_asr.load_model(kind, folder, quantization="uint8",
+                                                    providers=["CPUExecutionProvider"])
         return _loaded[language]
 
 

@@ -87,6 +87,11 @@ export function SourcePanel({ jobId, facts, selection, sentence, where, select, 
         <div className="stack gap-8">
           <span className="section-label">{where}</span>
           <blockquote className="trace-sentence">{sentence.text}</blockquote>
+          {sentence.english && (
+            <p className="small muted" lang="en">
+              <strong>English:</strong> {sentence.english}
+            </p>
+          )}
           {(sentence.status === 'linked' || sentence.status === 'unverified') && (
             <div className="row gap-6 wrap small">
               <span className="muted">Uses</span>

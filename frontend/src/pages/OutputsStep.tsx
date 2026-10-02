@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { getJob, getOptions, startJob, type Health, type JobDetail, type JobSettings, type Options } from '../api'
+import { useAuth } from '../auth'
 import { Icon } from '../components/Icon'
+import { LanguagePicker } from '../components/LanguagePicker'
+import { useLanguages } from '../languages'
 import { Stepper } from '../components/Stepper'
 import { TlpLabel } from '../components/TlpLabel'
 import { links, navigate } from '../router'
@@ -31,6 +34,10 @@ export function OutputsStep({ jobId, health }: { jobId: number; health: Health |
   const [options, setOptions] = useState<Options | null>(null)
   const [selected, setSelected] = useState<string[]>([])
   const [settings, setSettings] = useState<JobSettings | null>(null)
+  const { user } = useAuth()
+  const languageInfo = useLanguages()
+  // Stage 8: the output languages ticked in advance on Profile & settings (English is always made)
+  const [languages, setLanguages] = useState<string[]>(() => (user.prefs.output_languages ?? []).filter((c) => c !== 'en'))
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
@@ -91,7 +98,7 @@ export function OutputsStep({ jobId, health }: { jobId: number; health: Health |
     setSubmitting(true)
     setError('')
     try {
-      await startJob(job.id, selected, settings)
+      await startJob(job.id, selected, settings, languageInfo?.translation.ready ? languages : [])
       navigate(links.progress(job.id)) // step 4: watch the AI write (design 12)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong.')
@@ -196,15 +203,24 @@ export function OutputsStep({ jobId, health }: { jobId: number; health: Health |
                 ))}
               </div>
             </div>
-            <p className="muted small">English only for now. Indian languages come in Stage 8.</p>
+            <LanguagePicker info={languageInfo} selected={languages} onChange={setLanguages} />
+            {languages.length > 0 && (
+              <p className="muted small">
+                Each output is written in English first, then machine translated (IndicTrans2, on this computer). A
+                Reviewer ticks “Checked by a native speaker” for every translation before it can be signed.
+              </p>
+            )}
           </section>
         </div>
 
         <aside className="card card-pad stack gap-14 new-summary">
           <h2>Your kit</h2>
           <div className="row gap-10 kit-count">
-            <span className="kit-number">{selected.length}</span>
-            <span className="muted">output{selected.length === 1 ? '' : 's'}</span>
+            <span className="kit-number">{selected.length * (1 + languages.length)}</span>
+            <span className="muted">
+              output{selected.length * (1 + languages.length) === 1 ? '' : 's'}
+              {languages.length > 0 && ` · ${selected.length} × ${1 + languages.length} languages`}
+            </span>
           </div>
           <p className="muted small">
             All written from one fact sheet, so every output says the same thing. Hidden values are replaced by

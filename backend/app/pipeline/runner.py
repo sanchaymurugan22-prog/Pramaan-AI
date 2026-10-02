@@ -85,8 +85,13 @@ def _run(db, job: Job) -> None:
         db.commit()
 
     sheet = job.fact_sheet.json
-    for output in job.outputs:
+    # English outputs first, then the translations (Stage 8): each is made from its finished English output
+    for output in sorted(job.outputs, key=lambda o: (o.language != "en", o.position)):
         if output.status == "done":
+            continue
+        if output.language != "en":
+            _translate(db, job, output, masker, report)
+            recheck_job(db, job)
             continue
         output.status, output.error, output.started_at = "generating", None, utc_now()
         step = f"Writing the {OUTPUT_TYPES[output.type]['label']}"
@@ -106,6 +111,7 @@ def _run(db, job: Job) -> None:
             save_version(db, output, result.content, "regenerated" if had_text else "ai")
             output.status = "done"
             output.truncated, output.seconds, output.tokens = result.truncated, result.seconds, result.tokens
+            queue_translations(job, output)  # a new English text: its translations are made again
         output.finished_at = utc_now()
         db.commit()
         recheck_job(db, job)
@@ -125,6 +131,46 @@ def _run(db, job: Job) -> None:
                                      f"for job #{job.id}" + (f" ({len(failed)} failed)" if failed else ""),
               target=f"job {job.id}")
     _fast_track(db, job)
+
+
+def queue_translations(job: Job, english) -> None:
+    """The English output changed (written again, or edited): its translations are made again from it.
+    Their native-speaker check starts again too (it was for the old text)."""
+    for output in job.outputs:
+        if output.language != "en" and output.source_output_id == english.id and output.status != "queued":
+            output.status, output.error = "queued", None
+
+
+def _translate(db, job: Job, output, masker: Masker, report) -> None:
+    """Make (or make again) one translated output from its English output."""
+    from app.lang import languages
+    from app.lang.translate import TranslateError
+    from app.pipeline.translation import engine_label, translate_content
+
+    english = next((o for o in job.outputs if o.id == output.source_output_id), None)
+    lang = languages.get(output.language)
+    step = f"Translating the {OUTPUT_TYPES[output.type]['label']} into {lang.name}"
+    report(step)
+    output.status, output.error, output.started_at = "generating", None, utc_now()
+    db.commit()
+    had_text = bool(output.content_json)
+    if english is None or english.status != "done" or not english.content_json:
+        output.status = "done" if had_text else "failed"
+        output.error = "The English output was not written, so it could not be translated."
+    else:
+        try:
+            content, seconds = translate_content(output.type, english.content_json, output.language, masker,
+                                                 OUTPUT_TYPES[output.type]["public"])
+        except TranslateError as exc:
+            output.status = "done" if had_text else "failed"
+            output.error = (f"Could not translate it again ({exc}). The previous translation is kept." if had_text
+                            else str(exc))
+        else:
+            save_version(db, output, content, "retranslated" if had_text else "translated")
+            output.status, output.seconds, output.tokens, output.truncated = "done", round(seconds, 1), None, False
+            output.source_version, output.engine = english.version, engine_label()
+    output.finished_at = utc_now()
+    db.commit()
 
 
 def _fast_track(db, job: Job) -> None:

@@ -15,7 +15,7 @@ from app import watch
 from app.config import settings
 from app.db import init_db
 from app.pipeline import runner
-from app.routes import admin, admin_files, admin_system, alerts, auth, comments, dashboard, jobs, notifications, outputs, profile, records, review, safety, search, system, watch as watch_routes
+from app.routes import admin, admin_files, admin_system, alerts, auth, comments, dashboard, jobs, languages, notifications, outputs, profile, records, review, safety, search, system, watch as watch_routes
 
 
 @asynccontextmanager
@@ -84,3 +84,4 @@ app.include_router(profile.router)
 app.include_router(comments.router)
 app.include_router(admin_system.router)
 app.include_router(admin_files.router)
+app.include_router(languages.router)  # Stage 8

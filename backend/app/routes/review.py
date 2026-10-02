@@ -5,6 +5,8 @@ GET  /api/review/queue        Reviewer: jobs waiting for review, and the latest 
 POST /api/jobs/{id}/review    Reviewer: {"decision": "approve" | "send_back", "notes": "...", "pin": ""}
                               Approve also SIGNS the job (Stage 7, app/signing/sign_job.py): final files with a
                               QR code, fingerprints, a signed record in the record book. pin: DSC token only.
+POST /api/jobs/{id}/outputs/{output_id}/native-check  Reviewer (Stage 8): {"checked": true} ticks "Checked by a native
+                              speaker" for a translated output; every translation must be ticked before approving
 GET  /api/jobs/{id}/sign-info Reviewer: what signing would do (signer, number of outputs and files), for the dialog
 POST /api/jobs/{id}/new-version  Operator: reopen an approved job as a new version (needs a new review and signature)
 
@@ -120,6 +122,12 @@ def review_job(job_id: int, body: ReviewDecision, db: Session = Depends(get_sess
         elif not notes:
             notes = f"See the {len(comments)} line comment{'s' if len(comments) != 1 else ''}."
 
+    if body.decision == "approve":
+        unchecked = needs_native_check(job)
+        if unchecked:
+            raise HTTPException(409, "Machine translated - needs a native-speaker check: tick “Checked by a native "
+                                     f"speaker” for {', '.join(unchecked)}, or send the job back.")
+
     decision = "approved" if body.decision == "approve" else "sent_back"
     db.add(Review(job=job, user_id=user.id, decision=decision, notes=notes, job_version=job.version))
     if decision == "approved":
@@ -148,6 +156,47 @@ def review_job(job_id: int, body: ReviewDecision, db: Session = Depends(get_sess
         db.commit()
         audit.log("review", "sent_back", f"Sent back job #{job.id} v{job.version} with notes: “{notes}”{lines}",
                   actor=user, target=f"job {job.id}")
+    return job_detail(job)
+
+
+def needs_native_check(job: Job) -> list[str]:
+    """Stage 8: translated outputs whose current version no Reviewer has ticked yet, e.g. "Advisory (Hindi)"."""
+    from app.lang import languages
+    return [f"{OUTPUT_TYPES[o.type]['label']} ({languages.get(o.language).name})" for o in job.outputs
+            if o.language != "en" and not (o.native_checked_by and o.native_checked_version == o.version)]
+
+
+class NativeCheck(BaseModel):
+    checked: bool = True
+
+
+@router.post("/jobs/{job_id}/outputs/{output_id}/native-check")
+def native_check(job_id: int, output_id: int, body: NativeCheck, db: Session = Depends(get_session),
+                 user: User = Depends(allow("reviewer"))):
+    """Stage 8: a Reviewer ticks (or unticks) "Checked by a native speaker" for a translated output.
+    It is for this version: if the translation changes, it must be checked again."""
+    from app.db import Output
+    from app.lang import languages
+
+    job = _get_job(db, job_id)
+    output = db.get(Output, output_id)
+    if output is None or output.job_id != job.id:
+        raise HTTPException(404, f"Output {output_id} of job {job_id} not found.")
+    if output.language == "en":
+        raise HTTPException(400, "Only translated outputs need a native-speaker check.")
+    if job.status != "in_review":
+        raise HTTPException(409, "The native-speaker check is ticked while the job is being reviewed.")
+    if user.id in worked_on_by(db, job):
+        raise HTTPException(403, SEPARATION)
+    what = f"{OUTPUT_TYPES[output.type]['label']} ({languages.get(output.language).name}) v{output.version}"
+    if body.checked:
+        output.native_checked_by, output.native_checked_at, output.native_checked_version = user.id, utc_now(), output.version
+    else:
+        output.native_checked_by = output.native_checked_at = output.native_checked_version = None
+    db.commit()
+    audit.log("review", "native_check" if body.checked else "native_check_removed",
+              f"{'Ticked' if body.checked else 'Removed'} the native-speaker check of the {what} of job #{job.id}",
+              actor=user, target=f"job {job.id}")
     return job_detail(job)
 
 

@@ -57,8 +57,8 @@ def check_public_outputs(outputs) -> dict:
     from app.pipeline.segments import segments
     problems = []
     for output in outputs:
-        if not OUTPUT_TYPES[output.type]["public"] or not output.content_json:
-            continue
+        if not OUTPUT_TYPES[output.type]["public"] or not output.content_json or output.language != "en":
+            continue  # translations (Stage 8) say the same as their English, which is checked here
         for segment in segments(output.type, output.content_json):
             if segment.checked:
                 for problem in check_public_text(segment.text)["problems"]:

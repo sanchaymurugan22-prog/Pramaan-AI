@@ -48,7 +48,7 @@ _DIGIT_NBSP_DIGIT = regex.compile(r"(\d) (\d)")
 # Pramaan's own values first (the checks compare these with the source), then AI4Bharat's patterns.
 _PROTECT = [
     regex.compile(r"\[[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*-\d+\]"),            # hidden-value placeholders [PHONE-1]
-    regex.compile(r"\[[a-z][a-z ]{1,30}\]"),                          # public labels [phone number]
+    regex.compile(r"\[[A-Za-z][A-Za-z .'-]{1,30}\]"),                 # public labels [phone number], [CVE id]
     regex.compile(r"\bCVE-\d{4}-[\dX]{4,}\b", regex.I),                # CVE ids (also sample ones)
     regex.compile(r"\b[0-9a-fA-F]{32,128}\b"),                         # file hashes
     regex.compile(r"\b\d{1,3}(?:\[?\.\]?\d{1,3}){3}\b"),               # IP addresses (also 1[.]2[.]3[.]4)
@@ -169,13 +169,23 @@ def ascii_digits(text: str) -> str:
     return text.translate(_INDIC_DIGITS)
 
 
+# IndicTrans2 learnt from text where ":" after a word had been turned into the visarga "ः" (it looks alike).
+# After a vowel sign or anusvara, at the end of a word, it is always a colon ("चेतावनीः" -> "चेतावनी:");
+# a real visarga follows a consonant ("अतः", "प्रातः") and is kept.
+_VISARGA_COLON = re.compile(r"(?<=[\u0901\u0902\u093E-\u094C])\u0903(?=\s|$)")
+
+
 def postprocess(text: str, lang: Language, found: dict[str, str]) -> str:
+    text = _VISARGA_COLON.sub(":", text)  # in Devanagari, before any change of script
     if lang.script == "Arab":
         text = text.replace(" ؟", "؟").replace(" ۔", "۔").replace(" ،", "،").replace("ٮ۪", "ؠ")
     if lang.code == "or":
         text = text.replace("ଯ଼", "ୟ")
     text = from_devanagari(restore(text, found), lang.script)
-    return ascii_digits(detokenize(restore(text, found))).strip()
+    text = ascii_digits(detokenize(restore(text, found))).strip()
+    # A hashtag or @name the model dropped (it often leaves out the last one) goes back at the end
+    missing = [v for v in found.values() if v[:1] in "#@" and v not in text]
+    return " ".join([text, *missing]).strip()
 
 
 # --- the model -----------------------------------------------------------------------------------

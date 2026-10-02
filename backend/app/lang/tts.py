@@ -94,7 +94,7 @@ def not_available(language: str) -> str:
 
 def speak(text: str, language: str) -> tuple[bytes, Voice]:
     """Read `text` aloud. Returns (WAV file, the voice used). Raises TTSError."""
-    text = " ".join(text.split())
+    text = spoken(text)
     if not text:
         raise TTSError("There is no text to read aloud.")
     voice = voice_for(language)
@@ -110,6 +110,16 @@ def speak(text: str, language: str) -> tuple[bytes, Voice]:
         raise
     except Exception as exc:
         raise TTSError(f"The voice {voice.name} could not read the text: {exc}") from exc
+
+
+# The Piper voices read the Hindi full stop (।) and the Urdu one (۔) ALOUD as a word ("purnviram");
+# as a full stop they become a pause, like ".".
+_STOPS = str.maketrans({"।": ".", "॥": ".", "۔": "."})
+
+
+def spoken(text: str) -> str:
+    """Text as it should be read: sentence marks as pauses, no line breaks or double spaces."""
+    return " ".join(text.translate(_STOPS).split())
 
 
 def _mock(text: str) -> bytes:

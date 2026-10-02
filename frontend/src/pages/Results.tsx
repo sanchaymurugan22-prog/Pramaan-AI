@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import {
+  addLanguages,
   downloadUrl,
   getJob,
   getVersion,
@@ -14,6 +15,8 @@ import {
 } from '../api'
 import { useAuth } from '../auth'
 import { Icon, type IconName } from '../components/Icon'
+import { LanguagePicker } from '../components/LanguagePicker'
+import { languageByCode, useLanguages } from '../languages'
 import { OUTPUT_ICONS } from '../components/outputIcons'
 import { StatusChip } from '../components/StatusChip'
 import { TlpLabel } from '../components/TlpLabel'
@@ -37,15 +40,22 @@ type TabInfo = { key: Tab; label: string; icon: IconName; outputs: JobOutput[] }
 const TAB_ORDER = ['advisory', 'executive_summary', 'presentation', 'video_package', 'social', 'infographic']
 const SOCIAL = ['linkedin_post', 'x_thread']
 
-function tabsOf(job: JobDetail): TabInfo[] {
+// Stage 8: the output of a type in the chosen language (the English one if it was not translated into it)
+function outputIn(job: JobDetail, type: string, lang: string): JobOutput | undefined {
+  return job.outputs.find((o) => o.type === type && o.language === lang) ?? job.outputs.find((o) => o.type === type && o.language === 'en')
+}
+
+function tabsOf(job: JobDetail, lang: string): TabInfo[] {
   const tabs: TabInfo[] = []
   for (const kind of TAB_ORDER) {
     if (kind === 'social') {
-      const social = SOCIAL.map((t) => job.outputs.find((o) => o.type === t)).filter((o): o is JobOutput => Boolean(o))
+      const social = SOCIAL.map((t) => outputIn(job, t, lang)).filter((o): o is JobOutput => Boolean(o))
       if (social.length) tabs.push({ key: 'social', label: 'Social posts', icon: 'share', outputs: social })
     } else {
-      const output = job.outputs.find((o) => o.type === kind)
-      if (output) tabs.push({ key: output.id, label: output.label, icon: OUTPUT_ICONS[kind] ?? 'file', outputs: [output] })
+      // The tab key is the English output's id, so the same tab stays open when the language changes
+      const english = job.outputs.find((o) => o.type === kind && o.language === 'en')
+      const output = outputIn(job, kind, lang)
+      if (english && output) tabs.push({ key: english.id, label: output.label, icon: OUTPUT_ICONS[kind] ?? 'file', outputs: [output] })
     }
   }
   tabs.push({ key: 'facts', label: 'Fact sheet', icon: 'summary', outputs: [] })
@@ -64,6 +74,7 @@ export function Results({ jobId }: { jobId: number }) {
   const [selection, setSelection] = useState<Selection>(NO_SELECTION)
   const [editing, setEditing] = useState<number | null>(null) // output id being edited
   const [viewing, setViewing] = useState<Record<number, VersionDetail | undefined>>({}) // old version on screen
+  const [lang, setLang] = useState('en') // Stage 8: the language shown
   const now = useNow(job?.status === 'generating')
   const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
 
@@ -91,7 +102,7 @@ export function Results({ jobId }: { jobId: number }) {
   }, [jobId, pollRound])
 
   const facts = useMemo(() => factLookup(job?.fact_sheet ?? null), [job?.fact_sheet])
-  const tabs = job ? tabsOf(job) : []
+  const tabs = job ? tabsOf(job, lang) : []
   // Until a tab is picked: the first tab with a finished output, or the fact sheet while nothing is finished.
   const tab: Tab = chosenTab ?? tabs.find((t) => t.outputs.some((o) => o.status === 'done'))?.key ?? 'facts'
   const current = tabs.find((t) => t.key === tab) ?? tabs.at(-1)
@@ -120,7 +131,10 @@ export function Results({ jobId }: { jobId: number }) {
 
   async function regenerate(output: JobOutput) {
     const ok = window.confirm(
-      `Write the ${output.label} again from the same fact sheet?\n\nThe current text (version ${output.version}) is kept as an older version.`,
+      (output.language !== 'en'
+        ? `Translate the ${output.label} again from the English?`
+        : `Write the ${output.label} again from the same fact sheet?`) +
+        `\n\nThe current text (version ${output.version}) is kept as an older version.`,
     )
     if (!ok) return
     try {
@@ -131,6 +145,12 @@ export function Results({ jobId }: { jobId: number }) {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not start writing it again.')
     }
+  }
+
+  function changeLanguage(code: string) {
+    setLang(code)
+    setSelection(NO_SELECTION)
+    setEditing(null)
   }
 
   function changeTab(next: Tab) {
@@ -151,7 +171,9 @@ export function Results({ jobId }: { jobId: number }) {
 
   // From the consistency panel or a warning: show that output and that sentence.
   function openSentence(outputId: number, sentenceId: string, factId: string | null) {
-    const target = tabs.find((t) => t.outputs.some((o) => o.id === outputId))
+    const output = job?.outputs.find((o) => o.id === outputId)
+    if (output && output.language !== lang) setLang(output.language)
+    const target = tabsOf(job!, output?.language ?? lang).find((t) => t.outputs.some((o) => o.id === outputId))
     if (target) setTab(target.key)
     setEditing(null)
     setViewing((v) => ({ ...v, [outputId]: undefined }))
@@ -190,7 +212,8 @@ export function Results({ jobId }: { jobId: number }) {
         <div className="stack gap-6">
           <div className="eyebrow">
             Job {jobNo(job.id)}
-            {job.version > 1 && ` · v${job.version}`} · {job.sources.length} source{job.sources.length === 1 ? '' : 's'} · English
+            {job.version > 1 && ` · v${job.version}`} · {job.sources.length} source{job.sources.length === 1 ? '' : 's'} ·{' '}
+            {job.languages.length > 1 ? `${job.languages.length} languages` : 'English'}
             {job.owner && ` · by ${job.owner.full_name}`}
           </div>
           <h1>{job.title}</h1>
@@ -299,6 +322,11 @@ export function Results({ jobId }: { jobId: number }) {
         })}
       </div>
 
+      {tab !== 'facts' && <LanguageBar job={job} lang={lang} onChange={changeLanguage} canChange={canChange} onAdded={(updated) => {
+        setJob(updated)
+        setPollRound((n) => n + 1)
+      }} />}
+
       <div className="results-grid" id="tab-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
         <div className="results-main">
           {tab === 'facts' && (
@@ -383,6 +411,112 @@ export function Results({ jobId }: { jobId: number }) {
         </aside>
       </div>
     </main>
+  )
+}
+
+// Stage 8: English | हिन्दी | தமிழ் ... above the outputs (design 13), and "Add language" for Operators.
+function LanguageBar({ job, lang, onChange, canChange, onAdded }: {
+  job: JobDetail
+  lang: string
+  onChange: (code: string) => void
+  canChange: boolean
+  onAdded: (job: JobDetail) => void
+}) {
+  const info = useLanguages()
+  const [adding, setAdding] = useState(false)
+  const [chosen, setChosen] = useState<string[]>([])
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const canAdd = canChange && job.status !== 'generating' && job.status !== 'draft' && info?.translation.ready
+  if (job.languages.length < 2 && !canAdd) return null
+
+  async function translate() {
+    setBusy(true)
+    setError('')
+    try {
+      onAdded(await addLanguages(job.id, chosen))
+      setAdding(false)
+      setChosen([])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not start the translation.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="lang-bar stack gap-10">
+      <div className="row gap-8 wrap" role="group" aria-label="Language of the outputs">
+        {job.languages.map((code) => {
+          const l = languageByCode(info, code)
+          const outputs = job.outputs.filter((o) => o.language === code)
+          const working = outputs.some((o) => o.status === 'generating' || o.status === 'queued')
+          const unchecked = code !== 'en' && outputs.some((o) => o.status === 'done' && !o.translation?.native_check.checked)
+          return (
+            <button key={code} type="button" className={code === lang ? 'pill is-on' : 'pill'} aria-pressed={code === lang}
+                    lang={code} dir={l?.rtl ? 'rtl' : undefined} onClick={() => onChange(code)}>
+              {l?.native ?? code}
+              {l && code !== 'en' && <span className="sr-only"> ({l.name})</span>}
+              {working && <span className="spinner" aria-label="Translating" />}
+              {unchecked && !working && <span className="dot-yellow" title="Machine translated: needs a native-speaker check" />}
+            </button>
+          )
+        })}
+        {canAdd && !adding && (
+          <button type="button" className="pill pill-more" onClick={() => setAdding(true)}>
+            <Icon name="plus" size={14} strokeWidth={2.4} />
+            Add language
+          </button>
+        )}
+      </div>
+      {adding && (
+        <div className="card card-pad stack gap-12 add-languages">
+          <LanguagePicker info={info ? { ...info, languages: info.languages.filter((l) => !job.languages.includes(l.code) || l.code === 'en') } : null}
+                          selected={chosen} onChange={setChosen} label="Translate every output into" />
+          {error && <div className="alert alert-red">{error}</div>}
+          <div className="row gap-10">
+            <button type="button" className="btn btn-saffron" disabled={busy || chosen.length === 0} onClick={translate}>
+              {busy ? 'Starting…' : `Translate into ${chosen.length || ''} language${chosen.length === 1 ? '' : 's'}`}
+            </button>
+            <button type="button" className="btn btn-outline" onClick={() => setAdding(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Stage 8: on a translated output, "Machine translated - needs a native-speaker check" until a Reviewer ticks it
+function TranslationNote({ output }: { output: JobOutput }) {
+  const t = output.translation
+  if (!t || output.status === 'failed') return null
+  if (t.stale || output.status !== 'done') {
+    return (
+      <div className="notice notice-neutral" role="status">
+        <span className="spinner" aria-hidden="true" />
+        <span>The English text changed, so this is being translated again from it.</span>
+      </div>
+    )
+  }
+  const source = `Translated from the English${t.source_version ? ` (version ${t.source_version})` : ''} by ${t.engine}.`
+  return t.native_check.checked ? (
+    <div className="notice notice-green">
+      <Icon name="shieldCheck" size={20} />
+      <span>
+        <strong>Checked by a native speaker</strong> · {t.native_check.by}
+        {t.native_check.at ? `, ${shortTime(t.native_check.at)}` : ''}. {source}
+      </span>
+    </div>
+  ) : (
+    <div className="notice notice-yellow">
+      <Icon name="warning" size={20} />
+      <span>
+        <strong>Machine translated - needs a native-speaker check.</strong> {source} A Reviewer ticks the check before
+        it can be signed.
+      </span>
+    </div>
   )
 }
 
@@ -652,13 +786,17 @@ function OutputCard({ job, output, meta, now, editing, onEdit, onSaved, viewed, 
   const hasText = Boolean(output.content)
   const q = output.quality
 
+  const translated = output.language !== 'en'
+  const info = useLanguages()
+  const language = languageByCode(info, output.language)
+
   let status: ReactNode = null
   if (output.status === 'generating') {
     const started = output.started_at ? new Date(output.started_at).getTime() : now
     status = (
       <span className="row gap-6 chip chip-saffron">
         <span className="spinner" aria-hidden="true" />
-        Writing… {duration((now - started) / 1000)}
+        {translated ? 'Translating…' : 'Writing…'} {duration((now - started) / 1000)}
       </span>
     )
   } else if (output.status === 'queued') {
@@ -691,10 +829,10 @@ function OutputCard({ job, output, meta, now, editing, onEdit, onSaved, viewed, 
             className="btn btn-saffron-outline btn-xs"
             onClick={onRegenerate}
             disabled={busy || editing}
-            title={busy ? 'Wait until the AI has finished' : 'Write this output again from the same fact sheet'}
+            title={busy ? 'Wait until the AI has finished' : translated ? 'Translate it again from the English' : 'Write this output again from the same fact sheet'}
           >
             <Icon name="refresh" size={16} strokeWidth={2} />
-            Regenerate
+            {translated ? 'Translate again' : 'Regenerate'}
           </button>
           <button
             type="button"
@@ -712,7 +850,9 @@ function OutputCard({ job, output, meta, now, editing, onEdit, onSaved, viewed, 
   )
 
   return (
-    <Card title={output.label} right={toolbar || status} json={(viewed?.content ?? output.content) || undefined}>
+    <Card title={translated ? <>{output.label} <span className="muted" lang={output.language}>· {language?.native ?? output.language}</span></> : output.label}
+          right={toolbar || status} json={(viewed?.content ?? output.content) || undefined}>
+      {translated && !viewed && <TranslationNote output={output} />}
       {showVersions && hasText && (
         <VersionList jobId={job.id} output={output} viewed={viewed} onView={onView} onClose={() => setShowVersions(false)} />
       )}
@@ -749,7 +889,7 @@ function OutputCard({ job, output, meta, now, editing, onEdit, onSaved, viewed, 
       )}
 
       {!editing && hasText && (viewed?.content ?? output.content) && (
-        <div className={output.status === 'done' || viewed ? '' : 'is-stale'}>
+        <div className={output.status === 'done' || viewed ? '' : 'is-stale'} lang={output.language} dir={language?.rtl ? 'rtl' : undefined}>
           {output.type === 'infographic' && !viewed && !(output.quality?.leaks ?? []).length ? (
             <div className="infographic-layout">
               <InfographicPreview jobId={job.id} output={output} />

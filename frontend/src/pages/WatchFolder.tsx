@@ -219,7 +219,9 @@ export function WatchFolder() {
                 <Icon name="check" size={16} strokeWidth={2.4} />
                 English
               </span>
-              <span className="field-help">Indian languages are added in Stage 8.</span>
+              <span className="field-help">
+                Plus your default output languages (Profile &amp; settings), ticked in advance on step 3 of each draft.
+              </span>
             </div>
           </div>
 

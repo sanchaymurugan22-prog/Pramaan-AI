@@ -147,6 +147,14 @@ class Output(Base):
     tokens: Mapped[int | None] = mapped_column(default=None)
     started_at: Mapped[datetime | None] = mapped_column(default=None)
     finished_at: Mapped[datetime | None] = mapped_column(default=None)
+    # Stage 8: a translation (language != "en") is made from the English output of the same type
+    source_output_id: Mapped[int | None] = mapped_column(default=None)   # that English output
+    source_version: Mapped[int | None] = mapped_column(default=None)     # its version that was translated
+    engine: Mapped[str] = mapped_column(String(60), default="")          # e.g. "IndicTrans2 (AI4Bharat)"
+    # "Machine translated - needs a native-speaker check" until a Reviewer ticks it, for this version
+    native_checked_by: Mapped[int | None] = mapped_column(default=None)
+    native_checked_at: Mapped[datetime | None] = mapped_column(default=None)
+    native_checked_version: Mapped[int | None] = mapped_column(default=None)
 
     job: Mapped[Job] = relationship(back_populates="outputs")
     versions: Mapped[list["OutputVersion"]] = relationship(back_populates="output", order_by="OutputVersion.version")

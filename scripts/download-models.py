@@ -1,6 +1,6 @@
 """Download the Stage 8 language and voice models into models/ (needs internet once; then everything is offline).
 
-    backend/.venv/bin/python scripts/download-models.py              # everything (about 1.8 GB)
+    backend/.venv/bin/python scripts/download-models.py              # everything (about 2.6 GB, in parts of at most 1.1 GB)
     backend/.venv/bin/python scripts/download-models.py --only stt   # translate | tts | stt (comma-separated)
     backend/.venv/bin/python scripts/download-models.py --dest /Volumes/USB/bundle/models
 
@@ -11,8 +11,8 @@ What it fetches (sizes are the downloads):
              scripts/convert-indictrans2.py, which this script runs at the end.
   tts        Piper voices for sherpa-onnx (8-bit, about 21 MB each): Hindi, Malayalam, Urdu ready-made;
              Telugu converted here (scripts/convert-piper-voice.py).
-  stt        AI4Bharat IndicConformer ONNX 8-bit for Hindi and Tamil (138 MB each) and Whisper small
-             8-bit for English (about 250 MB).
+  stt        AI4Bharat IndicConformer for Hindi and Tamil (481 MB each at full precision, quantised here to
+             8 bits, about 150 MB each) and Whisper small 8-bit for English (about 250 MB).
 
 Every large file is checked against the SHA-256 published by Hugging Face. Files already downloaded are
 kept (a half-finished download resumes). HF_TOKEN is read from .env and never printed.
@@ -50,15 +50,20 @@ VOICES_TO_CONVERT = {
     "vits-piper-te_IN-padmavathi-medium-int8": "te/te_IN/padmavathi/medium/te_IN-padmavathi-medium",
 }
 
+# Speech-to-text. onnxruntime's CPU backend has no 8-bit convolution with SIGNED weights (ConvInteger int8),
+# so the ready-made "int8" files cannot run on a CPU. Whisper comes as "uint8" (works); IndicConformer is
+# downloaded at full precision once and quantised here to uint8 (scripts/quantize-onnx.py), as sherpa-onnx does.
 STT_MODELS = {
-    # folder: (repo, files)
-    "indicconformer-hi": ("OpenVoiceOS/ai4bharat-indicconformer-hi-onnx", ["config.json", "model.int8.onnx", "vocab.txt", "README.md"]),
-    "indicconformer-ta": ("OpenVoiceOS/ai4bharat-indicconformer-ta-onnx", ["config.json", "model.int8.onnx", "vocab.txt", "README.md"]),
+    # folder: (repo, files to keep, full-precision files to quantise or None)
+    "indicconformer-hi": ("OpenVoiceOS/ai4bharat-indicconformer-hi-onnx", ["config.json", "vocab.txt", "README.md"],
+                          ["model.onnx", "model.onnx_data"]),
+    "indicconformer-ta": ("OpenVoiceOS/ai4bharat-indicconformer-ta-onnx", ["config.json", "vocab.txt", "README.md"],
+                          ["model.onnx", "model.onnx_data"]),
     "whisper-small": ("onnx-community/whisper-small", [
         "config.json", "generation_config.json", "preprocessor_config.json", "added_tokens.json", "vocab.json",
         "merges.txt", "normalizer.json", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json",
-        "onnx/encoder_model_int8.onnx", "onnx/decoder_model_merged_int8.onnx",
-    ]),
+        "onnx/encoder_model_uint8.onnx", "onnx/decoder_model_merged_uint8.onnx",
+    ], None),
 }
 
 
@@ -184,8 +189,17 @@ def tts(client: httpx.Client, models: Path) -> None:
 
 def stt(client: httpx.Client, models: Path) -> None:
     say("\n[stt] IndicConformer (AI4Bharat, MIT) for Hindi and Tamil; Whisper small for English")
-    for folder, (repo, files) in STT_MODELS.items():
-        get_hf_files(client, repo, files, models / "stt" / folder)
+    for folder, (repo, files, full) in STT_MODELS.items():
+        out = models / "stt" / folder
+        get_hf_files(client, repo, files, out)
+        if full and not (out / "model.uint8.onnx").exists():
+            source = models / "src" / folder
+            get_hf_files(client, repo, full, source)
+            say(f"    quantising {folder} to 8 bits (about a minute)...")
+            subprocess.run([sys.executable, str(ROOT / "scripts" / "quantize-onnx.py"), str(source / "model.onnx"),
+                            str(out / "model.uint8.onnx")], check=True)
+        for old in [*out.glob("*.int8.onnx"), *out.glob("**/*_int8.onnx")]:  # ready-made files a CPU cannot run
+            old.unlink()
 
 
 def main() -> int:

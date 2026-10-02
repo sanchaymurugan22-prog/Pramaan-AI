@@ -470,8 +470,13 @@ def recheck_job(db, job) -> None:
     sheet_ok = fact_sheet_check(sheet)["ok"]
 
     finished = [o for o in job.outputs if o.content_json and o.status in ("done", "generating", "queued")]
-    for output in finished:
-        quality = check_output(output.type, output.content_json, sheet, known, output.truncated)
+    english = {o.id: o for o in finished if o.language == "en"}
+    # English first: a translation (Stage 8) is checked against the checks of its English output
+    for output in sorted(finished, key=lambda o: o.language != "en"):
+        if output.language != "en":
+            quality = _check_translation(output, english.get(output.source_output_id), sheet)
+        else:
+            quality = check_output(output.type, output.content_json, sheet, known, output.truncated)
         public = OUTPUT_TYPES[output.type]["public"]
         quality["leaks"] = leak_check(output.type, output.content_json, masker, public)
         if quality["leaks"]:
@@ -486,12 +491,27 @@ def recheck_job(db, job) -> None:
         if current is not None:
             current.quality_json, current.quality_score = quality, quality["score"]
 
-    job.consistency_json = check_consistency(sheet, [
+    job.consistency_json = check_consistency(sheet, [  # translations are compared with their English instead
         {"id": o.id, "type": o.type, "label": OUTPUT_TYPES[o.type]["label"], "sentences": o.quality_json["sentences"]}
-        for o in finished
+        for o in finished if o.language == "en"
     ])
     scores = [o.quality_score for o in finished if o.quality_score is not None]
     job.quality_score = round(sum(scores) / len(scores)) if scores else None
     if job.quality_score is not None and not sheet_ok:
         job.quality_score = min(job.quality_score, MISMATCH_CAP)
     db.commit()
+
+
+def _check_translation(output, english, sheet: dict) -> dict:
+    """Stage 8: a translation is checked against the English version it was translated from."""
+    from app.pipeline.translation import check_translation
+
+    if english is None:  # the English output is gone: nothing to compare with
+        source, source_quality = {}, None
+    else:
+        old = next((v for v in english.versions if v.version == output.source_version), None)
+        source = old.content_json if old is not None else english.content_json
+        source_quality = old.quality_json if old is not None and old.quality_json else english.quality_json
+    return check_translation(output.type, output.content_json, source, source_quality, sheet, output.language,
+                             output.truncated)
+

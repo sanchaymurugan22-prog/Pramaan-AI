@@ -173,7 +173,7 @@ export function Profile({ onChanged }: { onChanged: (user: User) => void }) {
                     ))}
                 </select>
               </div>
-              <span className="field-help">Ticked in advance for new jobs once translation arrives (Stage 8).</span>
+              <span className="field-help">Ticked in advance on “Outputs and settings” for every new job. English is always made.</span>
             </div>
           </section>
 

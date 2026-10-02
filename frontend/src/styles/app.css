@@ -1550,3 +1550,33 @@ button.number-tile { border: 1px solid var(--line); text-align: left; font-famil
 .no-access-icon { width: 80px; height: 80px; border-radius: 50%; background: var(--navy-light); display: flex; align-items: center; justify-content: center; }
 .no-access h1 { font-size: 26px; }
 @media (max-width: 1100px) { .profile-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- Stage 8: languages ---------- */
+.notice-yellow { background: var(--yellow-light); color: var(--ink); border: 1px solid var(--yellow); }
+.notice-yellow svg { color: var(--saffron-dark); }
+.notice-neutral { background: var(--bg); color: var(--muted); border: 1px solid var(--line); align-items: center; }
+.pill-more { border-style: dashed; color: var(--saffron-dark); font-weight: 600; }
+.pill[aria-disabled="true"] { cursor: default; }
+.pill:disabled { opacity: 0.55; cursor: not-allowed; }
+.pill .spinner { width: 12px; height: 12px; }
+.dot-yellow { width: 8px; height: 8px; border-radius: 50%; background: var(--saffron); display: inline-block; }
+.pill.is-on .dot-yellow { background: var(--yellow); }
+.lang-bar { margin: -4px 0 4px; }
+.add-languages { max-width: 760px; }
+/* Text in Indian scripts: each script's Noto Sans (bundled, OFL) after the Latin fonts */
+:lang(hi), :lang(mr), :lang(ne), :lang(mai), :lang(doi), :lang(kok), :lang(brx), :lang(sa) { font-family: 'Hind', 'Noto Sans Devanagari', sans-serif; }
+:lang(bn), :lang(as) { font-family: 'Noto Sans Bengali', 'Hind', sans-serif; }
+:lang(ta) { font-family: 'Noto Sans Tamil', 'Hind', sans-serif; }
+:lang(te) { font-family: 'Noto Sans Telugu', 'Hind', sans-serif; }
+:lang(kn) { font-family: 'Noto Sans Kannada', 'Hind', sans-serif; }
+:lang(ml) { font-family: 'Noto Sans Malayalam', 'Hind', sans-serif; }
+:lang(gu) { font-family: 'Noto Sans Gujarati', 'Hind', sans-serif; }
+:lang(pa) { font-family: 'Noto Sans Gurmukhi', 'Hind', sans-serif; }
+:lang(or) { font-family: 'Noto Sans Oriya', 'Hind', sans-serif; }
+:lang(sat) { font-family: 'Noto Sans Ol Chiki', 'Hind', sans-serif; }
+:lang(mni) { font-family: 'Noto Sans Meetei Mayek', 'Hind', sans-serif; }
+:lang(ur), :lang(ks), :lang(sd) { font-family: 'Noto Naskh Arabic', 'Hind', serif; line-height: 1.9; }
+[dir="rtl"] { text-align: right; }
+.compare-languages { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.compare-languages > div { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+@media (max-width: 900px) { .compare-languages { grid-template-columns: 1fr; } }
