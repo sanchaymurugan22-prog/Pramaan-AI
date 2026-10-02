@@ -1576,7 +1576,7 @@ button.number-tile { border: 1px solid var(--line); text-align: left; font-famil
 .sms-bubble { max-width: 520px; padding: 14px 18px; border-radius: 18px 18px 18px 4px; background: var(--green-light);
   border: 1px solid var(--green-mid); font-size: 17px; line-height: 1.55; }
 /* Stage 8: English | हिन्दी at the top right */
-.topbar-lang { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; }
+.topbar-lang { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; align-self: center; flex-shrink: 0; }
 .topbar-lang button { min-height: 34px; padding: 0 12px; font-size: 14px; }
 
 /* Results: "Shorter / More formal / Simpler" (design 14) */
