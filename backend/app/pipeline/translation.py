@@ -8,7 +8,8 @@ translate_content()  Every text field of the English output is translated (app/l
 
 check_translation()  The grounding checks, again, for the translation:
                        - every number, date, time, IP address, CVE id, hash, e-mail, link and hidden-value
-                         placeholder of the English text must be in the translation, unchanged; anything
+                         placeholder of the English text must be in the translation, unchanged (big numbers
+                         compare by value: "1.2 million" = "12 लाख", v1.2); anything
                          missing is red ("Changed in translation"), and so is a number the English does not
                          have ("Not in the English text");
                        - each field keeps the links of its English sentences (same fact ids; a sentence that
@@ -21,9 +22,11 @@ A translation shows "Machine translated - needs a native-speaker check" until a 
 
 import re
 import time
+import unicodedata
 from collections import Counter
 
 from app.lang import helplines, languages, translate
+from app.lang.amounts import amounts
 from app.pipeline.checks import CHECKS_VERSION, _score, _warnings, format_rules, sheet_items
 from app.pipeline.generate import add_timings
 from app.pipeline.segments import apply_edits, segments
@@ -62,16 +65,35 @@ def translate_content(output_type: str, content: dict, language: str, masker, pu
     return new, time.monotonic() - started
 
 
+def _atoms(text: str) -> list[tuple[str, str]]:
+    """[(value to compare, value as written)]. Big numbers with words are worked out first (v1.2,
+    app/lang/amounts.py): "1.2 million", "12 लाख" and "12,00,000" all compare as 1200000."""
+    text = unicodedata.normalize("NFC", text or "")
+    found, covered = [], []
+    for value, written, span in amounts(text):
+        found.append((str(value), written.lower()))
+        covered.append(span)
+    for m in _ATOM.finditer(text):
+        if not any(a <= m.start() < b for a, b in covered):
+            found.append((m.group(0).lower().replace("[.]", "."), m.group(0).lower()))
+    return found
+
+
 def value_atoms(text: str) -> Counter:
-    return Counter(m.group(0).lower().replace("[.]", ".") for m in _ATOM.finditer(text or ""))
+    return Counter(key for key, _ in _atoms(text))
 
 
 def compare_values(english: str, translated: str) -> tuple[list[str], list[str]]:
-    """(values of the English missing from the translation, numbers in the translation not in the English)."""
-    en, tr = value_atoms(english), value_atoms(translated)
-    missing = sorted((en - tr).elements())
-    extra = sorted((tr - en).elements())
-    return missing, extra
+    """(values of the English missing from the translation, numbers in the translation not in the English),
+    as written."""
+    en, tr = _atoms(english), _atoms(translated)
+    en_keys, tr_keys = Counter(k for k, _ in en), Counter(k for k, _ in tr)
+
+    def shown(atoms, keys: Counter) -> list[str]:
+        written = dict(atoms)
+        return sorted(written[k] for k in keys.elements())
+
+    return shown(en, en_keys - tr_keys), shown(tr, tr_keys - en_keys)
 
 
 def _key(path: list) -> str:
