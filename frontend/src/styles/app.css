@@ -1569,3 +1569,7 @@ button.number-tile { border: 1px solid var(--line); text-align: left; font-famil
 .compare-languages { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .compare-languages > div { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 @media (max-width: 900px) { .compare-languages { grid-template-columns: 1fr; } }
+.video-preview { align-items: flex-start; }
+.video-player { width: 100%; max-width: 760px; border-radius: 14px; background: #000; aspect-ratio: 16 / 9; }
+.video-preview audio { width: 100%; max-width: 760px; }
+.listen-audio { width: 100%; max-width: 520px; }

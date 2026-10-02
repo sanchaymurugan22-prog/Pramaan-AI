@@ -1,9 +1,11 @@
-"""Step 1 of the pipeline: turn a source (pasted text, .txt, .pdf, .docx) into plain text, page by page.
+"""Step 1 of the pipeline: turn a source (pasted text, .txt, .pdf, .docx, or a recording) into plain text, page by page.
 
 Page numbers are kept so every fact can point back to "page N" of its source:
   - PDF:   one entry per PDF page
   - Word:  split where Word marked a page break (if the file has none, it is all "page 1")
   - text:  split at form-feed characters (\\f), otherwise all "page 1"
+  - audio or video (Stage 8): turned into text by speech-to-text (app/lang/stt.py), one "page" per
+    2 minutes of the recording
 
 Stage 6A (prompt-injection shield): hidden characters (zero-width, bidi controls) are removed from
 every page, and hidden text in Word files (white, tiny or "Hidden" text) and PDFs (invisible, white or
@@ -28,6 +30,10 @@ from app.safety.shield import strip_hidden_chars
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25 MB per file
 SUPPORTED_EXTENSIONS = {".txt": "txt", ".pdf": "pdf", ".docx": "docx"}
+# Stage 8: recordings (a briefing, a press conference). Not for the watch folder: the spoken language is chosen.
+AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".flac", ".mp4", ".m4v", ".mov", ".webm"}
+MAX_AUDIO_BYTES = 200 * 1024 * 1024   # video files are big
+MAX_AUDIO_SECONDS = 30 * 60           # speech-to-text reads faster than real time, but not instantly
 
 
 class IngestError(Exception):
@@ -42,6 +48,7 @@ class ExtractedSource:
     pages: list[str]     # plain text of each page; pages[0] is page 1
     original: bytes      # the file as uploaded (saved next to the extracted text)
     notes: list[dict] = field(default_factory=list)  # hidden characters / hidden text that were removed
+    detail: dict | None = None  # Stage 8: {"transcript": {...}} for a recording
 
     @property
     def chars(self) -> int:
@@ -57,12 +64,16 @@ def from_text(text: str) -> ExtractedSource:
     return ExtractedSource("pasted-text.txt", "text", _sha256(data), pages, data, notes)
 
 
-def from_file(filename: str, data: bytes) -> ExtractedSource:
-    """An uploaded file. Picks the reader from the file extension."""
+def from_file(filename: str, data: bytes, audio_language: str = "hi") -> ExtractedSource:
+    """An uploaded file. Picks the reader from the file extension. audio_language: the language spoken in a
+    recording (Stage 8: "hi", "ta" or "en")."""
     ext = Path(filename).suffix.lower()
+    if ext in AUDIO_EXTENSIONS:
+        return _from_recording(filename, data, audio_language)
     kind = SUPPORTED_EXTENSIONS.get(ext)
     if kind is None:
-        raise IngestError(f"'{filename}': only .txt, .pdf and .docx files are supported for now.")
+        raise IngestError(f"'{filename}': only .txt, .pdf and .docx files, and recordings (.mp3, .wav, .m4a, .mp4 ...), "
+                          "are supported.")
     if len(data) > MAX_UPLOAD_BYTES:
         raise IngestError(f"'{filename}' is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.")
     if not data:
@@ -85,6 +96,30 @@ def from_file(filename: str, data: bytes) -> ExtractedSource:
             )
         raise IngestError(f"'{filename}' has no text in it.")
     return ExtractedSource(Path(filename).name, kind, _sha256(data), pages, data, hidden_text + notes)
+
+
+def _from_recording(filename: str, data: bytes, language: str) -> ExtractedSource:
+    """Stage 8: a recording, turned into text by speech-to-text (IndicConformer for Hindi and Tamil, Whisper
+    small for English). From here on it is checked and handled like any other source."""
+    from app.lang import stt
+
+    if not data:
+        raise IngestError(f"'{filename}' is empty.")
+    if len(data) > MAX_AUDIO_BYTES:
+        raise IngestError(f"'{filename}' is larger than {MAX_AUDIO_BYTES // (1024 * 1024)} MB.")
+    try:
+        transcript = stt.transcribe(data, language, filename)
+    except stt.STTError as exc:
+        raise IngestError(str(exc)) from exc
+    if transcript.seconds > MAX_AUDIO_SECONDS:
+        raise IngestError(f"'{filename}' is {round(transcript.seconds / 60)} minutes long. Recordings of up to "
+                          f"{MAX_AUDIO_SECONDS // 60} minutes can be used; cut it into parts.")
+    pages, notes = _remove_hidden_chars(transcript.pages)
+    if not "".join(pages).strip():
+        raise IngestError(f"No speech was found in '{filename}'.")
+    detail = {"transcript": {"model": transcript.model, "language": transcript.language,
+                             "seconds": round(transcript.seconds, 1)}}
+    return ExtractedSource(Path(filename).name, "audio", _sha256(data), pages, data, notes, detail)
 
 
 def save_source(job_id: int, source_id: str, source: ExtractedSource) -> Path:

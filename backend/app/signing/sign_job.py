@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session
 from app import branding, crypto
 from app.config import settings
 from app.db import Job, Record, User
-from app.exporters import FORMATS, ExportedFile, export_info, file_name, render
+from app.exporters import ExportedFile, export_info, file_name, formats_for, render
 from app.pipeline.output_types import OUTPUT_TYPES
 from app.signing import records
 from app.signing.qr import verify_url
@@ -64,7 +64,7 @@ def sign_job(db: Session, job: Job, reviewer: User, pin: str = "") -> Record:
         files = []
         for output in outputs:
             info = dataclasses.replace(export_info(job, output), record_no=record_no, verify_url=url)
-            for fmt in FORMATS.get(output.type, []):
+            for fmt in formats_for(output):
                 data = render(info, output, fmt)
                 name = file_name(job, output, fmt)
                 path = crypto.write_file(folder / name, data)
@@ -192,7 +192,7 @@ def signed_kit(db: Session, job: Job, only: set[str] | None = None) -> ExportedF
 def outputs_and_files(job: Job) -> tuple[int, int]:
     """(number of outputs, number of files) that signing would make, for the sign dialog."""
     done = [o for o in job.outputs if o.status == "done" and o.content_json]
-    return len(done), sum(len(FORMATS.get(o.type, [])) for o in done)
+    return len(done), sum(len(formats_for(o)) for o in done)
 
 
 def labels(job: Job) -> list[str]:

@@ -547,7 +547,7 @@ function VideoView({ c }: { c: VideoPackage }) {
         ))}
       </ol>
 
-      <p className="muted small">Narrated video (.mp4) and Indian voices come in Stage 8. The subtitles and the script can be downloaded now.</p>
+      <p className="muted small">The video (.mp4) and the narration (.mp3) are made on this computer from these scenes: use “Make and watch the video” above, or the downloads below.</p>
       <details>
         <summary>Subtitles ({list(c.subtitles).length} lines)</summary>
         <pre className="json-box">

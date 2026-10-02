@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNod
 import {
   addLanguages,
   downloadUrl,
+  listenUrl,
   getJob,
   getVersion,
   listVersions,
@@ -624,8 +625,11 @@ function Sources({ job }: { job: JobDetail }) {
       <span className="section-label">Sources</span>
       {job.sources.map((s) => (
         <span key={s.id} className="source-pill" title={`SHA-256 ${s.sha256}`}>
-          <Icon name="file" size={16} color="var(--muted)" />
-          <strong>{s.id}</strong> {s.filename} · {s.pages} page{s.pages === 1 ? '' : 's'}
+          <Icon name={s.transcript ? 'volume' : 'file'} size={16} color="var(--muted)" />
+          <strong>{s.id}</strong> {s.filename} ·{' '}
+          {s.transcript
+            ? `${duration(s.transcript.seconds)} recording, turned into text by ${s.transcript.model}`
+            : `${s.pages} page${s.pages === 1 ? '' : 's'}`}
         </span>
       ))}
     </section>
@@ -789,6 +793,9 @@ function OutputCard({ job, output, meta, now, editing, onEdit, onSaved, viewed, 
   const translated = output.language !== 'en'
   const info = useLanguages()
   const language = languageByCode(info, output.language)
+  const { user } = useAuth()
+  const readAloud = Boolean(user.prefs?.read_aloud) // Stage 8: Profile & settings → "Read results aloud"
+  const [listening, setListening] = useState(false)
 
   let status: ReactNode = null
   if (output.status === 'generating') {
@@ -822,6 +829,12 @@ function OutputCard({ job, output, meta, now, editing, onEdit, onSaved, viewed, 
         <Icon name="history" size={16} />
         Versions
       </button>
+      {readAloud && output.status === 'done' && language?.voice && (
+        <button type="button" className="btn btn-outline btn-xs" aria-pressed={listening} onClick={() => setListening(!listening)}>
+          <Icon name="volume" size={16} />
+          {listening ? 'Stop' : 'Listen'}
+        </button>
+      )}
       {canChange && (
         <>
           <button
@@ -853,6 +866,10 @@ function OutputCard({ job, output, meta, now, editing, onEdit, onSaved, viewed, 
     <Card title={translated ? <>{output.label} <span className="muted" lang={output.language}>· {language?.native ?? output.language}</span></> : output.label}
           right={toolbar || status} json={(viewed?.content ?? output.content) || undefined}>
       {translated && !viewed && <TranslationNote output={output} />}
+      {listening && (
+        <audio autoPlay controls src={listenUrl(job.id, output.id, output.version)} onEnded={() => setListening(false)}
+               aria-label={`${output.label} read aloud`} className="listen-audio" />
+      )}
       {showVersions && hasText && (
         <VersionList jobId={job.id} output={output} viewed={viewed} onView={onView} onClose={() => setShowVersions(false)} />
       )}
@@ -896,7 +913,12 @@ function OutputCard({ job, output, meta, now, editing, onEdit, onSaved, viewed, 
               <OutputBody type={output.type} content={output.content!} meta={meta} />
             </div>
           ) : (
-            <OutputBody type={output.type} content={(viewed?.content ?? output.content)!} meta={meta} />
+            <>
+              {output.type === 'video_package' && !viewed && output.status === 'done' && !(output.quality?.leaks ?? []).length && (
+                <VideoPreview jobId={job.id} output={output} />
+              )}
+              <OutputBody type={output.type} content={(viewed?.content ?? output.content)!} meta={meta} />
+            </>
           )}
         </div>
       )}
@@ -970,6 +992,8 @@ const FORMAT_LABELS: Record<string, string> = {
   png: 'Image (.png)',
   srt: 'Subtitles (.srt)',
   txt: 'Text (.txt)',
+  mp3: 'Narration (.mp3)',
+  mp4: 'Video (.mp4)',
 }
 
 function formatLabel(type: string, format: string): string {
@@ -1013,5 +1037,39 @@ function InfographicPreview({ jobId, output }: { jobId: number; output: JobOutpu
     <a className="infographic-preview" href={src} target="_blank" rel="noreferrer" title="Open the full-size image">
       <img src={src} alt="Infographic preview" width={1080} height={1350} />
     </a>
+  )
+}
+
+// Stage 8: the video package as a real video (.mp4: storyboard pictures, captions and the narration) and the
+// narration alone (.mp3). Made on this computer when asked: it takes a few seconds to half a minute.
+function VideoPreview({ jobId, output }: { jobId: number; output: JobOutput }) {
+  const [show, setShow] = useState(false)
+  const info = useLanguages()
+  const language = languageByCode(info, output.language)
+  const hasVoice = output.formats.includes('mp3')
+  const version = `&v=${output.version}`
+  return (
+    <div className="video-preview stack gap-10">
+      {show ? (
+        <>
+          <video controls preload="metadata" src={`${downloadUrl(jobId, output.id, 'mp4', true)}${version}`} className="video-player">
+            <track kind="captions" />
+          </video>
+          {hasVoice && (
+            <audio controls preload="none" src={`${downloadUrl(jobId, output.id, 'mp3', true)}${version}`} aria-label="Narration" />
+          )}
+        </>
+      ) : (
+        <button type="button" className="btn btn-outline" onClick={() => setShow(true)}>
+          <Icon name="play" size={18} strokeWidth={2} />
+          Make and watch the video
+        </button>
+      )}
+      <p className="muted small">
+        {hasVoice
+          ? `Narrated by ${language?.voice ?? 'an Indian voice'}, with captions in the picture and as subtitles.`
+          : `Audio is not available for ${language?.name ?? output.language_label}: the video has captions and no sound.`}
+      </p>
+    </div>
   )
 }

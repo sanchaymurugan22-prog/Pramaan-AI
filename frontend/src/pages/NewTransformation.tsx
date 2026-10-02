@@ -2,10 +2,15 @@ import { useRef, useState, type DragEvent, type FormEvent } from 'react'
 import { createJob } from '../api'
 import { Icon } from '../components/Icon'
 import { Stepper } from '../components/Stepper'
+import { useLanguages } from '../languages'
 import { links, navigate } from '../router'
 
 // Only these file types can be read by the backend
-const ALLOWED = ['.txt', '.pdf', '.docx']
+const DOCUMENTS = ['.txt', '.pdf', '.docx']
+// Stage 8: recordings, turned into text by speech-to-text on this computer
+const RECORDINGS = ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.oga', '.opus', '.flac', '.mp4', '.m4v', '.mov', '.webm']
+const ALLOWED = [...DOCUMENTS, ...RECORDINGS]
+const isRecording = (file: File) => RECORDINGS.some((ext) => file.name.toLowerCase().endsWith(ext))
 
 // New transformation, step 1 of 3: add sources. "Next" reads the sources and runs the safety scan
 // (no AI, a few seconds), then opens step 2, the Safety check.
@@ -15,6 +20,9 @@ export function NewTransformation() {
   const [files, setFiles] = useState<File[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [spoken, setSpoken] = useState('hi') // the language spoken in a recording
+  const languages = useLanguages()
+  const sttLanguages = languages?.languages.filter((l) => l.speech_to_text) ?? []
   const fileInput = useRef<HTMLInputElement>(null)
 
   function addFiles(list: FileList | null) {
@@ -33,7 +41,7 @@ export function NewTransformation() {
         return [...current, ...fresh]
       })
     }
-    setError(skipped > 0 ? `Skipped ${skipped} file(s). Only .txt, .pdf and .docx are supported.` : '')
+    setError(skipped > 0 ? `Skipped ${skipped} file(s). Use .txt, .pdf or .docx files, or a recording (.mp3, .wav, .m4a, .mp4 …).` : '')
   }
 
   // Drag and drop files onto the Source card
@@ -52,6 +60,7 @@ export function NewTransformation() {
     form.append('title', title)
     form.append('text', text)
     files.forEach((file) => form.append('files', file))
+    form.append('audio_language', spoken)
 
     setSubmitting(true)
     setError('')
@@ -112,7 +121,7 @@ export function NewTransformation() {
             />
           </label>
           <div className="field">
-            <span className="field-label">…or add files (.txt, .pdf, .docx)</span>
+            <span className="field-label">…or add files (.txt, .pdf, .docx) or a recording (.mp3, .wav, .m4a, .mp4)</span>
             <div className="row gap-10 wrap">
               <button type="button" className="btn btn-outline" onClick={() => fileInput.current?.click()}>
                 <Icon name="upload" size={18} strokeWidth={2} />
@@ -124,8 +133,8 @@ export function NewTransformation() {
               ref={fileInput}
               type="file"
               multiple
-              accept=".txt,.pdf,.docx"
-              aria-label="Choose source files (.txt, .pdf, .docx)"
+              accept={ALLOWED.join(',')}
+              aria-label="Choose source files (.txt, .pdf, .docx) or recordings"
               hidden
               onChange={(e) => addFiles(e.target.files)}
             />
@@ -133,7 +142,7 @@ export function NewTransformation() {
               <ul className="file-list">
                 {files.map((file, index) => (
                   <li key={`${file.name}-${index}`}>
-                    <Icon name="file" size={18} color="var(--muted)" />
+                    <Icon name={isRecording(file) ? 'volume' : 'file'} size={18} color="var(--muted)" />
                     <span className="grow">{file.name}</span>
                     <span className="chip chip-green chip-xs">Added</span>
                     <span className="muted small">{Math.ceil(file.size / 1024)} KB</span>
@@ -149,6 +158,22 @@ export function NewTransformation() {
                 ))}
               </ul>
             )}
+            {files.some(isRecording) && (
+              <label className="field">
+                <span className="field-label">Language spoken in the recording</span>
+                <select className="input" value={spoken} onChange={(e) => setSpoken(e.target.value)}>
+                  {(sttLanguages.length ? sttLanguages : []).map((l) => (
+                    <option key={l.code} value={l.code}>
+                      {l.native === l.name ? l.name : `${l.native} (${l.name})`}
+                    </option>
+                  ))}
+                </select>
+                <span className="field-help">
+                  The recording is turned into text on this computer (IndicConformer for Hindi and Tamil, Whisper for
+                  English). A 10-minute recording takes a few minutes. The text is then checked like any other source.
+                </span>
+              </label>
+            )}
           </div>
         </section>
 
@@ -161,7 +186,7 @@ export function NewTransformation() {
           </p>
           {error && <div className="alert alert-red">{error}</div>}
           <button type="submit" className="btn btn-lg btn-saffron" disabled={submitting}>
-            {submitting ? 'Checking…' : 'Next: safety check'}
+            {submitting ? (files.some(isRecording) ? 'Turning speech into text…' : 'Checking…') : 'Next: safety check'}
             {!submitting && <Icon name="arrowRight" size={18} strokeWidth={2} />}
           </button>
         </aside>

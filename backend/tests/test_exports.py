@@ -22,6 +22,9 @@ from app import crypto
 from app.config import settings
 from app.db import Job, Output, SessionLocal
 from app.exporters import FORMATS
+
+# Stage 8: an English video package also comes as narration (.mp3): the (mock) voice reads English
+WITH_VOICE = {**FORMATS, "video_package": ["docx", "srt", "mp3", "mp4"]}
 from app.exporters.common import FOOTER, ExportInfo
 from app.exporters.infographic import HEIGHT, WIDTH, write_png
 from app.main import app
@@ -80,7 +83,7 @@ def docx_text(data: bytes) -> str:
 
 
 def test_formats_are_listed_on_each_output(job):
-    assert {o["type"]: o["formats"] for o in job["outputs"]} == FORMATS
+    assert {o["type"]: o["formats"] for o in job["outputs"]} == WITH_VOICE
 
 
 @pytest.mark.parametrize("output_type", ["advisory", "executive_summary", "video_package"])
@@ -183,7 +186,7 @@ def test_campaign_kit_zip(job):
     assert response.headers["content-type"] == "application/zip"
     archive = zipfile.ZipFile(io.BytesIO(response.content))
     assert archive.testzip() is None  # every file in the zip is intact
-    expected = {f"job{job['id']}-{t.replace('_', '-')}.{fmt}" for t, formats in FORMATS.items() for fmt in formats}
+    expected = {f"job{job['id']}-{t.replace('_', '-')}.{fmt}" for t, formats in WITH_VOICE.items() for fmt in formats}
     assert set(archive.namelist()) == expected | {"README.txt"}
     readme = archive.read("README.txt").decode("utf-8")
     check_labels(readme)

@@ -108,6 +108,8 @@ class Source(Base):
     text_path: Mapped[str] = mapped_column(String(500))  # the extracted pages (JSON file under data/)
     pages: Mapped[int]
     chars: Mapped[int]
+    # Stage 8: a recording turned into text: {"transcript": {"model", "language", "seconds"}}
+    detail_json: Mapped[dict | None] = mapped_column(JSON, default=None)
 
     job: Mapped[Job] = relationship(back_populates="sources")
 

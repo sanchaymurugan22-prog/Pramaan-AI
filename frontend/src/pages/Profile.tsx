@@ -7,6 +7,7 @@ import { initials, useAuth } from '../auth'
 import { Icon, type IconName } from '../components/Icon'
 import { Mandala } from '../components/Mandala'
 import { Toggle } from '../components/Toggle'
+import { languageByCode, useLanguages } from '../languages'
 import { FormError, PasswordInput, PasswordStrength } from './auth/AuthLayout'
 
 function CardHead({ icon, tone, title }: { icon: IconName; tone: string; title: string }) {
@@ -49,6 +50,8 @@ export function Profile({ onChanged }: { onChanged: (user: User) => void }) {
   }
 
   const prefs = user.prefs ?? {}
+  const languageInfo = useLanguages()
+  const voice = languageByCode(languageInfo, user.language || 'en')?.voice ?? null
   const outputs = prefs.output_languages ?? [user.language || 'en']
   const name = (code: string) => languages.find((l) => l.code === code)?.name ?? code
   const since = user.created_at ? new Date(user.created_at).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : '—'
@@ -130,7 +133,8 @@ export function Profile({ onChanged }: { onChanged: (user: User) => void }) {
               </label>
               <div className="field">
                 <span className="field-label">Voice for audio</span>
-                <span className="input input-static muted">Indian voices arrive in Stage 8</span>
+                <span className="input input-static">{voice ?? 'No voice for this language on this computer'}</span>
+                <span className="field-help">Offline voices: Hindi, Telugu, Malayalam, Urdu (Piper) and Indian English.</span>
               </div>
             </div>
             <div className="field">
@@ -204,7 +208,12 @@ export function Profile({ onChanged }: { onChanged: (user: User) => void }) {
                 on={Boolean(prefs.high_contrast)}
                 onChange={(on) => save({ prefs: { high_contrast: on } }, on ? 'High contrast on.' : 'High contrast off.')}
               />
-              <Toggle label="Read results aloud" detail="Indian voices, offline: Stage 8" on={false} onChange={() => {}} disabled />
+              <Toggle
+                label="Read results aloud"
+                detail="A “Listen” button on each output, in its own language"
+                on={Boolean(prefs.read_aloud)}
+                onChange={(on) => save({ prefs: { read_aloud: on } }, on ? 'Read aloud on.' : 'Read aloud off.')}
+              />
             </section>
 
             <section className="card card-pad stack gap-14" aria-label="Notifications">

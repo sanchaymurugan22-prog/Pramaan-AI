@@ -4,6 +4,7 @@ PUT  /api/jobs/{id}/outputs/{output_id}                  save the operator's edi
 POST /api/jobs/{id}/outputs/{output_id}/regenerate       write this one output again from the same fact sheet
                                                          (a translation: translate it again from the English)
 POST /api/jobs/{id}/languages                            Stage 8: translate the job into more languages
+GET  /api/jobs/{id}/outputs/{output_id}/listen           Stage 8: the text read aloud (MP3), "Read results aloud"
 GET  /api/jobs/{id}/outputs/{output_id}/versions         every version: number, who made it, score, time
 GET  /api/jobs/{id}/outputs/{output_id}/versions/{n}     one old version's text and checks
 
@@ -32,7 +33,7 @@ from sqlalchemy.orm import Session
 from app import audit
 from app.auth.deps import allow
 from app.db import Job, Output, User, get_session
-from app.exporters import FORMATS, MEDIA_TYPES, ExportedFile, ExportError, export_output, file_name, is_blocked
+from app.exporters import MEDIA_TYPES, formats_for, ExportedFile, ExportError, export_output, file_name, is_blocked
 from app.exporters.kit import build_kit
 from app.pipeline import runner
 from app.pipeline.checks import recheck_job
@@ -167,6 +168,32 @@ def regenerate_output(job_id: int, output_id: int, db: Session = Depends(get_ses
     return job_detail(job)
 
 
+@router.get("/jobs/{job_id}/outputs/{output_id}/listen")
+async def listen(job_id: int, output_id: int, db: Session = Depends(get_session),
+                 user: User = Depends(allow("operator", "reviewer"))):
+    """Stage 8 ("Read results aloud"): the output's text read aloud in its language, as MP3."""
+    from fastapi.concurrency import run_in_threadpool
+
+    from app.lang import audio, tts
+    from app.pipeline.segments import segments
+
+    _, output = _get_output(db, job_id, output_id)
+    if output.status != "done" or not output.content_json:
+        raise HTTPException(409, "This output is not finished yet.")
+    if is_blocked(output):
+        raise HTTPException(409, "Private data was found in this output. Edit it out first.")
+    text = " ".join(s.text for s in segments(output.type, output.content_json)
+                    if s.checked and not s.path[0] in ("hashtags",))[:4000]
+    try:
+        wav, _ = await run_in_threadpool(tts.speak, text, output.language)
+        data = await run_in_threadpool(audio.mp3_from_wav, wav)
+    except tts.TTSError as exc:
+        raise HTTPException(409, str(exc))
+    except audio.AudioError as exc:
+        raise HTTPException(500, str(exc))
+    return Response(data, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
+
+
 @router.get("/jobs/{job_id}/outputs/{output_id}/versions")
 def list_versions(job_id: int, output_id: int, db: Session = Depends(get_session),
                   user: User = Depends(allow("operator", "reviewer"))):
@@ -247,7 +274,7 @@ def kit_info(job_id: int, db: Session = Depends(get_session), user: User = Depen
         if output.status != "done" or not output.content_json:
             continue
         files = []
-        for fmt in FORMATS.get(output.type, []):
+        for fmt in formats_for(output):
             name = file_name(job, output, fmt)
             files.append({"format": fmt, "name": name, "bytes": signed[name]["bytes"] if name in signed else None})
         outputs.append({"output_id": output.id, "type": output.type, "label": _label(output),

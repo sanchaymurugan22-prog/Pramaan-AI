@@ -8,7 +8,8 @@ to the browser.
     advisory, executive_summary  -> .docx and .pdf
     presentation                 -> .pptx
     infographic                  -> .png
-    video_package                -> .srt (subtitles) and .docx (script and storyboard)
+    video_package                -> .srt (subtitles), .docx (script and storyboard), .mp4 (video) and
+                                    .mp3 (narration, when a voice can read the language; Stage 8)
     linkedin_post, x_thread      -> .txt
 """
 
@@ -28,7 +29,7 @@ FORMATS: dict[str, list[str]] = {
     "executive_summary": ["pdf", "docx"],
     "presentation": ["pptx"],
     "infographic": ["png"],
-    "video_package": ["docx", "srt"],
+    "video_package": ["docx", "srt", "mp4"],  # Stage 8: + "mp3" (narration) when the language has a voice
     "linkedin_post": ["txt"],
     "x_thread": ["txt"],
 }
@@ -41,7 +42,20 @@ MEDIA_TYPES = {
     "srt": "application/x-subrip",
     "txt": "text/plain; charset=utf-8",
     "zip": "application/zip",
+    "mp3": "audio/mpeg",
+    "mp4": "video/mp4",
 }
+
+
+def formats_for(output) -> list[str]:
+    """The file types this output can be downloaded as. Stage 8: a video package also comes as narration
+    (.mp3) when a voice can read its language (app/lang/tts.py)."""
+    formats = list(FORMATS.get(output.type, []))
+    if output.type == "video_package":
+        from app.lang import tts
+        if tts.voice_for(output.language) is not None:
+            formats.insert(formats.index("mp4"), "mp3")
+    return formats
 
 
 class ExportError(Exception):
@@ -88,8 +102,11 @@ def export_output(job, output, fmt: str) -> ExportedFile:
     if is_blocked(output):
         raise ExportError("Private data found in this output (see the red warning). Edit the hidden values out, "
                           "then download it.")
-    if fmt not in FORMATS.get(output.type, []):
-        allowed = ", ".join(FORMATS.get(output.type, [])) or "none"
+    if fmt not in formats_for(output):
+        allowed = ", ".join(formats_for(output)) or "none"
+        if fmt == "mp3" and output.type == "video_package":
+            from app.lang import tts
+            raise ExportError(tts.not_available(output.language) + f" It can be downloaded as: {allowed}.")
         raise ExportError(f"A {OUTPUT_TYPES[output.type]['label']} can be downloaded as: {allowed}.")
 
     exported = ExportedFile(file_name(job, output, fmt), render(export_info(job, output), output, fmt))
@@ -126,5 +143,11 @@ def _writer(output_type: str, fmt: str):
     if fmt == "srt":
         from app.exporters.srt import write_srt
         return write_srt
+    if fmt == "mp3":
+        from app.exporters.video import write_mp3
+        return write_mp3
+    if fmt == "mp4":
+        from app.exporters.video import write_mp4
+        return write_mp4
     from app.exporters.text import write_txt
     return write_txt

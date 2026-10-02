@@ -7,7 +7,8 @@ PUT /api/profile     {"language": "hi", "prefs": {...}}  only these; name, emplo
 prefs (all optional):
   text_size        normal | large | xlarge        (the whole app's text size)
   high_contrast    true | false                   (darker text and borders)
-  output_languages ["en", "hi", ...]              (ticked in advance once translation arrives in Stage 8)
+  output_languages ["en", "hi", ...]              (ticked in advance on "Outputs and settings")
+  read_aloud       true | false                   (Stage 8: a "Listen" button on each output)
   notify_ready, notify_sent_back, notify_watch    true | false (in-app notifications; default on)
 
 GET /api/auth/options   (no sign-in) the languages and divisions, for the language and request-access screens
@@ -82,7 +83,7 @@ def clean_prefs(old: dict, new: dict) -> dict:
             if value not in TEXT_SIZES:
                 raise HTTPException(400, "Text size must be normal, large or xlarge.")
             prefs[key] = value
-        elif key == "high_contrast" or key in NOTIFY_KEYS:
+        elif key in ("high_contrast", "read_aloud") or key in NOTIFY_KEYS:
             prefs[key] = bool(value)
         elif key == "output_languages":
             if not isinstance(value, list) or not value or any(v not in accounts.LANGUAGES for v in value):

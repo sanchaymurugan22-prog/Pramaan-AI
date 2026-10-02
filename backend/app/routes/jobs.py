@@ -30,6 +30,7 @@ import copy
 import json
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -37,7 +38,7 @@ from sqlalchemy.orm import Session
 from app import audit
 from app.auth.deps import allow, signed_in
 from app.db import Job, Output, Source, User, as_utc, get_session, utc_now
-from app.exporters import FORMATS
+from app.exporters import formats_for
 from app.pipeline import ingest, runner
 from app.pipeline.checks import CHECKS_VERSION, fact_sheet_check, recheck_job
 from app.pipeline.output_types import DEFAULT_SETTINGS, OUTPUT_ORDER, OUTPUT_TYPES, SETTING_OPTIONS
@@ -75,6 +76,7 @@ async def create_job(
     style: Annotated[str, Form()] = DEFAULT_SETTINGS["style"],
     detail_level: Annotated[str, Form()] = DEFAULT_SETTINGS["detail_level"],
     languages: Annotated[list[str] | None, Form()] = None,
+    audio_language: Annotated[str, Form()] = "hi",  # Stage 8: the language spoken in an uploaded recording
     db: Session = Depends(get_session),
     user: User = Depends(allow("operator")),
 ):
@@ -94,11 +96,13 @@ async def create_job(
             extracted.append(ingest.from_text(text))
         for upload in files or []:
             if upload.filename:
-                extracted.append(ingest.from_file(upload.filename, await upload.read()))
+                # in a worker thread: a recording takes a while to turn into text, and must not stop the server
+                extracted.append(await run_in_threadpool(ingest.from_file, upload.filename, await upload.read(),
+                                                         audio_language))
     except ingest.IngestError as exc:
         raise HTTPException(400, str(exc))
     if not extracted:
-        raise HTTPException(400, "Paste some text or upload a file (.txt, .pdf or .docx).")
+        raise HTTPException(400, "Paste some text or upload a file (.txt, .pdf, .docx, or a recording).")
 
     # --- safety scan and save as a draft ---
     report = _scan(extracted)
@@ -140,7 +144,7 @@ def save_draft(db: Session, extracted: list[ingest.ExtractedSource], title: str,
         key = f"S{number}"
         pages_path = ingest.save_source(job.id, key, source)
         db.add(Source(job=job, source_key=key, filename=source.filename, kind=source.kind, sha256=source.sha256,
-                      text_path=str(pages_path), pages=len(source.pages), chars=source.chars))
+                      text_path=str(pages_path), pages=len(source.pages), chars=source.chars, detail_json=source.detail))
     record(db, job, "scan", scan_summary(report), by=None)
     return job
 
@@ -515,7 +519,8 @@ def job_detail(job: Job) -> dict:
         # Stage 9B: the Reviewers' line comments (every version, oldest first)
         "comments": _comments(job),
         "sources": [
-            {"id": s.source_key, "filename": s.filename, "kind": s.kind, "pages": s.pages, "chars": s.chars, "sha256": s.sha256}
+            {"id": s.source_key, "filename": s.filename, "kind": s.kind, "pages": s.pages, "chars": s.chars, "sha256": s.sha256,
+             "transcript": (s.detail_json or {}).get("transcript")}  # Stage 8: a recording turned into text
             for s in job.sources
         ],
         "fact_sheet": job.fact_sheet.json if job.fact_sheet else None,
@@ -526,7 +531,7 @@ def job_detail(job: Job) -> dict:
                 "id": o.id,
                 "type": o.type,
                 "label": OUTPUT_TYPES[o.type]["label"],
-                "formats": FORMATS.get(o.type, []),  # file types it can be downloaded as
+                "formats": formats_for(o),  # file types it can be downloaded as
                 "language": o.language,
                 "status": o.status,
                 "content": o.content_json,  # always the latest version

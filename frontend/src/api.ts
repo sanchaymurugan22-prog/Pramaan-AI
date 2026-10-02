@@ -11,6 +11,7 @@ export type Prefs = {
   text_size?: 'normal' | 'large' | 'xlarge'
   high_contrast?: boolean
   output_languages?: string[]
+  read_aloud?: boolean // Stage 8: a "Listen" button on each output
   notify_ready?: boolean
   notify_sent_back?: boolean
   notify_watch?: boolean
@@ -366,7 +367,15 @@ export type JobDetail = JobSummary & {
   comments: ReviewComment[] // Stage 9B: the Reviewers' line comments, every version
   quality_score: number | null
   consistency: Consistency | null
-  sources: { id: string; filename: string; kind: string; pages: number; chars: number; sha256: string }[]
+  sources: {
+    id: string
+    filename: string
+    kind: string // text | txt | pdf | docx | audio (Stage 8)
+    pages: number
+    chars: number
+    sha256: string
+    transcript: { model: string; language: string; seconds: number } | null // a recording turned into text
+  }[]
   fact_sheet: FactSheet | null
   // How many fact sheet quotes were found in the source; ok = false -> "Do not publish" banner
   fact_sheet_check: { ok: boolean; found: number; total: number } | null
@@ -474,6 +483,10 @@ export const setNativeCheck = (jobId: number, outputId: number, checked: boolean
 // ---- downloads (real files made from finished outputs; plain links, the browser saves them) ----
 
 // inline=true asks the browser to show the file instead of saving it (used for the infographic preview)
+// Stage 8: an output's text read aloud (MP3), for "Read results aloud"
+export const listenUrl = (jobId: number, outputId: number, version: number) =>
+  `/api/jobs/${jobId}/outputs/${outputId}/listen?v=${version}`
+
 export const downloadUrl = (jobId: number, outputId: number, format: string, inline = false) =>
   `/api/jobs/${jobId}/outputs/${outputId}/download?format=${format}${inline ? '&inline=true' : ''}`
 

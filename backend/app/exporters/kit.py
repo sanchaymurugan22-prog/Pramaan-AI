@@ -10,7 +10,7 @@ import io
 import zipfile
 
 from app import crypto
-from app.exporters import FORMATS, ExportedFile, ExportError, export_info, export_output, exports_dir, is_blocked
+from app.exporters import ExportedFile, formats_for, ExportError, export_info, export_output, exports_dir, is_blocked
 from app.exporters.common import FOOTER
 
 
@@ -24,7 +24,7 @@ def build_kit(job, only: set[str] | None = None) -> ExportedFile:
             raise ExportError("Every finished output has private data in it (see the red warnings), so the kit is empty.")
         raise ExportError("No outputs are finished yet, so there is nothing to put in the kit.")
 
-    files = [export_output(job, output, fmt) for output in finished for fmt in FORMATS[output.type]]
+    files = [export_output(job, output, fmt) for output in finished for fmt in formats_for(output)]
     info = export_info(job, finished[0])
 
     lines = [

@@ -39,6 +39,7 @@ MATRIX = [
     ("POST", "/api/jobs/{job}/languages", {OP}, {"languages": []}),  # Stage 8
     ("POST", "/api/jobs/{job}/outputs/{output}/native-check", {RV}, {"checked": True}),
     ("GET", "/api/jobs/{job}/outputs/{output}/versions", {OP, RV}, None),
+    ("GET", "/api/jobs/{job}/outputs/{output}/listen", {OP, RV}, None),  # Stage 8
     ("GET", "/api/jobs/{job}/outputs/{output}/versions/1", {OP, RV}, None),
     ("GET", "/api/jobs/{job}/outputs/{output}/download?format=txt", {OP, RV}, None),
     ("GET", "/api/jobs/{job}/kit.zip", {OP, RV}, None),
