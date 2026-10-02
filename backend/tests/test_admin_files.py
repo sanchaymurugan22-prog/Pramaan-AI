@@ -69,6 +69,8 @@ def test_letterhead_on_every_file_and_as_issuer():
         assert poster.getpixel((90, 43)) == (30, 47, 143)  # inside the logo, top left
         text = operator.get(f"{base}/{files['linkedin_post']}/download?format=txt").text
         assert text.startswith("CERT-Test Regional Office · LinkedIn post")
+        # v1.2: the previews of the posts (Results, Review) show the office as the author
+        assert operator.get(f"/api/jobs/{job['id']}").json()["office_name"] == "CERT-Test Regional Office"
 
         # signing says who issued it
         operator.post(f"/api/jobs/{job['id']}/submit", json={})

@@ -357,6 +357,7 @@ export type PublicProblem = { kind: string; label: string; text: string; where?:
 export type PublicCheck = { ok: boolean; problems: PublicProblem[] }
 
 export type JobDetail = JobSummary & {
+  office_name: string // v1.2: the letterhead's office name (shown as the author of the social post previews)
   record: JobRecord | null
   reviews: ReviewEvent[] // oldest first
   safety: SafetyReport | null // null for jobs made before Stage 6A

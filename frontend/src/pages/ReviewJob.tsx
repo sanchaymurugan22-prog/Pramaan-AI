@@ -323,12 +323,12 @@ export function ReviewJob({ jobId }: { jobId: number }) {
                 <div lang="en">
                   <span className="section-label">{t("English (v{version})", { version: english.version })}</span>
                   <OutputBody type={english.type} content={english.content}
-                              meta={{ title: job.title, tlp: job.tlp, recordNo: null, audience: job.settings?.audience ?? '', quality: english.quality }} />
+                              meta={{ title: job.title, tlp: job.tlp, recordNo: null, audience: job.settings?.audience ?? '', quality: english.quality, office: job.office_name }} />
                 </div>
                 <div lang={active.language} dir={activeLang?.rtl ? 'rtl' : undefined}>
                   <span className="section-label">{activeLang?.native ?? active.language}</span>
                   <OutputBody type={active.type} content={active.content}
-                              meta={{ title: job.title, tlp: job.tlp, recordNo: null, audience: job.settings?.audience ?? '', quality: active.quality }} />
+                              meta={{ title: job.title, tlp: job.tlp, recordNo: null, audience: job.settings?.audience ?? '', quality: active.quality, office: job.office_name }} />
                 </div>
               </div>
             ) : active.content ? (
@@ -336,7 +336,7 @@ export function ReviewJob({ jobId }: { jobId: number }) {
                 <OutputBody
                   type={active.type}
                   content={active.content}
-                  meta={{ title: job.title, tlp: job.tlp, recordNo: null, audience: job.settings?.audience ?? '', quality: active.quality }}
+                  meta={{ title: job.title, tlp: job.tlp, recordNo: null, audience: job.settings?.audience ?? '', quality: active.quality, office: job.office_name }}
                 />
               </div>
             ) : (

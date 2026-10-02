@@ -52,6 +52,7 @@ export type ViewMeta = {
   recordNo: string | null // once signed
   audience: string
   quality: Quality | null // checks of the version on screen
+  office: string // v1.2: the letterhead's office name (Admin, Letterhead), shown as the author of the posts
 }
 
 const list = <T,>(value: T[] | undefined): T[] => value ?? []
@@ -104,27 +105,27 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 
 // ---- Social posts (design 16) ------------------------------------------------------------------
 
-function PostAuthor({ detail }: { detail: string }) {
+function PostAuthor({ office, detail }: { office: string; detail: string }) {
   return (
     <div className="post-author">
       <span className="post-avatar" aria-hidden="true">
         <LogoSeal size={36} />
       </span>
       <span className="stack">
-        <strong>{t("[ORGANISATION NAME]")}</strong>
+        <strong>{office}</strong>
         <span className="muted small">{detail}</span>
       </span>
     </div>
   )
 }
 
-function LinkedInView({ c }: { c: LinkedInPost }) {
+function LinkedInView({ c, meta }: { c: LinkedInPost; meta: ViewMeta }) {
   const tags = list(c.hashtags).map((t) => `#${t}`).join(' ')
   const text = [...list(c.paragraphs).map((p) => p.text), tags].filter(Boolean).join('\n\n')
   return (
     <div className="stack gap-12">
       <article className="post-card" aria-label={t("LinkedIn post preview")}>
-        <PostAuthor detail={t("Official page · just now")} />
+        <PostAuthor office={meta.office} detail={t("Official page · just now")} />
         <div className="stack gap-10">
           {list(c.paragraphs).map((p, i) => (
             <G key={i} item={p} path={['paragraphs', i]} />
@@ -142,7 +143,7 @@ function LinkedInView({ c }: { c: LinkedInPost }) {
   )
 }
 
-function XThreadView({ c }: { c: XThread }) {
+function XThreadView({ c, meta }: { c: XThread; meta: ViewMeta }) {
   const tweets = list(c.tweets)
   const over = tweets.filter((t) => t.text.length > 280).length
   return (
@@ -155,7 +156,7 @@ function XThreadView({ c }: { c: XThread }) {
             </span>
             <div className="stack gap-4 grow">
               <div className="row gap-8 wrap">
-                <strong>{t("[ORGANISATION NAME]")}</strong>
+                <strong>{meta.office}</strong>
                 <span className="mono muted small">
                   {i + 1}/{tweets.length}
                 </span>
@@ -192,7 +193,7 @@ function ExecutiveSummaryView({ c, meta }: { c: ExecutiveSummary; meta: ViewMeta
       <article className="doc-sheet" aria-label={t("Executive summary preview")}>
         <div className="doc-head">
           <LogoSeal size={36} />
-          <span className="muted small grow">{t("[ORGANISATION NAME] · Executive briefing")}</span>
+          <span className="muted small grow">{t("{office} · Executive briefing", { office: meta.office })}</span>
           {meta.tlp && <TlpLabel tlp={meta.tlp} />}
         </div>
         <div className="doc-rule" aria-hidden="true">
@@ -614,9 +615,9 @@ export function OutputBody({ type, content, meta }: { type: string; content: Rec
     case 'sms':
       return <SmsView c={content as { message?: { text: string } }} />
     case 'x_thread':
-      return <XThreadView c={content as XThread} />
+      return <XThreadView c={content as XThread} meta={meta} />
     case 'linkedin_post':
-      return <LinkedInView c={content as LinkedInPost} />
+      return <LinkedInView c={content as LinkedInPost} meta={meta} />
     case 'executive_summary':
       return <ExecutiveSummaryView c={content as ExecutiveSummary} meta={meta} />
     case 'infographic':

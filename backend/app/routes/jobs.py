@@ -500,8 +500,11 @@ def _comments(job: Job) -> list[dict]:
 
 
 def job_detail(job: Job) -> dict:
+    from app import branding  # here: branding reads the app settings from the database
     return {
         **job_summary(job),
+        # v1.2: the letterhead's office name (Admin, Letterhead), for the previews of the social posts
+        "office_name": branding.office_name(),
         # Stage 7: the latest signed record of this job (None until approved)
         "record": record_summary(job),
         # Stage 6B: submitted, approved, sent back (with the reviewer's notes), oldest first

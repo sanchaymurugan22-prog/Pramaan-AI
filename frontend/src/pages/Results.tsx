@@ -220,6 +220,7 @@ export function Results({ jobId }: { jobId: number }) {
     recordNo: job.record?.current ? job.record.record_no : null,
     audience: job.settings?.audience ?? '',
     quality: viewing[output.id]?.quality ?? output.quality,
+    office: job.office_name,
   })
 
   return (
