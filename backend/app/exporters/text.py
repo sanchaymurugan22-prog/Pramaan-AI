@@ -31,13 +31,15 @@ def post_text(info: ExportInfo, content: dict) -> str:
 
     header = [
         f"{info.office_name} · {info.output_label}",
-        f"Job #{info.job_id}: {info.job_title}",
-        f"Prepared: {info.date}",
+        f"{info.job_label}: {info.job_title}",
+        info.label("Prepared: {date}", date=info.date),
     ]
     if info.tlp_label:
-        header.append(f"Sharing label: {info.tlp_label}")
+        header.append(info.label("Sharing label: {tlp}", tlp=info.tlp_label))
     if info.signed:
-        footer = [info.footer, f"Check it is genuine: {info.verify_url}"]
-    else:
+        footer = [info.footer, info.label("Check it is genuine: {url}", url=info.verify_url)]
+    elif info.language == "en":
         footer = [info.footer, "[QR code / verification link: added when signed]"]
+    else:
+        footer = [info.footer, f"[{' '.join(info.qr_placeholder)}]"]
     return "\n".join([*header, RULE, body, RULE, *footer]) + "\n"

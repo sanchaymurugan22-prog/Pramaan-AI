@@ -69,3 +69,30 @@ def sms_parts(text: str) -> int:
     single, multi = (70, 67) if ucs2 else (160, 153)
     n = len(text)
     return 1 if n <= single else -(-n // multi)
+
+
+# Unicode blocks of the scripts, to spot a word the translator wrote in the wrong script
+_SCRIPT_RANGES = {
+    "Deva": [(0x0900, 0x097F), (0xA8E0, 0xA8FF)], "Beng": [(0x0980, 0x09FF)], "Guru": [(0x0A00, 0x0A7F)],
+    "Gujr": [(0x0A80, 0x0AFF)], "Orya": [(0x0B00, 0x0B7F)], "Taml": [(0x0B80, 0x0BFF)], "Telu": [(0x0C00, 0x0C7F)],
+    "Knda": [(0x0C80, 0x0CFF)], "Mlym": [(0x0D00, 0x0D7F)], "Olck": [(0x1C50, 0x1C7F)], "Mtei": [(0xABC0, 0xABFF)],
+    "Arab": [(0x0600, 0x06FF), (0x0750, 0x077F), (0xFB50, 0xFDFF), (0xFE70, 0xFEFF)],
+}
+
+
+def script_of_letter(ch: str) -> str | None:
+    if ch.isascii():
+        return "Latn" if ch.isalpha() else None
+    cp = ord(ch)
+    return next((name for name, ranges in _SCRIPT_RANGES.items() if any(a <= cp <= b for a, b in ranges)), None)
+
+
+def foreign_scripts(text: str, language: str) -> set[str]:
+    """Scripts other than the language's own (and Latin, for names and codes) used for letters in `text`.
+    Bengali and Assamese share one script; Santali may also be written with Latin letters."""
+    import unicodedata
+    own = get(language).script
+    # letters and vowel signs only: the danda "।" is in the Devanagari block but Bengali, Odia and Punjabi use it
+    found = {script_of_letter(c) for c in text if unicodedata.category(c)[0] in "LM"}
+    return {s for s in found if s and s not in (own, "Latn")}
+

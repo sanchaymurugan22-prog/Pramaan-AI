@@ -34,6 +34,8 @@ onnxruntime==1.23.2      # IndicConformer and Whisper (speech to text)
 onnx-asr==0.12.0
 numpy==2.5.3
 imageio-ffmpeg==0.6.0    # ffmpeg inside a wheel: audio files, MP3 and MP4 (no Homebrew)
+uharfbuzz==0.56.2        # shaping Indian scripts in PDF (ReportLab) and PNG files
+freetype-py==2.5.1       # drawing shaped glyphs into PNG files (Pillow cannot shape without libraqm)
 # only to prepare models once (scripts/convert-indictrans2.py, scripts/convert-piper-voice.py)
 safetensors==0.8.0
 onnx==1.23.1

@@ -18,7 +18,9 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 from app.exporters.common import TLP_TEXT_COLOURS, ExportInfo, rgb, text_of, texts
-from app.exporters.fonts import font_file
+from app.exporters.fonts import font_chain, font_file, needs_shaping
+from app.exporters.shaped import ShapedDraw, ShapedFont
+from app.lang import languages
 
 WIDTH, HEIGHT = 1080, 1350
 PAD = 72
@@ -42,7 +44,7 @@ def write_png(info: ExportInfo, content: dict, path: Path) -> Path:
 
 def _draw(info: ExportInfo, c: dict, scale: float) -> tuple[Image.Image, int]:
     image = Image.new("RGB", (WIDTH, HEIGHT), rgb("card"))
-    draw = ImageDraw.Draw(image)
+    draw = ShapedDraw(ImageDraw.Draw(image), image)  # Stage 8: Indian scripts are shaped (shaped.py)
     lang = info.language
     s = lambda size: max(10, round(size * scale))  # noqa: E731  (scale a font size)
 
@@ -53,7 +55,7 @@ def _draw(info: ExportInfo, c: dict, scale: float) -> tuple[Image.Image, int]:
 
     _letterhead(image, draw, info)
     y = 70
-    y = _pill(draw, PAD, y, "Public alert", _font("heading", "semibold", 24, lang), "red", "red_light") + round(28 * scale)
+    y = _pill(draw, PAD, y, info.label("Public alert"), _font("heading", "semibold", 24, lang), "red", "red_light") + round(28 * scale)
 
     y = _paragraph(draw, c.get("headline", ""), PAD, y, INNER, _font("heading", "bold", s(76), lang), "navy", s(80), max_lines=3)
     y += round(22 * scale)
@@ -72,7 +74,7 @@ def _draw(info: ExportInfo, c: dict, scale: float) -> tuple[Image.Image, int]:
         y = _number_row(draw, numbers, y, scale, lang)
     if steps:
         y += round(34 * scale)
-        heading = f"Do these {len(steps)} things now" if len(steps) > 1 else "Do this now"
+        heading = info.label("Do these {n} things now", n=len(steps)) if len(steps) > 1 else info.label("Do this now")
         y = _paragraph(draw, heading, PAD, y, INNER, _font("heading", "semibold", s(42), lang), "ink", s(50)) + round(18 * scale)
         if layout == "timeline":
             y = _timeline(draw, steps, y, scale, lang)
@@ -136,11 +138,13 @@ def _step_rows(draw, steps: list[str], y: int, scale: float, lang: str) -> int:
         lines = _wrap(draw, step, font, INNER - 3 * radius - 40)[:2]
         row_h = max(2 * radius + round(26 * scale), len(lines) * line_h + round(30 * scale))
         draw.rounded_rectangle((PAD, y, PAD + INNER, y + row_h), radius=18, fill=rgb(background))
-        cx, cy = PAD + 20 + radius, y + row_h // 2
+        rtl = _rtl(lang)  # right to left (Urdu ...): the number on the right, the text ending next to it
+        cx, cy = (PAD + INNER - 20 - radius if rtl else PAD + 20 + radius), y + row_h // 2
         _numbered_circle(draw, cx, cy, radius, index + 1, colour, lang)
         text_y = cy - len(lines) * line_h // 2
         for line in lines:
-            draw.text((cx + radius + 22, text_y), line, font=font, fill=rgb("ink"))
+            x = cx - radius - 22 - draw.textlength(line, font=font) if rtl else cx + radius + 22
+            draw.text((x, text_y), line, font=font, fill=rgb("ink"))
             text_y += line_h
         y += row_h + round(14 * scale)
     return y - round(14 * scale)
@@ -152,17 +156,23 @@ def _timeline(draw, steps: list[str], y: int, scale: float, lang: str) -> int:
     label_font = _font("heading", "semibold", round(22 * scale), lang)
     line_h = round(40 * scale)
     radius = round(26 * scale)
-    x_line = PAD + radius
+    rtl = _rtl(lang)  # right to left: the line on the right
+    x_line = PAD + INNER - radius if rtl else PAD + radius
     top = y
     centres = []
+
+    def at(text, font):  # where a line of text starts: after the line, or (right to left) ending before it
+        return x_line - radius - 24 - draw.textlength(text, font=font) if rtl else x_line + radius + 24
+
     for index, step in enumerate(steps):
         lines = _wrap(draw, step, font, INNER - 2 * radius - 40)[:2]
         colour = STEP_COLOURS[index % 3][0]
         centres.append((y + radius, index + 1, colour))
-        draw.text((x_line + radius + 24, y - round(4 * scale)), f"STEP {index + 1}", font=label_font, fill=rgb(colour))
+        label = info_label(lang, "Step {n}", n=index + 1).upper()
+        draw.text((at(label, label_font), y - round(4 * scale)), label, font=label_font, fill=rgb(colour))
         text_y = y + round(26 * scale)
         for line in lines:
-            draw.text((x_line + radius + 24, text_y), line, font=font, fill=rgb("ink"))
+            draw.text((at(line, font), text_y), line, font=font, fill=rgb("ink"))
             text_y += line_h
         y = max(text_y, y + 2 * radius) + round(22 * scale)
     draw.line((x_line, top + radius, x_line, centres[-1][0]), fill=rgb("line_2"), width=6)
@@ -193,22 +203,33 @@ def _footer(image, draw, info: ExportInfo) -> None:
     else:  # QR code placeholder until signed
         _dashed_rect(draw, box, rgb("line_2"))
         small = _font("heading", "semibold", 20, lang)
-        draw.text(((box[0] + box[2]) // 2, (box[1] + box[3]) // 2 - 12), "QR code", font=small, fill=rgb("muted"), anchor="mm")
-        draw.text(((box[0] + box[2]) // 2, (box[1] + box[3]) // 2 + 14), "when signed", font=_font("body", "regular", 18, lang),
-                  fill=rgb("muted"), anchor="mm")
+        first, second = info.qr_placeholder if lang != "en" else ("QR code", "when signed")
+        room = box[2] - box[0] - 10  # translated words are often longer: shrink them to fit the box
+        draw.text(((box[0] + box[2]) // 2, (box[1] + box[3]) // 2 - 12), first,
+                  font=_fit_font(draw, first, "heading", "semibold", 20, room, lang, smallest=11), fill=rgb("muted"), anchor="mm")
+        draw.text(((box[0] + box[2]) // 2, (box[1] + box[3]) // 2 + 14), second,
+                  font=_fit_font(draw, second, "body", "regular", 18, room, lang, smallest=10), fill=rgb("muted"), anchor="mm")
 
     x = box[2] + 28
     text_width = PAD + INNER - x
-    draw.text((x, FOOTER_TOP + 34), "Scan to check this is genuine.", font=_font("body", "medium", 26, lang), fill=rgb("ink"))
-    draw.text((x, FOOTER_TOP + 70), info.footer, font=_font("heading", "semibold", 24, lang), fill=rgb("saffron_dark"))
-    job_line = _shorten(draw, f"Job #{info.job_id} · {info.job_title}", _font("body", "regular", 22, lang), text_width)
-    draw.text((x, FOOTER_TOP + 106), job_line, font=_font("body", "regular", 22, lang), fill=rgb("muted"))
+    rtl = _rtl(lang)
+
+    def line(y, text, font, colour):  # one footer line: from the left, or (right to left) ending at the right edge
+        draw.text((PAD + INNER - draw.textlength(text, font=font) if rtl else x, y), text, font=font, fill=rgb(colour))
+
+    scan = info.label("Scan to check this is genuine.")
+    line(FOOTER_TOP + 34, scan, _fit_font(draw, scan, "body", "medium", 26, text_width, lang, smallest=16), "ink")
+    line(FOOTER_TOP + 70, info.footer, _fit_font(draw, info.footer, "heading", "semibold", 24, text_width, lang, smallest=15),
+         "saffron_dark")
+    job_line = _shorten(draw, f"{info.job_label} · {info.job_title}", _font("body", "regular", 22, lang), text_width)
+    line(FOOTER_TOP + 106, job_line, _font("body", "regular", 22, lang), "muted")
     date_font = _font("body", "regular", 22, lang)
-    draw.text((x, FOOTER_TOP + 134), info.date, font=date_font, fill=rgb("muted"))
+    line(FOOTER_TOP + 134, info.date, date_font, "muted")
     if info.tlp_label:
         label_font = _font("heading", "semibold", 22, lang)
         width = draw.textlength(info.tlp_label, font=label_font) + 24
-        left = x + draw.textlength(info.date, font=date_font) + 20
+        date_width = draw.textlength(info.date, font=date_font)
+        left = PAD + INNER - date_width - 20 - width if rtl else x + date_width + 20
         draw.rounded_rectangle((left, FOOTER_TOP + 132, left + width, FOOTER_TOP + 164), radius=6, fill=rgb("black"))
         draw.text((left + 12, FOOTER_TOP + 148), info.tlp_label, font=label_font,
                   fill=rgb(TLP_TEXT_COLOURS.get(info.tlp, "FFFFFF")), anchor="lm")
@@ -217,15 +238,27 @@ def _footer(image, draw, info: ExportInfo) -> None:
 # ---- drawing helpers ----------------------------------------------------------------------
 
 
+def _rtl(language: str) -> bool:
+    return languages.get(language).rtl
+
+
+def info_label(language: str, text: str, **values) -> str:
+    from app.lang.labels import L
+    return L(text, language, **values)
+
+
 @cache
-def _font(role: str, weight: str, size: int, language: str = "en") -> ImageFont.FreeTypeFont:
+def _font(role: str, weight: str, size: int, language: str = "en") -> ImageFont.FreeTypeFont | ShapedFont:
+    if needs_shaping(language):  # Indian scripts: the script's Noto font, then Hind / Poppins for Latin and digits
+        return ShapedFont(font_chain(role, weight, language), size, rtl=languages.get(language).rtl)
     return ImageFont.truetype(str(font_file(role, weight, language)), size)
 
 
-def _fit_font(draw, text: str, role: str, weight: str, size: int, max_width: int, lang: str):
-    """The biggest font (up to size) that fits the text on one line."""
-    while size > 20 and draw.textlength(text, font=_font(role, weight, size, lang)) > max_width:
-        size -= 4
+def _fit_font(draw, text: str, role: str, weight: str, size: int, max_width: int, lang: str, smallest: int = 20):
+    """The biggest font (up to size, down to smallest) that fits the text on one line."""
+    step = 4 if size > 30 else 1
+    while size > smallest and draw.textlength(text, font=_font(role, weight, size, lang)) > max_width:
+        size -= step
     return _font(role, weight, size, lang)
 
 
@@ -265,7 +298,9 @@ def _paragraph(draw, text: str, x: int, y: int, width: int, font, colour: str, l
         lines = lines[:max_lines]
         lines[-1] = _shorten(draw, lines[-1] + " …", font, width)
     for line in lines:
-        draw.text((x, y), line, font=font, fill=rgb(colour))
+        # right-to-left languages (Urdu, Kashmiri, Sindhi) start at the right edge
+        left = x + width - draw.textlength(line, font=font) if getattr(font, "rtl", False) else x
+        draw.text((left, y), line, font=font, fill=rgb(colour))
         y += line_height
     return y
 

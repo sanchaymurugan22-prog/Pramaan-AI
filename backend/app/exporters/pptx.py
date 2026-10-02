@@ -5,10 +5,8 @@ have an empty box for the QR code (added in Stage 7). Opens in PowerPoint, Keyno
 """
 
 import io
-from functools import cache
 from pathlib import Path
 
-from PIL import ImageFont
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.enum.dml import MSO_LINE_DASH_STYLE
@@ -18,8 +16,9 @@ from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from pptx.oxml.ns import qn
 from pptx.util import Inches, Pt
 
-from app.exporters.common import PALETTE, QR_PLACEHOLDER, TLP_TEXT_COLOURS, ExportInfo, texts
-from app.exporters.fonts import family, font_file
+from app.exporters.common import PALETTE, TLP_TEXT_COLOURS, ExportInfo, texts
+from app.exporters.fonts import family, latin_family, text_width
+from app.lang import languages
 
 WIDTH, HEIGHT = Inches(13.333), Inches(7.5)  # 16:9
 LEFT = Inches(0.8)
@@ -81,7 +80,7 @@ def _new_slide(deck, info: ExportInfo, number: int, total: int, notes: str):
 def footer_text(info: ExportInfo, number: int, total: int) -> str:
     """'Job #12 · Hospital ransomware · 30 Sep 2026 · 3/6'. A long job title is shortened with '…' so the
     whole footer fits on one line; the date and slide number are always shown in full."""
-    start, end = f"Job #{info.job_id} · ", f" · {info.date} · {number}/{total}"
+    start, end = f"{info.job_label} · ", f" · {info.date} · {number}/{total}"
     title = info.job_title.strip()
     text = f"{start}{title}{end}"
     while title and footer_width(text, info.language) > FOOTER_TEXT_POINTS:
@@ -92,18 +91,14 @@ def footer_text(info: ExportInfo, number: int, total: int) -> str:
 
 
 def footer_width(text: str, language: str = "en") -> float:
-    """Width of footer text in points, measured with the bundled body font (Hind)."""
-    return _body_font(language).getlength(text) * FOOTER_SIZE / 1000
-
-
-@cache
-def _body_font(language: str):
-    return ImageFont.truetype(str(font_file("body", "regular", language)), size=1000)
+    """Width of footer text in points, measured with the bundled body font (Indian scripts shaped, fonts.py)."""
+    return text_width(text, FOOTER_SIZE, "body", "regular", language)
 
 
 def _title_slide(deck, info: ExportInfo, title: str, count: int, total: int) -> None:
-    notes = (f"Introduce the briefing: {title}. It is based on '{info.job_title}' and has {count} content slides. "
-             f"This deck is AI-assisted and pending human approval until a reviewer signs it.")
+    notes = info.label("Introduce the briefing: {title}. It is based on '{job_title}' and has {count} content slides. "
+                       "This deck is AI-assisted and pending human approval until a reviewer signs it.",
+                       title=title, job_title=info.job_title, count=count)
     slide = _new_slide(deck, info, 1, total, notes)
     # Stage 9B letterhead: the office's logo and name above the title
     x = LEFT
@@ -111,19 +106,21 @@ def _title_slide(deck, info: ExportInfo, title: str, count: int, total: int) -> 
         picture = slide.shapes.add_picture(io.BytesIO(info.logo_png), LEFT, Inches(0.9), height=Inches(0.7))
         x = LEFT + picture.width + Inches(0.2)
     _text(slide, x, Inches(1.0), Inches(8), Inches(0.5), info.office_name, "heading", 16, info, colour="navy", bold=True)
-    _text(slide, LEFT, Inches(1.9), Inches(9), Inches(0.4), f"PRESENTATION · JOB #{info.job_id}", "heading", 14, info,
+    _text(slide, LEFT, Inches(1.9), Inches(9), Inches(0.4), info.label("Presentation · Job #{job_id}", job_id=info.job_id).upper(),
+          "heading", 14, info,
           colour="saffron_dark", bold=True)
     _text(slide, LEFT, Inches(2.4), Inches(9.2), Inches(2.2), title, "heading", 40 if len(title) < 50 else 32, info,
           colour="navy", bold=True, anchor=MSO_ANCHOR.TOP)
     _rect(slide, LEFT, Inches(4.75), Inches(1.2), Inches(0.08), "saffron")
     _rect(slide, LEFT + Inches(1.2), Inches(4.75), Inches(1.2), Inches(0.08), "green")
-    _text(slide, LEFT, Inches(5.0), Inches(9), Inches(0.9), f"{info.job_title}\nPrepared {info.date}", "body", 18, info,
+    _text(slide, LEFT, Inches(5.0), Inches(9), Inches(0.9), f"{info.job_title}\n{info.label('Prepared {date}', date=info.date)}",
+          "body", 18, info,
           colour="muted")
     _qr_placeholder(slide, info, WIDTH - LEFT - Inches(2.1), Inches(2.5), Inches(2.1))
 
 
 def _content_slide(deck, info: ExportInfo, content: dict, number: int, total: int) -> None:
-    notes = content.get("speaker_notes") or "No speaker notes were written for this slide."
+    notes = content.get("speaker_notes") or info.label("No speaker notes were written for this slide.")
     slide = _new_slide(deck, info, number, total, notes)
     title = content.get("title", "")
     _text(slide, LEFT, Inches(0.75), CONTENT_WIDTH - Inches(1.8), Inches(1.2), title, "heading",
@@ -144,15 +141,15 @@ def _content_slide(deck, info: ExportInfo, content: dict, number: int, total: in
 
 
 def _closing_slide(deck, info: ExportInfo, title: str, total: int) -> None:
-    notes = ("Thank the audience and invite questions. Remind them that this deck is AI-assisted and pending human "
-             "approval: once signed, the QR code on this slide lets anyone check it is genuine.")
+    notes = info.label("Thank the audience and invite questions. Remind them that this deck is AI-assisted and pending "
+                       "human approval: once signed, the QR code on this slide lets anyone check it is genuine.")
     slide = _new_slide(deck, info, total, total, notes)
-    _text(slide, LEFT, Inches(2.2), Inches(9), Inches(1.2), "Thank you", "heading", 48, info, colour="navy", bold=True)
-    _text(slide, LEFT, Inches(3.4), Inches(9), Inches(0.6), "Questions and discussion", "heading", 24, info,
+    _text(slide, LEFT, Inches(2.2), Inches(9), Inches(1.2), info.label("Thank you"), "heading", 48, info, colour="navy", bold=True)
+    _text(slide, LEFT, Inches(3.4), Inches(9), Inches(0.6), info.label("Questions and discussion"), "heading", 24, info,
           colour="saffron_dark")
-    _text(slide, LEFT, Inches(4.3), Inches(9), Inches(1.2),
-          f"{title}\nScan the QR code to check this deck is genuine" + ("." if info.signed else " (added when signed)."),
-          "body", 16, info, colour="muted")
+    scan = ("Scan the QR code to check this deck is genuine." if info.signed
+            else "Scan the QR code to check this deck is genuine (added when signed).")
+    _text(slide, LEFT, Inches(4.3), Inches(9), Inches(1.2), f"{title}\n{info.label(scan)}", "body", 16, info, colour="muted")
     _qr_placeholder(slide, info, WIDTH - LEFT - Inches(2.1), Inches(2.3), Inches(2.1))
 
 
@@ -187,7 +184,7 @@ def _qr_placeholder(slide, info: ExportInfo, left, top, size) -> None:
     box.line.dash_style = MSO_LINE_DASH_STYLE.DASH
     frame = box.text_frame
     frame.vertical_anchor = MSO_ANCHOR.MIDDLE
-    first, second = QR_PLACEHOLDER.split("\n")
+    first, second = info.qr_placeholder
     _write(frame, first, "heading", 14, info, colour="muted", bold=True, align=PP_ALIGN.CENTER)
     paragraph = frame.add_paragraph()
     paragraph.alignment = PP_ALIGN.CENTER
@@ -235,16 +232,20 @@ def _add_run(paragraph, text: str, role: str, size: float, info: ExportInfo, col
     run = paragraph.add_run()
     run.text = text
     font = run.font
-    font.name = family(role, info.language)
+    font.name = latin_family(role)  # Latin letters and digits
     font.size = Pt(size)
     font.bold = bold
     font.color.rgb = _colour(colour)
-    # The same font for Indian scripts ("cs" = complex script), so Stage 8 languages use it too.
+    # Indian scripts ("cs" = complex script) use the script's Noto font (Stage 8)
     rpr = run._r.get_or_add_rPr()
-    for tag in ("a:ea", "a:cs"):
+    for tag, typeface in (("a:ea", font.name), ("a:cs", family(role, info.language))):
         element = rpr.find(qn(tag))
         if element is None:
             element = rpr.makeelement(qn(tag), {})
             rpr.insert_element_before(element, "a:sym", "a:hlinkClick", "a:hlinkMouseOver", "a:rtl", "a:extLst")
-        element.set("typeface", font.name)
+        element.set("typeface", typeface)
+    if languages.get(info.language).rtl:  # Urdu, Kashmiri, Sindhi: the paragraph reads right to left
+        paragraph._p.get_or_add_pPr().set("rtl", "1")
+        if paragraph.alignment in (None, PP_ALIGN.LEFT):
+            paragraph.alignment = PP_ALIGN.RIGHT
     return run

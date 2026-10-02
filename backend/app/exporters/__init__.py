@@ -19,6 +19,7 @@ from pathlib import Path
 from app import crypto
 from app.config import settings
 from app.exporters.common import ExportInfo, format_date
+from app.lang.labels import L
 from app.pipeline.output_types import OUTPUT_TYPES
 
 # Formats each output type can be downloaded as (the first is the main one).
@@ -66,10 +67,10 @@ def export_info(job, output) -> ExportInfo:
         logo_png=branding.logo_png(),
         job_id=job.id,
         job_title=job.title,
-        date=format_date(job.created_at),
+        date=format_date(job.created_at, output.language),
         tlp=job.tlp,
         output_type=output.type,
-        output_label=OUTPUT_TYPES[output.type]["label"],
+        output_label=L(OUTPUT_TYPES[output.type]["label"], output.language),
         language=output.language,
     )
 

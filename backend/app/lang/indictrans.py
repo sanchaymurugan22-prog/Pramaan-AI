@@ -175,8 +175,17 @@ def ascii_digits(text: str) -> str:
 _VISARGA_COLON = re.compile(r"(?<=[\u0901\u0902\u093E-\u094C])\u0903(?=\s|$)")
 
 
-def postprocess(text: str, lang: Language, found: dict[str, str]) -> str:
+_WORD_END_VISARGA = re.compile(r"\u0903(?=\s|$)")
+_COLON = re.compile(r"(?<!\d):|:(?!\d)")  # a colon that is not part of a time like 10:00
+
+
+def postprocess(text: str, lang: Language, found: dict[str, str], source: str = "") -> str:
     text = _VISARGA_COLON.sub(":", text)  # in Devanagari, before any change of script
+    # More colons in the English than in the answer: the missing ones were written as a visarga at the end
+    # of a word ("तैयारः", Tamil "தீவிரம்ஃ"); put them back, from the first one.
+    missing = len(_COLON.findall(source)) - text.count(":")
+    if missing > 0:
+        text = _WORD_END_VISARGA.sub(":", text, count=missing)
     if lang.script == "Arab":
         text = text.replace(" ؟", "؟").replace(" ۔", "۔").replace(" ،", "،").replace("ٮ۪", "ؠ")
     if lang.code == "or":
@@ -216,7 +225,7 @@ class IndicTrans2:
                 repetition_penalty=1.0,
             )
         out = []
-        for (_, found), result in zip(prepared, results):
+        for sentence, (_, found), result in zip(sentences, prepared, results):
             text = "".join(result.hypotheses[0]).replace("▁", " ").strip()  # as IndicTransTokenizer does
-            out.append(postprocess(text, lang, found))
+            out.append(postprocess(text, lang, found, sentence))
         return out

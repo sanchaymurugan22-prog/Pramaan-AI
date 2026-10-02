@@ -27,8 +27,10 @@
   --bar-track: #EFE8DC;      /* empty part of a score bar */
 
   /* Fonts */
-  --font-body: 'Hind', 'Noto Sans', 'Noto Sans Tamil', 'Noto Sans Bengali', 'Noto Sans Telugu', sans-serif;
-  --font-heading: 'Poppins', 'Hind', sans-serif;
+  /* Stage 8: after the Latin fonts, one Noto font per Indian script; the browser picks per letter */
+  --font-indic: 'Noto Sans Devanagari', 'Noto Sans Bengali', 'Noto Sans Tamil', 'Noto Sans Telugu', 'Noto Sans Kannada', 'Noto Sans Malayalam', 'Noto Sans Gujarati', 'Noto Sans Gurmukhi', 'Noto Sans Oriya', 'Noto Sans Ol Chiki', 'Noto Sans Meetei Mayek', 'Noto Naskh Arabic';
+  --font-body: 'Hind', 'Noto Sans', var(--font-indic), sans-serif;
+  --font-heading: 'Poppins', 'Hind', var(--font-indic), sans-serif;
   --font-brand: 'Rozha One', serif;
   --font-mono: 'IBM Plex Mono', monospace;
 

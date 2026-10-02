@@ -8,6 +8,7 @@ Only the visible text is copied (via text_of); fact ids stay in the JSON.
 
 from dataclasses import dataclass, field
 
+from app.lang.labels import L
 from app.exporters.common import seconds_label, text_of, texts
 
 
@@ -23,61 +24,74 @@ class Block:
     mono_columns: list[int] = field(default_factory=list)   # table: columns shown in the code font
 
 
-def document_blocks(output_type: str, content: dict) -> list[Block]:
+def document_blocks(output_type: str, content: dict, language: str = "en") -> list[Block]:
+    """language (Stage 8): the headings and labels are written in the output's language."""
     builders = {
         "advisory": advisory_blocks,
         "executive_summary": executive_summary_blocks,
         "video_package": video_script_blocks,
     }
-    return builders[output_type](content)
+    return builders[output_type](content, language)
 
 
-def advisory_blocks(c: dict) -> list[Block]:
+def severity_subtitle(c: dict, language: str = "en") -> Block:
+    """ "Severity: HIGH"; label holds the level itself ("high"), so files can colour it red in any language."""
+    level = str(c.get("severity", "unknown")).lower()
+    if level not in ("low", "medium", "high", "critical"):
+        level = "unknown"
+    text = f"Severity: {level.upper()}" if language == "en" else L(f"Severity: {level.capitalize()}", language)
+    return Block("subtitle", text, label=level)
+
+
+def advisory_blocks(c: dict, language: str = "en") -> list[Block]:
+    L_ = lambda text: L(text, language)  # noqa: E731
     blocks = [
-        Block("title", c.get("title", "Advisory")),
-        Block("subtitle", f"Severity: {str(c.get('severity', 'unknown')).upper()}"),
-        Block("heading", "Overview"),
+        Block("title", c.get("title", L_("Advisory"))),
+        severity_subtitle(c, language),
+        Block("heading", L_("Overview")),
         Block("paragraph", text_of(c.get("overview"))),
-        Block("heading", "Who and what is affected"),
+        Block("heading", L_("Who and what is affected")),
         Block("bullets", items=texts(c.get("affected"))),
-        Block("heading", "How the attack works"),
+        Block("heading", L_("How the attack works")),
         Block("paragraph", text_of(c.get("description"))),
-        Block("heading", "Impact"),
+        Block("heading", L_("Impact")),
         Block("paragraph", text_of(c.get("impact"))),
     ]
     # Indicators were found in the source by exact patterns (not written by the AI).
     indicators = c.get("indicators") or {}
     rows = [
         [label, value]
-        for key, label in (("cves", "Vulnerability (CVE)"), ("ips", "IP address"), ("hashes", "File fingerprint"))
+        for key, label in (("cves", L_("Vulnerability (CVE)")), ("ips", L_("IP address")), ("hashes", L_("File fingerprint")))
         for value in indicators.get(key, [])
     ]
     if rows:
         blocks += [
-            Block("heading", "Indicators found in the source"),
+            Block("heading", L_("Indicators found in the source")),
             # A SHA-256 fingerprint is 64 characters: the value column is wide enough for it on one line.
-            Block("table", header=["Type", "Value"], rows=rows, widths=[0.24, 0.76], mono_columns=[1]),
+            Block("table", header=[L_("Type"), L_("Value")], rows=rows, widths=[0.24, 0.76], mono_columns=[1]),
         ]
     blocks += [
-        Block("heading", "Recommended actions"),
+        Block("heading", L_("Recommended actions")),
         Block("numbered", items=texts(c.get("recommendations"))),
     ]
     return [b for b in blocks if _has_content(b)]
 
 
-def executive_summary_blocks(c: dict) -> list[Block]:
+def executive_summary_blocks(c: dict, language: str = "en") -> list[Block]:
+    L_ = lambda text: L(text, language)  # noqa: E731
     blocks = [
-        Block("title", c.get("title", "Executive summary")),
-        Block("callout", text_of(c.get("bottom_line")), label="Bottom line"),
-        Block("heading", "Key points"),
+        Block("title", c.get("title", L_("Executive summary"))),
+        Block("callout", text_of(c.get("bottom_line")), label=L_("Bottom line")),
+        Block("heading", L_("Key points")),
         Block("bullets", items=texts(c.get("key_points"))),
-        Block("heading", "Actions needed"),
+        Block("heading", L_("Actions needed")),
         Block("numbered", items=texts(c.get("actions_needed"))),
     ]
     return [b for b in blocks if _has_content(b)]
 
 
-def video_script_blocks(c: dict) -> list[Block]:
+def video_script_blocks(c: dict, language: str = "en") -> list[Block]:
+    L_ = lambda text, **v: L(text, language, **v)  # noqa: E731
     scenes = c.get("scenes") or []
     rows = [
         [
@@ -90,19 +104,20 @@ def video_script_blocks(c: dict) -> list[Block]:
         for number, scene in enumerate(scenes, start=1)
     ]
     blocks = [
-        Block("title", c.get("title", "Video package")),
-        Block("subtitle", f"Script and storyboard · {len(scenes)} scenes · about {c.get('duration_seconds', 0)} seconds"),
-        Block("heading", "Storyboard"),
+        Block("title", c.get("title", L_("Video package"))),
+        Block("subtitle", L_("Script and storyboard · {count} scenes · about {seconds} seconds", count=len(scenes),
+                             seconds=c.get("duration_seconds", 0))),
+        Block("heading", L_("Storyboard")),
         Block(
             "table",
-            header=["Scene", "Time", "Visual", "On-screen text", "Narration"],
+            header=[L_(h) for h in ("Scene", "Time", "Visual", "On-screen text", "Narration")],
             rows=rows,
             widths=[0.08, 0.12, 0.27, 0.2, 0.33],
         ),
-        Block("heading", "Narration script"),
+        Block("heading", L_("Narration script")),
     ]
     blocks += [
-        Block("paragraph", f"Scene {number}: {scene.get('narration', '')}")
+        Block("paragraph", f"{L_('Scene {number}', number=number)}: {scene.get('narration', '')}")
         for number, scene in enumerate(scenes, start=1)
         if scene.get("narration")
     ]

@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import BinaryIO
 from datetime import datetime, timezone
 
+from app.lang.labels import L
+
 # Printed on every exported file until a reviewer approves and signs it (Stage 7).
 FOOTER = "AI-assisted · pending human approval"
 # Printed instead once signed (Stage 7), e.g. "Approved and signed · Record PRM-2026-000001"
@@ -62,7 +64,25 @@ class ExportInfo:
 
     @property
     def footer(self) -> str:
-        return SIGNED_FOOTER.format(record_no=self.record_no) if self.signed else FOOTER
+        if self.signed:
+            return L(SIGNED_FOOTER, self.language, record_no=self.record_no)
+        return L(FOOTER, self.language)
+
+    # Stage 8: the fixed words in the output's language (app/lang/labels.py)
+    @property
+    def job_label(self) -> str:
+        """ "Job #12" in the output's language."""
+        return L("Job #{job_id}", self.language, job_id=self.job_id)
+
+    @property
+    def qr_placeholder(self) -> tuple[str, str]:
+        """The two lines in the empty QR box: ("QR code", "added when signed")."""
+        if self.language == "en":
+            return tuple(QR_PLACEHOLDER.split("\n"))
+        return L("QR code", self.language), L("when signed", self.language)
+
+    def label(self, text: str, **values) -> str:
+        return L(text, self.language, **values)
 
     def qr_png(self, box_size: int = 10) -> bytes:
         from app.signing.qr import qr_png  # imported here: only signed files need it
@@ -74,17 +94,21 @@ class ExportInfo:
 
     def header_line(self) -> str:
         """One line with the job details, e.g. 'Job #12 · Hospital ransomware · 30 Sep 2026 · TLP:AMBER'."""
-        parts = [f"Job #{self.job_id}", self.job_title, self.date]
+        parts = [self.job_label, self.job_title, self.date]
         if self.tlp_label:
             parts.append(self.tlp_label)
         return " · ".join(parts)
 
 
-def format_date(value: datetime) -> str:
-    """Database times are UTC; show the date in this computer's time zone: '30 Sep 2026'."""
+def format_date(value: datetime, language: str = "en") -> str:
+    """Database times are UTC; show the date in this computer's time zone: '30 Sep 2026' (Stage 8: in an
+    Indian language, the month's name in that language: '30 सितंबर 2026')."""
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
-    return value.astimezone().strftime("%d %b %Y").lstrip("0")
+    local = value.astimezone()
+    if language != "en":
+        return f"{local.day} {L(local.strftime('%B'), language)} {local.year}"
+    return local.strftime("%d %b %Y").lstrip("0")
 
 
 def text_of(item) -> str:

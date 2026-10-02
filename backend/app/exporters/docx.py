@@ -17,8 +17,9 @@ from docx.shared import Cm, Pt, RGBColor
 from PIL import Image
 
 from app.exporters.blocks import Block, document_blocks
-from app.exporters.common import PALETTE, QR_PLACEHOLDER, TLP_TEXT_COLOURS, ExportInfo, fit_title, rgb
-from app.exporters.fonts import family, text_width
+from app.exporters.common import PALETTE, TLP_TEXT_COLOURS, ExportInfo, fit_title, rgb
+from app.exporters.fonts import family, latin_family, text_width
+from app.lang import languages
 
 PAGE_WIDTH, PAGE_HEIGHT, MARGIN = Cm(21), Cm(29.7), Cm(2)  # A4
 TEXT_WIDTH = PAGE_WIDTH - 2 * MARGIN
@@ -26,13 +27,15 @@ QR_BOX = Cm(3.2)
 
 
 def write_docx(info: ExportInfo, content: dict, path: Path) -> Path:
-    blocks = document_blocks(info.output_type, content)
+    blocks = document_blocks(info.output_type, content, info.language)
     title = next((b.text for b in blocks if b.kind == "title"), info.output_label)
-    subtitle = next((b.text for b in blocks if b.kind == "subtitle"), "")
+    subtitle_block = next((b for b in blocks if b.kind == "subtitle"), None)
+    subtitle = subtitle_block.text if subtitle_block else ""
+    severe = bool(subtitle_block and subtitle_block.label in ("high", "critical"))
 
     document = docx.Document()
     _page_setup(document, info)
-    _top_block(document, info, title, subtitle)
+    _top_block(document, info, title, subtitle, severe)
     for block in blocks:
         if block.kind not in ("title", "subtitle"):
             _add_block(document, block, info)
@@ -51,7 +54,7 @@ def _page_setup(document, info: ExportInfo) -> None:
     normal = document.styles["Normal"]
     normal.font.size = Pt(11)
     normal.font.color.rgb = _colour("ink")
-    _set_font_name(normal.element.get_or_add_rPr(), family("body", info.language))
+    _set_font_name(normal.element.get_or_add_rPr(), latin_family("body"), family("body", info.language))
     normal.paragraph_format.space_after = Pt(6)
     normal.paragraph_format.line_spacing = 1.15
 
@@ -87,13 +90,17 @@ def _page_setup(document, info: ExportInfo) -> None:
     _run(footer, info.footer, "heading", 8.5, info, colour="saffron_dark", bold=True)
     # One line: a long job title is shortened with "…" (room for a 3-digit page number is kept)
     room = TEXT_WIDTH / 12700 - text_width(info.footer, 8.5, "heading", "bold", info.language) - 6
-    job_line = fit_title(f"  ·  Job #{info.job_id}: ", info.job_title, "  ·  Page 999",
+    page = info.label("Page {page}", page="999")
+    job_line = fit_title(f"  ·  {info.job_label}: ", info.job_title, f"  ·  {page}",
                          lambda text: text_width(text, 8.5, "body", "regular", info.language), room)
-    _run(footer, job_line.removesuffix("999"), "body", 8.5, info, colour="muted")
+    before, _, after = job_line.rpartition("999")  # the page number goes where "999" is (Stage 8: any language)
+    _run(footer, before, "body", 8.5, info, colour="muted")
     _page_number(footer)
+    if after:
+        _run(footer, after, "body", 8.5, info, colour="muted")
 
 
-def _top_block(document, info: ExportInfo, title: str, subtitle: str) -> None:
+def _top_block(document, info: ExportInfo, title: str, subtitle: str, severe: bool = False) -> None:
     """Title and job details on the left, the empty QR code box on the right."""
     table = document.add_table(rows=1, cols=2)
     _column_widths(table, [TEXT_WIDTH - QR_BOX - Cm(0.4), QR_BOX + Cm(0.4)])
@@ -101,16 +108,16 @@ def _top_block(document, info: ExportInfo, title: str, subtitle: str) -> None:
     table.rows[0].height, table.rows[0].height_rule = QR_BOX, WD_ROW_HEIGHT_RULE.AT_LEAST
 
     eyebrow = left.paragraphs[0]
-    _run(eyebrow, f"{info.output_label.upper()} · JOB #{info.job_id}", "heading", 9, info, colour="saffron_dark", bold=True)
+    _run(eyebrow, f"{info.output_label.upper()} · {info.job_label.upper()}", "heading", 9, info, colour="saffron_dark", bold=True)
     eyebrow.paragraph_format.space_after = Pt(2)
     heading = left.add_paragraph()
     _run(heading, title, "heading", 20, info, colour="navy", bold=True)
     heading.paragraph_format.space_after = Pt(4)
     heading.paragraph_format.line_spacing = 1.0
     if subtitle:
-        _run(left.add_paragraph(), subtitle, "body", 11, info, colour="red" if "HIGH" in subtitle or "CRITICAL" in subtitle else "muted", bold=True)
+        _run(left.add_paragraph(), subtitle, "body", 11, info, colour="red" if severe else "muted", bold=True)
     meta = left.add_paragraph()
-    _run(meta, f"{info.job_title} · Prepared {info.date}", "body", 10, info, colour="muted")
+    _run(meta, f"{info.job_title} · {info.label('Prepared {date}', date=info.date)}", "body", 10, info, colour="muted")
     if info.tlp_label:
         meta.add_run("   ")
         _tlp_run(meta, info)
@@ -128,7 +135,7 @@ def _top_block(document, info: ExportInfo, title: str, subtitle: str) -> None:
         return
     # QR code placeholder until signed: a dashed box.
     _borders(right, "dashed", PALETTE["line_2"], size=12)
-    for number, line in enumerate(QR_PLACEHOLDER.split("\n")):
+    for number, line in enumerate(info.qr_placeholder):
         paragraph = right.paragraphs[0] if number == 0 else right.add_paragraph()
         paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
         paragraph.paragraph_format.space_after = Pt(0)
@@ -223,19 +230,46 @@ def _colour(name: str) -> RGBColor:
     return RGBColor.from_string(PALETTE.get(name, name))
 
 
-def _set_font_name(rpr, name: str) -> None:
-    """Set the font for Latin text and for Indian scripts ("cs" = complex script) alike."""
+def _set_font_name(rpr, latin: str, script: str | None = None) -> None:
+    """The font for Latin letters and digits, and (Stage 8) the one for Indian scripts ("cs" = complex script:
+    Word uses it for Devanagari, Tamil, Urdu ...)."""
     fonts = rpr.get_or_add_rFonts()
-    for attribute in ("w:ascii", "w:hAnsi", "w:cs", "w:eastAsia"):
-        fonts.set(qn(attribute), name)
+    for attribute in ("w:ascii", "w:hAnsi", "w:eastAsia"):
+        fonts.set(qn(attribute), latin)
+    fonts.set(qn("w:cs"), script or latin)
+
+
+# Word needs the elements of run and paragraph properties in the order of its schema
+_AFTER_SZCS = ("w:highlight", "w:u", "w:effect", "w:bdr", "w:shd", "w:fitText", "w:vertAlign", "w:rtl", "w:cs",
+               "w:em", "w:lang", "w:eastAsianLayout", "w:specVanish", "w:oMath")
+_AFTER_BIDI = ("w:adjustRightInd", "w:snapToGrid", "w:spacing", "w:ind", "w:contextualSpacing", "w:mirrorIndents",
+               "w:suppressOverlap", "w:jc", "w:textDirection", "w:textAlignment", "w:textboxTightWrap",
+               "w:outlineLvl", "w:divId", "w:cnfStyle", "w:rPr", "w:sectPr", "w:pPrChange")
+
+
+def _add_once(parent, tag: str, before: tuple[str, ...], value: str | None = None) -> None:
+    """Add <tag/> (with w:val) to run or paragraph properties once, at its place in Word's order."""
+    element = parent.find(qn(tag))
+    if element is None:
+        element = OxmlElement(tag)
+        parent.insert_element_before(element, *before)
+    if value is not None:
+        element.set(qn("w:val"), value)
 
 
 def _run(paragraph, text: str, role: str, size: float, info: ExportInfo, colour: str = "ink", bold: bool = False):
     run = paragraph.add_run(text)
-    _set_font_name(run._element.get_or_add_rPr(), family(role, info.language))
+    rpr = run._element.get_or_add_rPr()
+    _set_font_name(rpr, latin_family(role), family(role, info.language))
     run.font.size = Pt(size)
     run.font.bold = bold
     run.font.color.rgb = _colour(colour)
+    if info.language != "en":  # Word sizes and bolds Indian scripts with their own settings
+        _add_once(rpr, "w:szCs", _AFTER_SZCS, str(int(size * 2)))
+        run.font.cs_bold = bold
+        if languages.get(info.language).rtl:  # Urdu, Kashmiri, Sindhi: right to left
+            run.font.rtl = True
+            _add_once(paragraph._p.get_or_add_pPr(), "w:bidi", _AFTER_BIDI)
     return run
 
 

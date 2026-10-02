@@ -121,7 +121,13 @@ def check_translation(output_type: str, translated: dict, english: dict, english
         shown = ", ".join(f"“{v}”" for c in changed for v in c["missing"][:2]) or ", ".join(
             f"“{v}”" for c in changed for v in c["extra"][:2])
         quality["warnings"].insert(0, f"Values changed in translation: {shown}. Compare with the English and correct it.")
-    quality["translation"] = {"language": language, "values_checked": checked, "changed": changed}
+    # The translator sometimes writes a word in another script (an Urdu word in a Santali text): say where
+    foreign = sorted({f"{s['label']}" for s in sentences if languages.foreign_scripts(s["text"], language)})
+    if foreign:
+        quality["warnings"].append(f"Letters of another script in: {', '.join(foreign[:4])}. A native speaker should "
+                                   "check those words.")
+    quality["translation"] = {"language": language, "values_checked": checked, "changed": changed,
+                              "other_script": foreign}
     quality["checks_version"] = CHECKS_VERSION
     return quality
 
