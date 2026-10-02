@@ -33,7 +33,8 @@ def test_request_access_with_employee_id_and_sign_in_with_it():
     sent = anyone.post("/api/auth/request-access", json=form)
     assert sent.status_code == 201, sent.text
     body = sent.json()
-    assert body["username"] == emp.lower() and body["employee_id"] == emp and "Profile Admin" in body["admins"]
+    assert body["username"] == emp.lower() and body["employee_id"] == emp and "admins" not in body
+    assert "Profile Admin" not in sent.text  # v1.2: a signed-out person is not told who the Admins are
     # the same employee ID cannot ask twice; signing in says it is still waiting
     assert anyone.post("/api/auth/request-access", json=form | {"email": ""}).status_code == 400
     waiting = anyone.post("/api/auth/login", json={"username": emp, "password": TEST_PASSWORD})

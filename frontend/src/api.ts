@@ -587,7 +587,6 @@ export type AccessRequestSent = {
   created_at: string
   employee_id?: string | null
   division?: string
-  admins?: string[]
 }
 export const requestAccess = (form: AccessRequestForm) =>
   request<AccessRequestSent>('/api/auth/request-access', sendJson('POST', form))

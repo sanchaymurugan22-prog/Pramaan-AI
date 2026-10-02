@@ -15,7 +15,6 @@ POST /api/auth/change-password
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import audit
@@ -198,12 +197,11 @@ def request_access(form: AccessForm, db: Session = Depends(get_session)):
     why = f": “{request.reason}”" if request.reason else ""
     audit.log("users", "access_requested", f"Asked for a {ROLE_LABELS[request.role]} account ({request.username}){why}",
               actor_name=request.full_name, target=f"user {request.username}")
-    admins = db.scalars(select(User).where(User.role == "admin", User.is_active.is_(True))).all()
+    # v1.2: no Admin names here. Anyone can send this form without signing in, so it must not tell a stranger
+    # who the Admins are; the page says "an Admin" instead.
     return {"username": request.username, "full_name": request.full_name, "role": request.role,
             "role_label": ROLE_LABELS[request.role], "created_at": request.created_at.isoformat(),
-            "employee_id": request.employee_id, "division": request.division,
-            # the design says who was told (their names only; nothing else about them)
-            "admins": [a.full_name for a in admins]}
+            "employee_id": request.employee_id, "division": request.division}
 
 
 class ForgotForm(BaseModel):

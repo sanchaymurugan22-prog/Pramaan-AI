@@ -237,7 +237,7 @@ export function Pending() {
               <span className="stack">
                 <strong>{t("Admin approval")}</strong>
                 <span className="muted small">
-                  {sent?.admins?.length ? t("{n} (Admin) can approve it", { n: sent.admins.join(', ') }) : t("Your Admin sees it under Users & access")}
+                  {t("An Admin sees it under Users & access")}
                 </span>
               </span>
             </li>
