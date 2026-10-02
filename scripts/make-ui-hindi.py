@@ -6,7 +6,7 @@
    choices, finding types, roles), so the screens can show them in Hindi too.
 2. Runs frontend/scripts/i18n-keys.cjs, which collects every t("...") text of the app (keys.json).
 3. Translates the texts that hi.json does not have yet with IndicTrans2 (on this computer). {placeholders}
-   are kept. Texts in REVIEWED (menus, buttons, statuses: the words seen most) were written by a person and
+   are kept. Texts in REVIEWED (menus, buttons, statuses: the words seen most) were chosen by hand (not yet checked by a native Hindi speaker) and
    always win. Existing entries are kept, so corrections made by hand in hi.json stay.
 """
 
@@ -34,7 +34,7 @@ CODE = re.compile(r"(?<![\w])(?:\.?[\w-]+(?:[._/][\w.-]+)+|[A-Z]{2,}_[A-Z_]+|\.[
 # "job" is translated as employment (नौकरी); the translator gets "task" instead (कार्य)
 JOB = re.compile(r"\b([Jj])obs?\b")
 
-# Written by a person: the words on every screen
+# Chosen by hand (to be checked by a native Hindi speaker): the words on every screen
 REVIEWED = {
     # menu
     "Dashboard": "डैशबोर्ड", "New transformation": "नया रूपांतरण", "My jobs": "मेरे कार्य",

@@ -253,7 +253,7 @@ Details: [ARCHITECTURE.md · Security model](docs/ARCHITECTURE.md#security-model
   smaller languages (for example Santali, Manipuri, Kashmiri, Sindhi) than for Hindi, Tamil or Bengali.
 - **Voices** exist for Hindi, Telugu, Malayalam, Urdu and Indian English only; **speech-to-text** for
   Hindi, Tamil and English only. Other languages say "audio not available".
-- **The interface** is in English and Hindi only (Hindi texts: menus and buttons written by a person,
+- **The interface** is in English and Hindi only (Hindi texts: menus and buttons chosen by hand, not yet checked by a native speaker;
   the rest machine translated).
 - **Inputs:** text, .txt, .pdf (with a text layer), .docx and recordings. Scanned images need OCR (not built).
 - **Video:** the MP4 is the storyboard as still pictures with captions and narration, not animation.

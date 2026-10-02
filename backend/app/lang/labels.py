@@ -3,7 +3,7 @@ genuine." ...), in every language (Stage 8).
 
 A translated advisory should not have English headings. The labels below are translated once into the 22
 languages by IndicTrans2 (scripts/make-labels.py) and kept in labels.json; L() looks them up. Placeholders
-like {n} stay as they are. Machine translated like the outputs; the Hindi ones were read by a person.
+like {n} stay as they are. Machine translated like the outputs; the Hindi ones were chosen by hand (still to be checked by a native speaker).
 
     L("Overview", "hi")                    -> "अवलोकन"
     L("Do these {n} things now", "ta", n=4)
@@ -83,7 +83,7 @@ LABELS = [
                                          "September", "October", "November", "December")],
 ]
 
-# Read and corrected by a person (they win over the machine translation)
+# Chosen by hand, still to be checked by a native speaker (they win over the machine translation)
 REVIEWED = {
     "hi": {
         "AI-assisted · pending human approval": "एआई-सहायता प्राप्त · मानव अनुमोदन लंबित",

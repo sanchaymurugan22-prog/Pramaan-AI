@@ -226,7 +226,7 @@ minutes per output on this laptop.
 - Not built yet: OCR for scanned files, signing with a real DSC USB token (designed, not tested), update
   packages from USB, voices for languages other than Hindi, Telugu, Malayalam, Urdu and English,
   speech-to-text for languages other than Hindi, Tamil and English.
-- Machine translations need a native speaker: only the Hindi labels and menus were read by a person. The
+- Machine translations need a native speaker: the Hindi menus and file labels were chosen by hand (not machine translated) but no native Hindi speaker has checked them yet. The
   smaller languages are weaker (IndicTrans2's own published scores).
 - The rewrite buttons and the `llm` translation engine were tested with the mock AI only, not yet with the
   real Sarvam model.
