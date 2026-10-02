@@ -1,16 +1,19 @@
 # Pramaan AI · Test report
 
-Tested on 1 October 2026 at version 1.0 on the development laptop (MacBook Pro 2017, Intel Core i7, 16 GB RAM,
-macOS 13.7, Python 3.12.10, Node 22.14.0).
+Tested on 1 October 2026 at version 1.0, and again on 2 October 2026 at **version 1.1** (Stage 8: Indian
+languages and voice), on the development laptop (MacBook Pro 2017, Intel Core i7, 16 GB RAM, macOS 13.7,
+Python 3.12.10, Node 22.14.0).
 
 | | Result |
 |---|---|
-| Backend tests | **666 passed**, 0 failed (pytest, 97 s) |
+| Backend tests (v1.1) | **779 passed**, 0 failed (pytest, about 2 minutes), including 12 tests with the real language models |
+| Every interface text has Hindi | **1,453 of 1,453** (`node scripts/i18n-keys.cjs --check`, run by `test_i18n.py`) |
 | Public verify page (JavaScript) | **11 of 11 passed** (Node test runner, run by `test_verify_page.py`) |
 | Frontend type check | **0 errors** (`npx tsc -b`) |
 | Linter | **0 errors**, 12 style warnings (see Known limits) |
-| Clean clone → offline install → start → demo (mock AI) | **Pass**, 3 small screen problems found and fixed |
+| Clean clone → offline install → start → demo (mock AI) | **Pass**, 3 small screen problems found and fixed (v1.0); v1.1 bundle with the language models installed and **779 tests passed** in the clean clone |
 | Real Sarvam 30B, offline | **Works**: 3 outputs in 39 minutes, quality 93, every fact quote found in the source |
+| Real language models, offline (v1.1) | **Work**: 7 outputs × 11 languages translated in 4.7 minutes with no changed values; Indian voices; Hindi and English speech-to-text |
 
 ## How it was tested
 
@@ -25,6 +28,11 @@ macOS 13.7, Python 3.12.10, Node 22.14.0).
   console checked for errors. Keyboard paths tried by hand: skip link, tabs with arrow keys, the search box,
   the menu drawer, dialogs.
 - **Real AI:** runs of the sample report through Sarvam 30B on the development laptop (see Performance).
+- **Language engines (Stage 8):** the automated tests use mock engines (instant, no models): a "translation"
+  is the English with the language name in front, the voice is a tone, speech-to-text returns a fixed text.
+  `tests/test_real_models.py` then tries every real engine on this computer (skipped where a model is not
+  downloaded). The translated files in 11 scripts were opened and looked at by eye (letters joined
+  correctly, Urdu right to left); the Hindi interface was read on every screen.
 - **Installation:** a clean clone installed from the offline bundle, started, and the demo run in mock mode
   (see "Clean install check").
 
@@ -71,7 +79,17 @@ macOS 13.7, Python 3.12.10, Node 22.14.0).
 | **Backups** (encrypted database copy that opens with the key; only listed backups downloadable) | `test_admin_files.py` | Pass |
 | **All screens for every role**, menus per role, "You don't have access" | Browser click-through (Stages 9A, 9B) and the demo on a clean install | Pass: no console errors |
 | **Accessibility** (contrast, names, skip link, focus, 200% zoom, not colour alone) | Browser audit on every screen at 1024 px and 720 px | Pass after fixes (stepper and badge contrast, sideways scrolling of two tables) |
-| **Offline installation** | Clean clone + `install.sh` from a bundle (see below) | Pass: 155 files checked, 666 tests passed, no internet used |
+| **Offline installation** | Clean clone + `install.sh` from a bundle (see below) | Pass: 155 files checked, 666 tests passed, no internet used (v1.0); v1.1 with language models: 1,660 files checked, 779 tests passed |
+| **Pluggable language engines** (`TRANSLATE_ENGINE`, `TTS_ENGINE`, `STT_ENGINE`, each with a mock; unknown names refused; status on Admin → AI models) | `test_lang_engines.py` (16) | Pass |
+| **Outputs in Indian languages** (picker, 22 languages, translated from the English, fact ids kept, values checked again, "Changed in translation", native-speaker tick needed before approval, translations follow English edits, add a language later) | `test_translations.py` (13) | Pass |
+| **IndicTrans2 details** (placeholders and values kept, script conversion, Hindi visarga used as a colon, dropped hashtags put back) | `test_lang_engines.py`, `test_real_models.py` | Pass |
+| **Files in every Indian script** (PDF, Word, PowerPoint, PNG for 12 scripts; shaping; right to left; fixed labels translated; dates) | `test_indian_scripts.py` (29) | Pass, and checked by eye |
+| **Voice** (narration MP3, MP4 video with captions and subtitles, silent video where no voice exists, "Read results aloud", recordings as sources, bad recordings refused) | `test_voice.py` (5) | Pass |
+| **Emergency alert in every language** (SMS as an output, 160 / 70 characters, 1930 kept, preview cards, voice announcement, tick all translations) | `test_alert_languages.py` (4) | Pass |
+| **The app in English and Hindi** (every text has Hindi; the choice saved per user) | `test_i18n.py` (2), browser check of every screen in Hindi | Pass |
+| **Shorter / More formal / Simpler** (new version, facts and numbers kept, checks run again, translations follow; translations and unknown changes refused) | `test_rewrite_mentions.py` (3) | Pass (mock AI; not yet tried with the real Sarvam model) |
+| **@mentions and the Mentions tab** | `test_rewrite_mentions.py` (1) | Pass |
+| **Real language models** (IndicTrans2 hi/ta/ur keep every number, each Piper and macOS voice, Whisper hears English, IndicConformer hears Hindi, Tamil model runs) | `test_real_models.py` (12) | Pass (30 s) |
 | **Real Sarvam 30B, offline** | Recorded runs (see Performance) | Pass (slow: about 1 token/s on this laptop) |
 
 ## Test runs
@@ -100,10 +118,15 @@ cd frontend && npx tsc -b && npm run lint
 | `test_messages.py` | 11 | | `test_verify_page.py` | 5 (runs 11 JavaScript tests) |
 | `test_mock_and_source_checks.py` | 13 | | `test_watch.py` | 7 |
 | `test_no_secrets_in_logs.py` | 3 | | `test_notifications_search.py` | 5 |
+| `test_lang_engines.py` (v1.1) | 14 | | `test_translations.py` (v1.1) | 10 |
+| `test_indian_scripts.py` (v1.1) | 8 | | `test_voice.py` (v1.1) | 5 |
+| `test_alert_languages.py` (v1.1) | 4 | | `test_i18n.py` (v1.1) | 2 |
+| `test_real_models.py` (v1.1) | 8 | | `test_rewrite_mentions.py` (v1.1) | 4 |
 
-The table counts test functions; with parametrised cases (the permission matrix, the safety detectors) pytest
-runs **666** tests. The run on 1 October 2026: `666 passed, 1 warning in 97.34s` (the warning is a
-deprecation notice inside the FastAPI test client, not from our code).
+The table counts test functions; with parametrised cases (the permission matrix, the safety detectors, the
+scripts and voices) pytest runs **779** tests. The run on 2 October 2026: `779 passed, 1 warning in 112.90s`
+(v1.0 on 1 October: `666 passed`). The warning is a deprecation notice inside the FastAPI test client, not
+from our code.
 
 ## Performance (real Sarvam 30B)
 
@@ -138,6 +161,26 @@ What the numbers mean:
   source); the X thread scored 87 because some of its words are not tied to a single fact.
 - Expected on an office server with a GPU: many times faster (see
   [ARCHITECTURE.md](ARCHITECTURE.md#scaling-to-an-office-server)); not measured here.
+
+## Performance (language models, v1.1)
+
+Measured on 2 October 2026 on the same laptop, CPU only, 8-bit models:
+
+| Step | Time |
+|---|---|
+| IndicTrans2: load the model | 1.1 s |
+| IndicTrans2: 4 sentences (66 words) into Hindi / Tamil / Bengali / Urdu | 1.6 / 1.7 / 1.4 / 1.6 s |
+| IndicTrans2: the showcase job, 7 outputs × 11 languages (77 translations) | 4.7 minutes, 0 changed values |
+| Piper voice (Hindi, Priyamvada): 48 s of speech | 16.4 s |
+| macOS voice (Rishi, Indian English): 36 s of speech | 1.4 s |
+| MP3 from the speech (ffmpeg) | 0.3 s |
+| IndicConformer Hindi: 48 s of speech to text | 6.0 s the first time (loading), 4.4 s after |
+| Whisper small (English): 36 s of speech to text | 9.8 s the first time, 7.3 s after |
+| MP4 video of the showcase job's Hindi video package (Hindi voice, captions, subtitles; H.264 + AAC) | 12.1 s |
+
+Translation is fast because IndicTrans2 is a small, specialised model (200 million parameters) next to the
+30-billion-parameter Sarvam model; translating through Sarvam (`TRANSLATE_ENGINE=llm`) works but would take
+minutes per output on this laptop.
 
 ## Clean install check
 
@@ -180,8 +223,13 @@ What the numbers mean:
 - The local 30B model is slow on a 16 GB laptop: the model (18 GB) does not fit in memory, so its weights
   are read from disk while it writes. Speed depends on what else is open (see Performance). Use the mock AI
   for live demos and a recorded run for the real model.
-- Not built yet: Indian-language translation and voices, OCR for scanned files, speech-to-text, rendered MP4
-  video, signing with a real DSC USB token (designed, not tested), update packages from USB.
+- Not built yet: OCR for scanned files, signing with a real DSC USB token (designed, not tested), update
+  packages from USB, voices for languages other than Hindi, Telugu, Malayalam, Urdu and English,
+  speech-to-text for languages other than Hindi, Tamil and English.
+- Machine translations need a native speaker: only the Hindi labels and menus were read by a person. The
+  smaller languages are weaker (IndicTrans2's own published scores).
+- The rewrite buttons and the `llm` translation engine were tested with the mock AI only, not yet with the
+  real Sarvam model.
 - The linter reports 12 style warnings (no errors): fast-refresh hints and setState-in-effect patterns;
   they do not affect behaviour.
 - `scripts/start.sh` always uses ports 8000 and 5173, so two copies cannot run with it at the same time
