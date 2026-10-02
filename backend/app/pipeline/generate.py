@@ -10,6 +10,7 @@ FACT SHEET>>> delimiters. After the model answers, placeholders are turned back 
 in internal outputs, a label like [phone number] in public ones (app/safety/masking.py).
 """
 
+import json
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -53,8 +54,52 @@ def generate_output(
     max_tokens = int(max_tokens_for(output_type) * factor)
 
     reply = llm.chat_json(messages, spec["schema"], kind=output_type, max_tokens=max_tokens, on_progress=on_progress)
+    return GeneratedOutput(_finish(output_type, reply.data, fact_sheet, masker), reply.truncated, reply.seconds,
+                           reply.tokens)
 
-    content = masker.restore_json(reply.data, public=spec["public"])
+
+# The "Shorter / More formal / Simpler" buttons on the Results page (Stage 8 extra)
+REWRITES = {
+    "shorter": ("Make it shorter: about two thirds of the length. Drop the least important sentences; "
+                "keep the key facts and what to do."),
+    "formal": ("Make it more formal: the tone of an official government notice. Full words: no contractions, "
+               "slang or exclamation marks."),
+    "simpler": ("Make it simpler: short sentences and everyday words that a school student understands. "
+                "Say what a technical word means."),
+}
+
+
+def rewrite_output(
+    output_type: str,
+    fact_sheet: dict,
+    current: dict,
+    change: str,
+    job_settings: dict,
+    on_progress: Callable[[str], None] | None = None,
+    masker: Masker | None = None,
+) -> GeneratedOutput:
+    """Write an output again from its current text with one change (a key of REWRITES).
+    The same system message (the fact sheet) as generate_output, so llama.cpp reuses it."""
+    spec = OUTPUT_TYPES[output_type]
+    masker = masker or Masker(None)
+    facts = fence(masker.mask(fact_sheet_for_prompt(fact_sheet)), "FACT SHEET")
+    instructions = render_prompt(output_type, settings=settings_text(job_settings))
+    text = fence(masker.mask(json.dumps(current, ensure_ascii=False)), "CURRENT TEXT")
+    messages = [
+        {"role": "system", "content": render_prompt("system", fact_sheet=facts)},
+        {"role": "user", "content": render_prompt("rewrite", instructions=instructions, current=text,
+                                                  change=REWRITES[change])},
+    ]
+    max_tokens = max_tokens_for(output_type)
+    reply = llm.chat_json(messages, spec["schema"], kind="rewrite", max_tokens=max_tokens, on_progress=on_progress)
+    return GeneratedOutput(_finish(output_type, reply.data, fact_sheet, masker), reply.truncated, reply.seconds,
+                           reply.tokens)
+
+
+def _finish(output_type: str, data: dict, fact_sheet: dict, masker: Masker) -> dict:
+    """Hidden values back in, and the parts worked out in code (not by the model)."""
+    spec = OUTPUT_TYPES[output_type]
+    content = masker.restore_json(data, public=spec["public"])
     if output_type == "advisory":
         # Indicators come straight from the source (found by exact patterns), never from the model.
         content["indicators"] = masker.indicators_for(fact_sheet.get("indicators", {}), public=spec["public"])
@@ -62,8 +107,7 @@ def generate_output(
         add_timings(content)
     elif output_type == "linkedin_post":
         content["hashtags"] = [tag.lstrip("#") for tag in content.get("hashtags", [])]
-
-    return GeneratedOutput(content, reply.truncated, reply.seconds, reply.tokens)
+    return content
 
 
 def settings_text(job_settings: dict) -> str:

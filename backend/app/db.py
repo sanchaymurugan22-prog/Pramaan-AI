@@ -157,6 +157,8 @@ class Output(Base):
     native_checked_by: Mapped[int | None] = mapped_column(default=None)
     native_checked_at: Mapped[datetime | None] = mapped_column(default=None)
     native_checked_version: Mapped[int | None] = mapped_column(default=None)
+    # "Shorter" / "More formal" / "Simpler" asked for: the next run rewrites the current text (then cleared)
+    rewrite: Mapped[str | None] = mapped_column(String(20), default=None)
 
     job: Mapped[Job] = relationship(back_populates="outputs")
     versions: Mapped[list["OutputVersion"]] = relationship(back_populates="output", order_by="OutputVersion.version")

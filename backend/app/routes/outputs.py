@@ -2,6 +2,7 @@
 
 PUT  /api/jobs/{id}/outputs/{output_id}                  save the operator's edits as a new version, then re-check (no AI)
 POST /api/jobs/{id}/outputs/{output_id}/regenerate       write this one output again from the same fact sheet
+POST /api/jobs/{id}/outputs/{output_id}/rewrite          "Shorter" / "More formal" / "Simpler": rewrite the current text
                                                          (a translation: translate it again from the English)
 POST /api/jobs/{id}/languages                            Stage 8: translate the job into more languages
 GET  /api/jobs/{id}/outputs/{output_id}/listen           Stage 8: the text read aloud (MP3), "Read results aloud"
@@ -38,7 +39,7 @@ from app.exporters.kit import build_kit
 from app.pipeline import runner
 from app.pipeline.checks import recheck_job
 from app.pipeline.compare import CompareError, compare
-from app.pipeline.generate import add_timings
+from app.pipeline.generate import REWRITES, add_timings
 from app.pipeline.output_types import OUTPUT_TYPES
 from app.pipeline.segments import EditError, apply_edits
 from app.pipeline.versions import ORIGIN_LABELS, save_version, version_summary
@@ -164,6 +165,37 @@ def regenerate_output(job_id: int, output_id: int, db: Session = Depends(get_ses
     what = "translate" if output.language != "en" else "write"  # a translation is made again from the English
     audit.log("content", "output_regenerate", f"Asked the AI to {what} the {_label(output)}{_language(output)} of "
                                               f"job #{job.id} again", actor=user, target=f"job {job.id}")
+    runner.submit(job.id)
+    return job_detail(job)
+
+
+class Rewrite(BaseModel):
+    change: str  # shorter | formal | simpler
+
+
+REWRITE_WORDS = {"shorter": "shorter", "formal": "more formal", "simpler": "simpler"}
+
+
+@router.post("/jobs/{job_id}/outputs/{output_id}/rewrite")
+def rewrite_output(job_id: int, output_id: int, body: Rewrite, db: Session = Depends(get_session),
+                   user: User = Depends(allow("operator"))):
+    """The "Shorter" / "More formal" / "Simpler" buttons: the AI rewrites the current English text with that one
+    change (in the background). Facts and fact ids stay; every check runs again; the old text is an older version;
+    the translations are made again from the new English."""
+    job, output = _get_output(db, job_id, output_id)
+    _must_be_editable(job, output)
+    if body.change not in REWRITES:
+        raise HTTPException(400, f"Unknown change '{body.change}'. Use one of: {', '.join(REWRITES)}.")
+    if output.language != "en":
+        raise HTTPException(400, "Rewrite the English output: its translations follow it.")
+    if output.type == "sms":
+        raise HTTPException(400, "The alert's text message is written by the Operator. Edit it instead.")
+    output.rewrite = body.change
+    output.status, output.error, output.started_at = "queued", None, None
+    job.status, job.step, job.error = "generating", "Waiting in the queue", None
+    db.commit()
+    audit.log("content", "output_rewrite", f"Asked the AI to make the {_label(output)} of job #{job.id} "
+                                           f"{REWRITE_WORDS[body.change]}", actor=user, target=f"job {job.id}")
     runner.submit(job.id)
     return job_detail(job)
 

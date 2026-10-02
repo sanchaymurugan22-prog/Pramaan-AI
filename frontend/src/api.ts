@@ -449,6 +449,11 @@ export const editOutput = (jobId: number, outputId: number, fields: { path: Path
 export const regenerateOutput = (jobId: number, outputId: number) =>
   request<JobDetail>(`${outputPath(jobId, outputId)}/regenerate`, { method: 'POST' })
 
+// "Shorter" / "More formal" / "Simpler": the AI rewrites the current English text with that one change
+export type RewriteChange = 'shorter' | 'formal' | 'simpler'
+export const rewriteOutput = (jobId: number, outputId: number, change: RewriteChange) =>
+  request<JobDetail>(`${outputPath(jobId, outputId)}/rewrite`, sendJson('POST', { change }))
+
 export const listVersions = (jobId: number, outputId: number) =>
   request<VersionSummary[]>(`${outputPath(jobId, outputId)}/versions`)
 
@@ -647,7 +652,7 @@ export type ReviewComment = {
   created_at: string
 }
 export const addComment = (jobId: number, comment: { output_id?: number | null; sentence_id?: string | null; path?: Path | null; quote?: string; text: string }) =>
-  request<ReviewComment>(`/api/jobs/${jobId}/comments`, sendJson('POST', comment))
+  request<ReviewComment & { mentioned: string[] }>(`/api/jobs/${jobId}/comments`, sendJson('POST', comment))
 export const takeBackComment = (jobId: number, commentId: number) =>
   request<{ ok: true }>(`/api/jobs/${jobId}/comments/${commentId}`, { method: 'DELETE' })
 
@@ -831,7 +836,7 @@ export const checkMessage = (text: string) => request<MessageCheck>('/api/check-
 
 // ---- notifications, search, dashboard (Stage 9A) ------------------------------------------------
 
-export type NotificationKind = 'finished' | 'failed' | 'submitted' | 'sent_back' | 'approved' | 'signed' | 'watch' | 'alert'
+export type NotificationKind = 'finished' | 'failed' | 'submitted' | 'sent_back' | 'approved' | 'signed' | 'watch' | 'alert' | 'mention'
 export type Notification = {
   id: number
   kind: NotificationKind
@@ -843,8 +848,8 @@ export type Notification = {
 }
 export type Counts = { unread: number; watch_drafts: number; requests: number }
 
-export const listNotifications = (unread = false) =>
-  request<{ items: Notification[]; unread: number }>(`/api/notifications${unread ? '?unread=true' : ''}`)
+export const listNotifications = (show: 'all' | 'unread' | 'mentions' = 'all') =>
+  request<{ items: Notification[]; unread: number }>(`/api/notifications${show === 'all' ? '' : `?${show}=true`}`)
 export const getCounts = () => request<Counts>('/api/notifications/count')
 export const readNotification = (id: number) => request<{ unread: number }>(`/api/notifications/${id}/read`, { method: 'POST' })
 export const readAllNotifications = () => request<{ unread: number }>('/api/notifications/read-all', { method: 'POST' })

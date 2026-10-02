@@ -20,6 +20,7 @@ const LOOK: Record<NotificationKind, Look> = {
   signed: { icon: 'award', tone: 'green', action: 'Open kit' },
   watch: { icon: 'folder', tone: 'saffron', action: 'Open' },
   alert: { icon: 'siren', tone: 'red', action: 'Review now' },
+  mention: { icon: 'user', tone: 'saffron', action: 'Open' },
 }
 
 function target(note: Notification, role: string): string | null {
@@ -32,13 +33,13 @@ function target(note: Notification, role: string): string | null {
 export function Notifications() {
   const { user } = useAuth()
   const { refresh } = useCounts()
-  const [tab, setTab] = useState<'all' | 'unread'>('all')
+  const [tab, setTab] = useState<'all' | 'unread' | 'mentions'>('all')
   const [items, setItems] = useState<Notification[] | null>(null)
   const [unread, setUnread] = useState(0)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    listNotifications(tab === 'unread')
+    listNotifications(tab)
       .then((body) => {
         setItems(body.items)
         setUnread(body.unread)
@@ -95,17 +96,20 @@ export function Notifications() {
         </button>
         <button type="button" role="tab" aria-selected={tab === 'unread'} className={tab === 'unread' ? 'is-on' : ''} onClick={() => setTab('unread')}>
           {t("Unread ({unread})", { unread: unread })}</button>
+        <button type="button" role="tab" aria-selected={tab === 'mentions'} className={tab === 'mentions' ? 'is-on' : ''} onClick={() => setTab('mentions')}>
+          {t("Mentions")}
+        </button>
       </div>
 
       {error && <div className="alert alert-red">{error}</div>}
       {items === null && !error && <p className="muted">{t("Loading…")}</p>}
       {items && items.length === 0 && (
-        <p className="muted">{tab === 'unread' ? t("Nothing unread.") : t("No notifications yet. You will see here when a job is ready, sent back, approved or signed.")}</p>
+        <p className="muted">{tab === 'unread' ? t("Nothing unread.") : tab === 'mentions' ? t("Nobody has mentioned you yet. A Reviewer can name you in a comment with @, e.g. @Priya.") : t("No notifications yet. You will see here when a job is ready, sent back, approved or signed.")}</p>
       )}
 
       {groups.map((group) => (
-        <section key={group.day} className="stack gap-10" aria-label={group.day}>
-          <h2 className="section-label">{group.day}</h2>
+        <section key={group.day} className="stack gap-10" aria-label={t(group.day)}>
+          <h2 className="section-label">{t(group.day)}</h2>
           <ul className="note-list">
             {group.items.map((note) => {
               const look = LOOK[note.kind]
@@ -118,7 +122,7 @@ export function Notifications() {
                   </span>
                   <span className="stack gap-2 grow note-text">
                     <span className="note-title">
-                      {!note.read && <span className="sr-only">Unread: </span>}
+                      {!note.read && <span className="sr-only">{t("Unread")}: </span>}
                       {note.title}
                     </span>
                     {note.detail && <span className="note-detail">{note.detail}</span>}
@@ -126,7 +130,7 @@ export function Notifications() {
                   <span className="muted small nowrap">{shortTime(note.created_at)}</span>
                   {href && (
                     <button type="button" className={`btn btn-sm note-action tone-${look.tone}`} onClick={() => open(note)}>
-                      {look.action}
+                      {t(look.action)}
                     </button>
                   )}
                   {!href && !note.read && (

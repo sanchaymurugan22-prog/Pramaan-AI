@@ -30,6 +30,8 @@ def answer(kind: str, messages: list[dict]) -> dict:
         return fact_sheet(source)
     if kind == "translate":  # Stage 8: TRANSLATE_ENGINE=llm with AI_MODE=mock
         return translation(messages[-1]["content"])
+    if kind == "rewrite":  # the "Shorter / More formal / Simpler" buttons
+        return rewrite(messages[-1]["content"])
     text = "\n".join(m["content"] for m in messages if m["role"] == "system")
     sheet = _parse_fact_sheet(_fenced(text, "FACT SHEET") or "")
     return BUILDERS[kind](sheet)
@@ -458,3 +460,53 @@ def translation(user_message: str) -> dict:
     lang = languages.get(code.group(1) if code else "hi")
     return {"translations": [mock_translation(t, lang) if t.strip() else t for t in texts]}
 
+
+
+# ---- the "Shorter / More formal / Simpler" buttons ----------------------------------------------------------
+
+# Never rewritten: ids, hashtags, values worked out in code
+_KEEP = {"fact_ids", "hashtags", "indicators", "id", "source_id", "subtitles", "start", "end", "duration_seconds"}
+_FORMAL = [(r"\bdon't\b", "do not"), (r"\bdoesn't\b", "does not"), (r"\bcan't\b", "cannot"), (r"\bwon't\b", "will not"),
+           (r"\bisn't\b", "is not"), (r"\baren't\b", "are not"), (r"\bit's\b", "it is"), (r"\bwe're\b", "we are"),
+           (r"\byou're\b", "you are"), (r"\bthey're\b", "they are"), (r"\bget\b", "obtain"), (r"\bcheck\b", "verify"), (r"\bfix\b", "remedy"), (r"\bhelp\b", "assist"),
+           (r"\bkeep\b", "maintain"), (r"!", ".")]
+_SIMPLE = [(r"\bapproximately\b", "about"), (r"\butili[sz]e\b", "use"), (r"\bcommence\b", "start"),
+           (r"\bimmediately\b", "now"), (r"\badditional\b", "more"), (r"\bensure\b", "make sure"),
+           (r"\bprior to\b", "before"), (r"\bin order to\b", "to"), (r"\bencrypted\b", "locked"),
+           (r"\bencrypting\b", "locking"), (r"\bexploited\b", "used"), (r"\bunpatched\b", "out-of-date"),
+           (r"\bdisruption\b", "problems"), (r"\bvulnerability\b", "weak spot"), (r"\bsubsequently\b", "then")]
+
+
+def rewrite(user_message: str) -> dict:
+    """Simple rules: shorter = drop the last sentence of long texts (and text in brackets); more formal = full
+    words and official verbs; simpler = everyday words. Numbers, dates, values and fact ids are never touched."""
+    import json
+
+    content = json.loads(_fenced(user_message, "CURRENT TEXT") or "{}")
+    change = "shorter" if "shorter" in user_message.split("ONE change.")[-1][:40] else \
+             "formal" if "more formal" in user_message.split("ONE change.")[-1][:40] else "simpler"
+
+    def text(value: str) -> str:
+        if change == "shorter":
+            sentences = re.split(r"(?<=[.!?])\s+", value.strip())
+            if len(sentences) > 1 and len(value) > 120:
+                value = " ".join(sentences[:-1])
+            return re.sub(r"\s*\((?![^)]*\d)[^)]*\)", "", value)  # "(sample)" goes; "(CVE-...)" with digits stays
+        rules = _FORMAL if change == "formal" else _SIMPLE
+        for pattern, word in rules:
+            value = re.sub(pattern, lambda m, w=word: w[0].upper() + w[1:] if m.group(0)[0].isupper() else w,
+                           value, flags=re.IGNORECASE)
+        return value
+
+    def walk(value, key=""):
+        if key in _KEEP:
+            return value
+        if isinstance(value, str):
+            return text(value)
+        if isinstance(value, list):
+            return [walk(v, key) for v in value]
+        if isinstance(value, dict):
+            return {k: walk(v, k) for k, v in value.items()}
+        return value
+
+    return walk(content)

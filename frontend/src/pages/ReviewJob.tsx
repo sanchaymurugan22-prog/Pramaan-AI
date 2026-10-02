@@ -141,6 +141,7 @@ export function ReviewJob({ jobId }: { jobId: number }) {
   const [outputId, setOutputId] = useState<number | null>(null)
   const [selection, setSelection] = useState<Selection>(NO_SELECTION)
   const [comment, setComment] = useState('')
+  const [mentioned, setMentioned] = useState<string[]>([]) // people named with @ in the last comment
   const [busy, setBusy] = useState(false)
   const [signing, setSigning] = useState(false)
   const [showEnglish, setShowEnglish] = useState(false) // Stage 8: a translation next to its English
@@ -197,8 +198,9 @@ export function ReviewJob({ jobId }: { jobId: number }) {
     setBusy(true)
     setError('')
     try {
-      await addComment(job!.id, { output_id: active.id, sentence_id: sentence.id, path: sentence.path, quote: sentence.text, text: comment })
+      const saved = await addComment(job!.id, { output_id: active.id, sentence_id: sentence.id, path: sentence.path, quote: sentence.text, text: comment })
       setComment('')
+      setMentioned(saved.mentioned)
       await reload()
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Could not save the comment."))
@@ -360,6 +362,7 @@ export function ReviewJob({ jobId }: { jobId: number }) {
                     onChange={(e) => setComment(e.target.value)}
                     placeholder={t("e.g. Fine to keep as an analyst note. / This district is not in the source.")}
                   />
+                  <span className="small muted">{t("Type @ and a name (e.g. @Priya) to notify someone.")}</span>
                   <div className="row gap-10">
                     <button type="button" className="btn btn-outline btn-sm" onClick={() => setSelection(NO_SELECTION)}>
                       {t("Cancel")}
@@ -371,6 +374,11 @@ export function ReviewJob({ jobId }: { jobId: number }) {
                 </>
               ) : (
                 <span className="small muted">{t("Click any sentence to see its source and to comment on it.")}</span>
+              )}
+              {mentioned.length > 0 && (
+                <span className="small" role="status">
+                  <Icon name="bell" size={14} /> {t("Notified: {names}", { names: mentioned.join(', ') })}
+                </span>
               )}
             </div>
           )}

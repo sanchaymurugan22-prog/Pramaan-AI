@@ -24,7 +24,7 @@ from app.ai import llm
 from app.config import settings
 from app.db import FactSheet, Job, Review, SessionLocal, utc_now
 from app.pipeline.factsheet import SourcePages, build_fact_sheet
-from app.pipeline.generate import generate_output
+from app.pipeline.generate import generate_output, rewrite_output
 from app.pipeline.ingest import load_pages
 from app.pipeline.checks import recheck_job
 from app.pipeline.output_types import OUTPUT_TYPES
@@ -102,21 +102,25 @@ def _run(db, job: Job) -> None:
             recheck_job(db, job)
             continue
         output.status, output.error, output.started_at = "generating", None, utc_now()
-        step = f"Writing the {OUTPUT_TYPES[output.type]['label']}"
-        report(step)
         had_text = bool(output.content_json)  # True when regenerating an output that was already written
+        change = output.rewrite if had_text else None  # "shorter" / "formal" / "simpler"
+        output.rewrite = None
+        step = f"{'Rewriting' if change else 'Writing'} the {OUTPUT_TYPES[output.type]['label']}"
+        report(step)
         try:
-            result = generate_output(
-                output.type, sheet, job.settings_json, on_progress=lambda note, step=step: report(f"{step} · {note}"),
-                masker=masker,
-            )
+            progress = lambda note, step=step: report(f"{step} · {note}")  # noqa: E731
+            if change:
+                result = rewrite_output(output.type, sheet, output.content_json, change, job.settings_json,
+                                        on_progress=progress, masker=masker)
+            else:
+                result = generate_output(output.type, sheet, job.settings_json, on_progress=progress, masker=masker)
         except llm.LLMError as exc:
             if had_text:  # keep the previous version rather than losing it
                 output.status, output.error = "done", f"Could not write it again ({exc}). The previous version is kept."
             else:
                 output.status, output.error = "failed", str(exc)
         else:
-            save_version(db, output, result.content, "regenerated" if had_text else "ai")
+            save_version(db, output, result.content, change or ("regenerated" if had_text else "ai"))
             output.status = "done"
             output.truncated, output.seconds, output.tokens = result.truncated, result.seconds, result.tokens
             queue_translations(job, output)  # a new English text: its translations are made again

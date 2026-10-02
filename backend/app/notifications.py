@@ -7,17 +7,21 @@ Who gets what:
   approved / signed   the job's Operator, when a Reviewer approves (approving also signs: two notes)
   watch               the Operator whose watch folder made a draft
   alert               every active Reviewer, when an Emergency alert waits for fast-track approval
+  mention             a person named with @ in a Reviewer's comment ("@Priya please check this line");
+                      shown on the "Mentions" tab of Notifications
 
 `notify()` only adds rows to the session; the caller commits (so a notification is never saved
 for something that was rolled back).
 """
+
+import re
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import Job, Notification, User
 
-KINDS = {"finished", "failed", "submitted", "sent_back", "approved", "signed", "watch", "alert"}
+KINDS = {"finished", "failed", "submitted", "sent_back", "approved", "signed", "watch", "alert", "mention"}
 # Profile & settings (Stage 9B): kinds a person may switch off. The rest (approved, signed, alerts ...)
 # are always shown.
 PREF_FOR_KIND = {"finished": "notify_ready", "failed": "notify_ready", "sent_back": "notify_sent_back",
@@ -63,3 +67,26 @@ def job_finished(db: Session, job: Job, done: int, failed: int) -> None:
                f"{job.title} · {failed} failed: open the job and use Try again.", job)
     else:
         notify(db, job.owner_id, "finished", f"All {total} output{'s are' if total != 1 else ' is'} ready", job.title, job)
+
+
+# "@Priya", "@PriyaSharma", "@priya.sharma" or "@EMP-20311" (not an e-mail address: no letter before the @)
+MENTION = re.compile(r"(?<![\w@])@(\w[\w.\-]*\w|\w)")
+
+
+def _squash(text: str) -> str:
+    return re.sub(r"[\s._\-]", "", text).lower()
+
+
+def mentioned(db: Session, text: str) -> list[User]:
+    """The people named with @ in a comment: by full name, employee id, or first name (when only one active
+    Operator or Reviewer has it). Admins are not mentioned: they do not see jobs."""
+    people = list(db.scalars(select(User).where(User.is_active.is_(True), User.role.in_(("operator", "reviewer")))))
+    found: list[User] = []
+    for token in MENTION.findall(text):
+        key = _squash(token)
+        matches = [u for u in people if key in (_squash(u.full_name), _squash(u.employee_id or "-"))]
+        if not matches:
+            first = [u for u in people if u.full_name.split() and _squash(u.full_name.split()[0]) == key]
+            matches = first if len(first) == 1 else []
+        found += [u for u in matches if u not in found]
+    return found

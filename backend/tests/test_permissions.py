@@ -36,6 +36,7 @@ MATRIX = [
     # outputs
     ("PUT", "/api/jobs/{job}/outputs/{output}", {OP}, {"fields": []}),
     ("POST", "/api/jobs/{job}/outputs/{output}/regenerate", {OP}, None),
+    ("POST", "/api/jobs/{job}/outputs/{output}/rewrite", {OP}, {"change": "shorter"}),
     ("POST", "/api/jobs/{job}/languages", {OP}, {"languages": []}),  # Stage 8
     ("POST", "/api/jobs/{job}/outputs/{output}/native-check", {RV}, {"checked": True}),
     ("POST", "/api/jobs/{job}/native-check-all", {RV}, None),

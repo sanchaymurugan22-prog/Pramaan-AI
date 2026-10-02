@@ -7,6 +7,8 @@ import {
   getVersion,
   listVersions,
   regenerateOutput,
+  rewriteOutput,
+  type RewriteChange,
   retryJob,
   type FactSheet,
   type JobDetail,
@@ -128,6 +130,18 @@ export function Results({ jobId }: { jobId: number }) {
       setPollRound((n) => n + 1)
     } catch (e) {
       setError(e instanceof Error ? e.message : t("Could not restart the job."))
+    }
+  }
+
+  // "Shorter" / "More formal" / "Simpler": no question asked, the current text is kept as an older version
+  async function rewrite(output: JobOutput, change: RewriteChange) {
+    try {
+      setViewing((v) => ({ ...v, [output.id]: undefined }))
+      setSelection(NO_SELECTION)
+      setJob(await rewriteOutput(jobId, output.id, change))
+      setPollRound((n) => n + 1)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("Could not start writing it again."))
     }
   }
 
@@ -372,6 +386,7 @@ export function Results({ jobId }: { jobId: number }) {
                   setSelection(NO_SELECTION)
                 }}
                 onRegenerate={() => regenerate(output)}
+                onRewrite={(change) => rewrite(output, change)}
                 canChange={canChange}
               />
             ))}
@@ -769,10 +784,17 @@ type OutputCardProps = {
   viewed: VersionDetail | undefined
   onView: (version: VersionDetail | undefined) => void
   onRegenerate: () => void
+  onRewrite: (change: RewriteChange) => void
   canChange: boolean // Operator, and the job is not with a reviewer or approved
 }
 
-function OutputCard({ job, output, meta, now, editing, onEdit, onSaved, viewed, onView, onRegenerate, canChange }: OutputCardProps) {
+const REWRITES: [RewriteChange, string, string][] = [
+  ['shorter', 'Shorter', 'Make it shorter: the key facts and actions stay'],
+  ['formal', 'More formal', 'The tone of an official notice'],
+  ['simpler', 'Simpler', 'Short sentences and everyday words'],
+]
+
+function OutputCard({ job, output, meta, now, editing, onEdit, onSaved, viewed, onView, onRegenerate, onRewrite, canChange }: OutputCardProps) {
   const [showVersions, setShowVersions] = useState(false)
   const busy = job.status === 'generating'
   const hasText = Boolean(output.content)
@@ -854,6 +876,17 @@ function OutputCard({ job, output, meta, now, editing, onEdit, onSaved, viewed, 
     <Card title={translated ? <>{t(output.label)} <span className="muted" lang={output.language}>· {language?.native ?? output.language}</span></> : t(output.label)}
           right={toolbar || status} json={(viewed?.content ?? output.content) || undefined}>
       {translated && !viewed && <TranslationNote output={output} />}
+      {canChange && !translated && output.type !== 'sms' && output.status === 'done' && !viewed && !editing && (
+        <div className="rewrite-row" role="group" aria-label={t("Rewrite with the AI")}>
+          <span className="small muted">{t("Rewrite:")}</span>
+          {REWRITES.map(([change, label, hint]) => (
+            <button key={change} type="button" className="btn btn-outline btn-xs" onClick={() => onRewrite(change)} disabled={busy}
+                    title={busy ? t("Wait until the AI has finished") : t(hint)}>
+              {t(label)}
+            </button>
+          ))}
+        </div>
+      )}
       {listening && (
         <audio autoPlay controls src={listenUrl(job.id, output.id, output.version)} onEnded={() => setListening(false)}
                aria-label={t("{label} read aloud", { label: output.label })} className="listen-audio" />

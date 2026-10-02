@@ -1,6 +1,7 @@
 """Notification routes (Stage 9A). Everyone sees only their own notifications.
 
-GET  /api/notifications              {"items": [...newest first], "unread": 3}   ?unread=true for unread only
+GET  /api/notifications              {"items": [...newest first], "unread": 3}   ?unread=true for unread only,
+                                     ?mentions=true for the "Mentions" tab (named with @ in a comment)
 GET  /api/notifications/count        {"unread": 3, "watch_drafts": 2}   (the bell and the menu poll this;
                                      watch_drafts: my drafts from the watch folder that wait at the Safety check)
 POST /api/notifications/{id}/read    mark one as read
@@ -28,10 +29,13 @@ def _json(n: Notification) -> dict:
 
 
 @router.get("")
-def list_notifications(unread: bool = False, db: Session = Depends(get_session), user: User = Depends(signed_in)):
+def list_notifications(unread: bool = False, mentions: bool = False, db: Session = Depends(get_session),
+                       user: User = Depends(signed_in)):
     query = select(Notification).where(Notification.user_id == user.id)
     if unread:
         query = query.where(Notification.read_at.is_(None))
+    if mentions:
+        query = query.where(Notification.kind == "mention")
     items = db.scalars(query.order_by(Notification.id.desc()).limit(100))
     return {"items": [_json(n) for n in items], "unread": _unread(db, user)}
 

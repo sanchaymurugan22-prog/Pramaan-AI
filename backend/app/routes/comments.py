@@ -4,6 +4,7 @@ GET    /api/jobs/{id}/comments            Operators and Reviewers: every comment
 POST   /api/jobs/{id}/comments            Reviewer: {"output_id", "sentence_id", "path", "quote", "text"}
 DELETE /api/jobs/{id}/comments/{cid}      the Reviewer who wrote it, while the review is still open (kept, marked taken back)
 
+A comment can name people with @ ("@Priya please check"): each gets a "mention" notification.
 A comment can only be added while the job is with a reviewer ("in_review"), and not by someone who worked
 on the job (separation of duties, as for approving). Sending back lists the comments of that version in
 the notification; the Operator sees them next to the sentences.
@@ -14,7 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import audit
+from app import audit, notifications
 from app.auth.deps import allow
 from app.db import Output, ReviewComment, User, as_utc, get_session, utc_now
 from app.pipeline.output_types import OUTPUT_TYPES
@@ -72,11 +73,16 @@ def add_comment(job_id: int, form: NewComment, db: Session = Depends(get_session
                             sentence_id=(form.sentence_id or None) and form.sentence_id[:20], path=form.path,
                             quote=form.quote.strip()[:1000], text=text, author_id=user.id)
     db.add(comment)
-    db.commit()
+    db.flush()
     where = comment_json(comment, db)["output_label"] or "the job"
+    people = [p for p in notifications.mentioned(db, text) if p.id != user.id]
+    for person in people:
+        notifications.notify(db, person.id, "mention", f"{user.full_name} mentioned you on “{job.title}”",
+                             f"{where}: {text}", job)
+    db.commit()
     audit.log("review", "comment_added", f"Commented on {where} of job #{job.id} v{job.version}", actor=user,
               target=f"job {job.id}")
-    return comment_json(comment, db)
+    return {**comment_json(comment, db), "mentioned": [p.full_name for p in people]}
 
 
 @router.delete("/{job_id}/comments/{comment_id}")
