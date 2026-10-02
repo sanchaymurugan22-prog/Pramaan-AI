@@ -8,7 +8,7 @@
 #
 # Steps: check this computer (platform, Python 3.12, Node, RAM, disk, ports) -> check every file of the
 # bundle against SHA256SUMS -> Python packages into backend/.venv -> frontend packages -> llama.cpp into
-# ~/llama -> the model into models/ -> .env -> a quick test. Safe to run again: finished steps are redone
+# ~/llama -> the model into models/ -> the language and voice models (Stage 8) -> .env -> a quick test. Safe to run again: finished steps are redone
 # quickly, and an existing .env is never overwritten.
 
 set -euo pipefail
@@ -61,6 +61,8 @@ else
 fi
 HAS_MODEL=0
 [ -d "$BUNDLE/models" ] && [ "$WITH_MODEL" = 1 ] && HAS_MODEL=1
+HAS_LANG=0
+[ -d "$BUNDLE/lang-models" ] && HAS_LANG=1
 if [ "$RAM_GB" -lt 8 ]; then
   fail "Only $RAM_GB GB of memory. Pramaan AI needs at least 8 GB (16 GB or more for the local AI)."
 elif [ "$RAM_GB" -lt 16 ] && [ "$HAS_MODEL" = 1 ]; then
@@ -73,6 +75,7 @@ fi
 
 NEEDED_GB=3
 [ "$HAS_MODEL" = 1 ] && NEEDED_GB=22
+[ "$HAS_LANG" = 1 ] && NEEDED_GB=$((NEEDED_GB + 1))
 FREE_GB=$(df -Pk "$ROOT" | awk 'NR==2 {print int($4 / 1024 / 1024)}')
 [ "$FREE_GB" -ge "$NEEDED_GB" ] || fail "Not enough free disk space: $FREE_GB GB free here, $NEEDED_GB GB needed."
 ok "$FREE_GB GB free disk space (needs $NEEDED_GB GB)"
@@ -149,6 +152,17 @@ else
   say "Model: skipped (AI_MODE=mock)"
 fi
 
+# ---- 6b. Stage 8: language and voice models -------------------------------------------------------------------
+if [ "$HAS_LANG" = 1 ]; then
+  say "Language and voice models (translation, voices, speech-to-text)"
+  mkdir -p models
+  cp -cR "$BUNDLE/lang-models/." models/ 2>/dev/null || cp -R "$BUNDLE/lang-models/." models/
+  ok "IndicTrans2, Piper voices (Hindi, Telugu, Malayalam, Urdu), IndicConformer (Hindi, Tamil), Whisper small ($(du -sh "$BUNDLE/lang-models" | cut -f1))"
+else
+  say "Language and voice models: not in the bundle"
+  warn "translation goes through the AI model (TRANSLATE_ENGINE=llm, slow); voices only from macOS; no speech-to-text"
+fi
+
 # ---- 7. settings (.env) ----------------------------------------------------------------------------------------
 say "Settings (.env)"
 if [ -f .env ]; then
@@ -161,6 +175,16 @@ else
     ok ".env made from .env.example, with AI_MODE=mock (no model installed)"
   else
     ok ".env made from .env.example (AI_MODE=local). The secret keys are made at the first start."
+  fi
+  if [ "$HAS_LANG" = 0 ]; then
+    if [ "$HAS_MODEL" = 0 ]; then  # nothing to translate with: test engines
+      sed -i.bak -e 's/^TRANSLATE_ENGINE=.*/TRANSLATE_ENGINE=mock/' -e 's/^TTS_ENGINE=.*/TTS_ENGINE=mock/' \
+        -e 's/^STT_ENGINE=.*/STT_ENGINE=mock/' .env && rm -f .env.bak
+      ok "no language models: TRANSLATE_ENGINE, TTS_ENGINE and STT_ENGINE set to mock (test answers)"
+    else
+      sed -i.bak -e 's/^TRANSLATE_ENGINE=.*/TRANSLATE_ENGINE=llm/' -e 's/^TTS_ENGINE=.*/TTS_ENGINE=say/' .env && rm -f .env.bak
+      ok "no language models: TRANSLATE_ENGINE=llm (through the AI model) and TTS_ENGINE=say (macOS voices)"
+    fi
   fi
 fi
 

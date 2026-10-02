@@ -6,12 +6,16 @@
 #   ./scripts/make-offline-bundle.sh                 bundle in ./offline-bundle (about 19 GB with the model)
 #   ./scripts/make-offline-bundle.sh /Volumes/USB/pramaan-bundle
 #   ./scripts/make-offline-bundle.sh --no-model      without the 18 GB model (enough for AI_MODE=mock)
+#   ./scripts/make-offline-bundle.sh --no-lang-models   without the Stage 8 language and voice models (0.9 GB)
 #
 # What goes in:
 #   python/wheels/   every Python package of backend/requirements.txt, as ready-made wheels
 #   node/npm-cache/  every npm package of frontend/package-lock.json (npm's own cache format)
 #   llama/           the llama.cpp binaries (copied from ~/llama, or downloaded: LLAMA_URL=...)
 #   models/          Sarvam 30B Q4_K_M, 6 GGUF files (from the Hugging Face cache, or downloaded)
+#   lang-models/     Stage 8, about 0.9 GB, the same layout as models/: IndicTrans2 (CTranslate2 8-bit),
+#                    Piper voices hi/te/ml/ur (tts/), IndicConformer hi/ta and Whisper small (stt/). Copied
+#                    from this project's models/ folder, or made by scripts/download-models.py (HF_TOKEN in .env)
 #   MANIFEST.txt     what is in it and for which platform;  SHA256SUMS  a fingerprint of every file
 # Python 3.12 and Node are NOT included: install them from their own offline installers
 # (python.org .pkg, nodejs.org .pkg) and put those next to the bundle if the target has neither.
@@ -24,11 +28,13 @@ MODEL_REPO="sarvamai/sarvam-30b-gguf"
 MODEL_FILES=()
 for n in 1 2 3 4 5 6; do MODEL_FILES+=("sarvam-30b-Q4_K_M.gguf-0000$n-of-00006.gguf"); done
 WITH_MODEL=1
+WITH_LANG=1
 BUNDLE="$ROOT/offline-bundle"
 for arg in "$@"; do
   case "$arg" in
     --no-model) WITH_MODEL=0 ;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    --no-lang-models) WITH_LANG=0 ;;
+    -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
     -*) echo "Unknown option: $arg (see --help)"; exit 1 ;;
     *) BUNDLE="$arg" ;;
   esac
@@ -52,6 +58,7 @@ curl -s -m 10 -o /dev/null https://pypi.org/simple/ || fail "No internet: this s
 PLATFORM="$(uname -s)-$(uname -m)"
 NEEDED_GB=2
 [ "$WITH_MODEL" = 1 ] && NEEDED_GB=22
+[ "$WITH_LANG" = 1 ] && NEEDED_GB=$((NEEDED_GB + 3))  # 0.9 GB, plus 2 GB while downloading and converting
 mkdir -p "$BUNDLE"
 FREE_GB=$(df -Pk "$BUNDLE" | awk 'NR==2 {print int($4 / 1024 / 1024)}')
 [ "$FREE_GB" -ge "$NEEDED_GB" ] || fail "Not enough free disk space at $BUNDLE: $FREE_GB GB free, $NEEDED_GB GB needed."
@@ -115,6 +122,31 @@ else
   rm -rf "$BUNDLE/models"
 fi
 
+# ---- Stage 8: language and voice models ----------------------------------------------------------------
+# Only the finished models (converted / quantised), never models/src (the 2 GB originals).
+LANG_PARTS=(indictrans2-en-indic-ct2 tts/vits-piper-hi_IN-priyamvada-medium-int8 tts/vits-piper-te_IN-padmavathi-medium-int8
+            tts/vits-piper-ml_IN-meera-medium-int8 tts/vits-piper-ur_PK-fasih-medium-int8
+            stt/indicconformer-hi stt/indicconformer-ta stt/whisper-small)
+if [ "$WITH_LANG" = 1 ]; then
+  say "Language and voice models (Stage 8, about 0.9 GB)"
+  missing=0
+  for part in "${LANG_PARTS[@]}"; do [ -d "models/$part" ] || missing=1; done
+  if [ "$missing" = 1 ]; then
+    echo "Some are not in models/ yet: downloading them (needs HF_TOKEN in .env for IndicTrans2; never printed)"
+    backend/.venv/bin/python scripts/download-models.py || fail "Could not download the language models (see above)."
+  fi
+  rm -rf "$BUNDLE/lang-models"
+  for part in "${LANG_PARTS[@]}"; do
+    mkdir -p "$BUNDLE/lang-models/$(dirname "$part")"
+    cp -cR "models/$part" "$BUNDLE/lang-models/$part" 2>/dev/null || cp -R "models/$part" "$BUNDLE/lang-models/$part"
+  done
+  # half-finished downloads are left out
+  find "$BUNDLE/lang-models" -name '*.part' -delete
+  echo "lang-models: $(du -sh "$BUNDLE/lang-models" | cut -f1)"
+else
+  rm -rf "$BUNDLE/lang-models"
+fi
+
 # ---- manifest and fingerprints --------------------------------------------------------------------------
 say "Fingerprints"
 {
@@ -125,6 +157,7 @@ say "Fingerprints"
   echo "node: $(node -v)"
   echo "code: $(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
   echo "model: $([ "$WITH_MODEL" = 1 ] && echo "$MODEL_REPO Q4_K_M" || echo "not included (AI_MODE=mock only)")"
+  echo "language models: $([ "$WITH_LANG" = 1 ] && echo "IndicTrans2, Piper hi/te/ml/ur, IndicConformer hi/ta, Whisper small" || echo "not included")"
 } > "$BUNDLE/MANIFEST.txt"
 (cd "$BUNDLE" && find . -type f ! -name SHA256SUMS ! -name MANIFEST.txt -print0 | sort -z | xargs -0 shasum -a 256 > SHA256SUMS)
 echo "$(wc -l < "$BUNDLE/SHA256SUMS" | tr -d ' ') files fingerprinted"
