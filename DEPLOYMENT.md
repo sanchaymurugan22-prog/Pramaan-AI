@@ -84,6 +84,6 @@ npm run dist:mac
 # Windows Setup.exe
 npm run dist:win
 
-# Linux AppImage / .deb
+# Linux AppImage
 npm run dist:linux
 ```
