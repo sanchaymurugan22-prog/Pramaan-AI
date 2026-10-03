@@ -150,4 +150,7 @@ DEFAULT_MAX_TOKENS = {
 
 def max_tokens_for(kind: str) -> int:
     """Token limit for one kind of answer: MAX_TOKENS_<KIND> from .env, or the default above."""
-    return int(_get(f"MAX_TOKENS_{kind.upper()}", str(DEFAULT_MAX_TOKENS.get(kind, 400))))
+    val = int(_get(f"MAX_TOKENS_{kind.upper()}", str(DEFAULT_MAX_TOKENS.get(kind, 400))))
+    if kind == "factsheet" and val < 5000:
+        return 5000
+    return val
