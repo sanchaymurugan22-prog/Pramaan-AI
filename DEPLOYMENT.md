@@ -69,11 +69,46 @@ Large models are stored outside `app.asar` in the OS application data directory 
 
 ---
 
+## 🌐 Web Prototype Deployment (SIH Judge Evaluation)
+
+Pramaan AI supports a **dual-deployment architecture**:
+
+```
+                    PRAMAAN AI
+                         |
+              +----------+----------+
+              |                     |
+        WEB DEPLOYMENT        DESKTOP DEPLOYMENT
+              |                     |
+        SIH JUDGE DEMO        Offline/local use
+              |                     |
+         Remote backend          Local backend
+              |                     |
+         Real AI services        Local AI
+              |                     |
+          Internet              Offline
+```
+
+- **WEB**: Centralized browser-based access for authorized environments and SIH judge demonstrations. Runs unified SPA + FastAPI backend over HTTPS with real AI models.
+- **DESKTOP**: Offline/local deployment for sensitive or disconnected environments. Runs locally with zero internet dependency.
+
+### Web Architecture & Pre-seeded Demo Accounts
+- **Frontend SPA**: React static SPA built (`frontend/dist`) and mounted directly by FastAPI.
+- **Backend API**: FastAPI serving ingestion, TLP safety, Fact Sheet extraction, output formatting, reviewer signing, and `/verify` public verification.
+- **AI Engine**: Connects to real Sarvam 30B GGUF (`llama-server`) or Sarvam AI cloud endpoint.
+- **Judge Access**: Controlled demo accounts pre-seeded for 1-click login:
+  - **Operator / Judge Admin**: `sih.judge` / `JudgePassword123!`
+  - **Reviewer**: `reviewer.demo` / `ReviewerPassword123!`
+  - **Administrator**: `admin.demo` / `AdminPassword123!`
+
+---
+
 ## 🛠️ CI/CD & Build Commands
 
-Release binaries are built via GitHub Actions (`.github/workflows/build-desktop.yml`).
+- **Desktop Release Workflow**: `.github/workflows/build-desktop.yml`
+- **Web Prototype Workflow**: `.github/workflows/deploy-web.yml`
 
-To build locally:
+To build desktop releases locally:
 
 ```bash
 cd desktop
@@ -87,3 +122,4 @@ npm run dist:win
 # Linux AppImage
 npm run dist:linux
 ```
+

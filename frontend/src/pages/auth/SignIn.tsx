@@ -36,6 +36,38 @@ export function SignIn({ notice, onSignedIn }: { notice: string; onSignedIn: (us
           <h1 className="auth-title">{t("Welcome back")}</h1>
           <p className="muted">{t("Sign in with the account your Admin created for you.")}</p>
         </div>
+        <div style={{
+          background: 'var(--saffron-light, #FFF4E8)',
+          border: '1px solid var(--saffron-mid, #FFDDB8)',
+          borderRadius: '12px',
+          padding: '14px 16px',
+          margin: '12px 0'
+        }}>
+          <div style={{ fontWeight: 600, color: 'var(--saffron-dark, #A34A00)', marginBottom: '4px', fontSize: '0.92rem' }}>
+            🏛️ SIH Judge Evaluation Demo Access
+          </div>
+          <p style={{ fontSize: '0.83rem', color: 'var(--ink, #1B1D26)', marginBottom: '10px', lineHeight: 1.4 }}>
+            Centralized web prototype access. Click below to auto-fill credentials:
+          </p>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn btn-sm btn-navy"
+              style={{ padding: '6px 12px', fontSize: '0.8rem', height: 'auto', minHeight: '34px' }}
+              onClick={() => { setUsername('sih.judge'); setPassword('JudgePassword123!'); }}
+            >
+              Fill Judge Admin (sih.judge)
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-green"
+              style={{ padding: '6px 12px', fontSize: '0.8rem', height: 'auto', minHeight: '34px' }}
+              onClick={() => { setUsername('reviewer.demo'); setPassword('ReviewerPassword123!'); }}
+            >
+              Fill Reviewer (reviewer.demo)
+            </button>
+          </div>
+        </div>
         {notice && !error && (
           <div className="hint" role="status">
             {notice}

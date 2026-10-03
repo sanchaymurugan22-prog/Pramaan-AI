@@ -167,6 +167,61 @@ def needs_setup(db: Session) -> bool:
     return db.scalar(select(func.count(User.id))) == 0
 
 
+def seed_demo_accounts(db: Session) -> None:
+    """Ensure SIH Judge demo accounts exist for easy evaluation."""
+    judge = find_user(db, "sih.judge")
+    if not judge:
+        judge = User(
+            username="sih.judge",
+            full_name="SIH Evaluation Judge",
+            role="operator",
+            password_hash=hash_password("JudgePassword123!"),
+            employee_id="SIH-2026-JUDGE",
+            email="judge@sih.gov.in",
+            division="Cyber operations",
+            created_at=utc_now(),
+        )
+        db.add(judge)
+    else:
+        judge.role = "operator"
+
+    reviewer = find_user(db, "reviewer.demo")
+    if not reviewer:
+        reviewer = User(
+            username="reviewer.demo",
+            full_name="Demo Reviewer",
+            role="reviewer",
+            password_hash=hash_password("ReviewerPassword123!"),
+            employee_id="REV-2026-DEMO",
+            email="reviewer@sih.gov.in",
+            division="Cyber operations",
+            created_at=utc_now(),
+        )
+        db.add(reviewer)
+    else:
+        reviewer.role = "reviewer"
+
+    admin_user = find_user(db, "admin.demo")
+    if not admin_user:
+        admin_user = User(
+            username="admin.demo",
+            full_name="Demo Administrator",
+            role="admin",
+            password_hash=hash_password("AdminPassword123!"),
+            employee_id="ADM-2026-DEMO",
+            email="admin@sih.gov.in",
+            division="Administration",
+            created_at=utc_now(),
+        )
+        db.add(admin_user)
+    else:
+        admin_user.role = "admin"
+
+    db.commit()
+
+
+
+
 # v1.2: the one-time setup code. Without it, anyone who could open the page before the installer did (for
 # example on the office network) could make themselves the first Admin. The server prints the code in ITS
 # terminal (the window where scripts/start.sh runs), which only the person who installed it can see. It is
