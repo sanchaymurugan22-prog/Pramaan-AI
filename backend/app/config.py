@@ -137,7 +137,7 @@ settings = Settings()
 # 1.4 tokens/second, so 350 tokens is about 4 minutes. Override any of these in .env,
 # e.g. MAX_TOKENS_X_THREAD=250
 DEFAULT_MAX_TOKENS = {
-    "factsheet": 5000,
+    "factsheet": 3500,
     "x_thread": 1500,
     "linkedin_post": 1500,
     "executive_summary": 1500,
@@ -150,6 +150,4 @@ DEFAULT_MAX_TOKENS = {
 
 def max_tokens_for(kind: str) -> int:
     """Token limit for one kind of answer: MAX_TOKENS_<KIND> from .env, or the default above."""
-    val = int(_get(f"MAX_TOKENS_{kind.upper()}", str(DEFAULT_MAX_TOKENS.get(kind, 1500))))
-    min_needed = DEFAULT_MAX_TOKENS.get(kind, 1500)
-    return max(val, min_needed)
+    return int(_get(f"MAX_TOKENS_{kind.upper()}", str(DEFAULT_MAX_TOKENS.get(kind, 1500))))
