@@ -137,7 +137,7 @@ settings = Settings()
 # 1.4 tokens/second, so 350 tokens is about 4 minutes. Override any of these in .env,
 # e.g. MAX_TOKENS_X_THREAD=250
 DEFAULT_MAX_TOKENS = {
-    "factsheet": 3500,  # was 1400: raised to avoid cutoff when generating fact sheet
+    "factsheet": 5000,  # raised from 1400/3500 to avoid cutoff when Sarvam reasoning + JSON is generated
     "x_thread": 350,
     "linkedin_post": 350,
     "executive_summary": 450,
