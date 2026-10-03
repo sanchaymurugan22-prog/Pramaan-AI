@@ -49,16 +49,17 @@ def user_json(user: User) -> dict:
 
 
 def _set_cookie(request: Request, response: Response, token: str) -> None:
-    """HttpOnly: page scripts cannot read it. SameSite=Strict: other websites cannot make the browser
-    send it. Secure (HTTPS only) when the app is served over HTTPS. No expiry date: the browser forgets
-    it when closed, and the server ends it after 8 hours anyway."""
-    response.set_cookie(sessions.COOKIE_NAME, token, httponly=True, samesite="strict",
-                        secure=request.url.scheme == "https", path="/")
+    is_https = request.url.scheme == "https"
+    samesite_val = "none" if is_https else "strict"
+    response.set_cookie(sessions.COOKIE_NAME, token, httponly=True, samesite=samesite_val,
+                        secure=is_https, path="/")
 
 
 def _clear_cookie(request: Request, response: Response) -> None:
-    response.delete_cookie(sessions.COOKIE_NAME, httponly=True, samesite="strict",
-                           secure=request.url.scheme == "https", path="/")
+    is_https = request.url.scheme == "https"
+    samesite_val = "none" if is_https else "strict"
+    response.delete_cookie(sessions.COOKIE_NAME, httponly=True, samesite=samesite_val,
+                           secure=is_https, path="/")
 
 
 @router.get("/status")

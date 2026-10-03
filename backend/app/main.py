@@ -77,6 +77,8 @@ async def check_origin(request: Request, call_next):
                 or clean_origin == host_origin.rstrip("/")
                 or "*" in settings.allowed_origins
                 or "trycloudflare.com" in clean_origin
+                or "vercel.app" in clean_origin
+                or "onrender.com" in clean_origin
             ):
                 return await call_next(request)
             return JSONResponse({"detail": "Refused: this request did not come from a Pramaan AI page."},

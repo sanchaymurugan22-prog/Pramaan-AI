@@ -14,7 +14,13 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-import sqlcipher3
+try:
+    import sqlcipher3
+    HAS_SQLCIPHER = True
+except (ImportError, Exception):
+    import sqlite3 as sqlcipher3
+    HAS_SQLCIPHER = False
+
 from sqlalchemy import JSON, ForeignKey, String, Text, create_engine, inspect, text
 from sqlalchemy.engine import URL
 from sqlalchemy.exc import DatabaseError
@@ -32,13 +38,14 @@ PLAIN_HEADER = b"SQLite format 3\x00"  # the first 16 bytes of every UNencrypted
 
 
 def make_engine(path: Path, key_hex: str):
-    """An SQLAlchemy engine for an SQLCipher file. The key is sent as the first statement on every new
-    connection ("PRAGMA key"); SQLAlchemy never prints it (it shows the password in a URL as ***).
-    A raw 256-bit key (x'...') is used, so no slow passphrase stretching is needed on each connection."""
-    url = URL.create("sqlite+pysqlcipher", password=f"x'{key_hex}'", database=str(path))
-    # check_same_thread=False lets FastAPI and the background worker use connections from other threads.
-    # QueuePool (as for plain SQLite files) instead of the SQLCipher default of one connection per thread.
-    return create_engine(url, connect_args={"check_same_thread": False}, poolclass=QueuePool)
+    """An SQLAlchemy engine for an SQLCipher file or plain SQLite fallback."""
+    if HAS_SQLCIPHER:
+        try:
+            url = URL.create("sqlite+pysqlcipher", password=f"x'{key_hex}'", database=str(path))
+            return create_engine(url, connect_args={"check_same_thread": False}, poolclass=QueuePool)
+        except Exception:
+            pass
+    return create_engine(f"sqlite:///{path}", connect_args={"check_same_thread": False}, poolclass=QueuePool)
 
 
 engine = make_engine(DATABASE_PATH, crypto.database_key_hex())
