@@ -18,4 +18,4 @@ services:
       - key: ALLOWED_ORIGINS
         value: "https://pramaan-ai-nine.vercel.app,http://localhost:5173,*"
       - key: MAX_TOKENS_FACTSHEET
-        value: "5000"
+        value: "8000"
