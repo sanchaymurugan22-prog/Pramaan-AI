@@ -4,7 +4,13 @@ database is moved into an encrypted one (keeping a backup), and stored files are
 import sqlite3
 
 import pytest
-import sqlcipher3
+try:
+    import sqlcipher3
+    HAS_SQLCIPHER = True
+except (ImportError, Exception):
+    import sqlite3 as sqlcipher3
+    HAS_SQLCIPHER = False
+
 from sqlalchemy import text
 from sqlalchemy.exc import DatabaseError
 

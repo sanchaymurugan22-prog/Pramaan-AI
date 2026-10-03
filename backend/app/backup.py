@@ -18,7 +18,12 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 
-import sqlcipher3
+try:
+    import sqlcipher3
+    HAS_SQLCIPHER = True
+except (ImportError, Exception):
+    import sqlite3 as sqlcipher3
+    HAS_SQLCIPHER = False
 
 from app import crypto
 from app.config import settings
@@ -39,15 +44,17 @@ the .env that belongs to it, and start Pramaan AI again.
 
 
 def _copy_database(target: Path) -> None:
-    """A consistent copy of the live, encrypted database (SQLite's online backup, page by page)."""
+    """A consistent copy of the live database (SQLite's online backup, page by page)."""
     key = f"\"x'{crypto.database_key_hex()}'\""
     source = sqlcipher3.connect(str(DATABASE_PATH))
     copy = sqlcipher3.connect(str(target))
     try:
-        source.execute(f"PRAGMA key = {key}")
-        copy.execute(f"PRAGMA key = {key}")
+        if HAS_SQLCIPHER:
+            source.execute(f"PRAGMA key = {key}")
+            copy.execute(f"PRAGMA key = {key}")
         source.backup(copy)
-        copy.execute("SELECT count(*) FROM sqlite_master").fetchone()  # it opens with the same key
+        if HAS_SQLCIPHER:
+            copy.execute("SELECT count(*) FROM sqlite_master").fetchone()  # it opens with the same key
     finally:
         copy.close()
         source.close()

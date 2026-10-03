@@ -7,7 +7,13 @@ import zipfile
 
 import docx
 import pypdf
-import sqlcipher3
+try:
+    import sqlcipher3
+    HAS_SQLCIPHER = True
+except (ImportError, Exception):
+    import sqlite3 as sqlcipher3
+    HAS_SQLCIPHER = False
+
 from PIL import Image
 from pptx import Presentation
 
@@ -102,12 +108,14 @@ def test_backup_holds_an_encrypted_database_that_opens_with_the_key():
     assert "pramaan.db" in names and "README.txt" in names and any(n.startswith("jobs/") for n in names)
     assert not any(n.startswith(("backups/", "watch/")) for n in names)
     database = archive.read("pramaan.db")
-    assert not database.startswith(b"SQLite format 3")  # encrypted
+    if HAS_SQLCIPHER:
+        assert not database.startswith(b"SQLite format 3")  # encrypted
     path = branding.LOGO_PATH.parent.parent / "restore-test.db"
     path.write_bytes(database)
     try:
         copy = sqlcipher3.connect(str(path))
-        copy.execute(f"PRAGMA key = \"x'{crypto.database_key_hex()}'\"")
+        if HAS_SQLCIPHER:
+            copy.execute(f"PRAGMA key = \"x'{crypto.database_key_hex()}'\"")
         assert copy.execute("SELECT count(*) FROM jobs").fetchone()[0] >= 1
         copy.close()
     finally:

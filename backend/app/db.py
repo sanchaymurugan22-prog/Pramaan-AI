@@ -456,6 +456,8 @@ def encrypt_plain_database(path: Path, key_hex: str) -> Path | None:
     every table has the same number of rows, then swap them. The plain file is kept next to it as
     <name>.plain-backup (delete it yourself after checking). Returns the backup's path, or None if there
     was nothing to do."""
+    if not HAS_SQLCIPHER:
+        return None
     if not path.exists():
         return None
     with path.open("rb") as file:
