@@ -242,12 +242,16 @@ def chat_json(
 
     started = time.monotonic()
     data, truncated, tokens = _ask_json(messages, schema, max_tokens, temperature, on_progress)
+    if not isinstance(data, dict):
+        data = None
     if data is None:
         # One retry, colder and with a reminder
         retry_messages = messages[:-1] + [
             {"role": messages[-1]["role"], "content": messages[-1]["content"] + "\n\n" + JSON_REMINDER}
         ]
         data, truncated, tokens = _ask_json(retry_messages, schema, max_tokens, 0.0, on_progress)
+        if not isinstance(data, dict):
+            data = None
     if data is None:
         raise LLMError("The model did not return valid JSON, even after one retry. Try again.")
 
