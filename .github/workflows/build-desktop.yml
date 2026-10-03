@@ -76,7 +76,7 @@ jobs:
         if: matrix.platform != 'win'
         run: |
           cd desktop/dist
-          shasum -a 256 *.dmg *.zip *.AppImage *.deb 2>/dev/null > SHA256SUMS.txt || true
+          shasum -a 256 *.dmg *.AppImage 2>/dev/null > SHA256SUMS.txt || true
           cat SHA256SUMS.txt
 
       - name: Generate SHA-256 Checksums (Windows)
@@ -84,7 +84,7 @@ jobs:
         shell: pwsh
         run: |
           cd desktop/dist
-          Get-FileHash -Algorithm SHA256 *.exe | ForEach-Object { "$($_.Hash.ToLower())  $($_.Path | Split-Path -Leaf)" } | Out-File -FilePath SHA256SUMS.txt -Encoding utf8
+          Get-ChildItem -Filter "*.exe" | Where-Object { $_.Name -like "*Setup*" } | ForEach-Object { Get-FileHash -Algorithm SHA256 $_.FullName } | ForEach-Object { "$($_.Hash.ToLower())  $($_.Path | Split-Path -Leaf)" } | Out-File -FilePath SHA256SUMS.txt -Encoding utf8
           Get-Content SHA256SUMS.txt
 
       - name: Upload Build Artifacts to Workflow Run
@@ -93,10 +93,8 @@ jobs:
           name: Pramaan-AI-${{ matrix.platform }}-artifacts
           path: |
             desktop/dist/*.dmg
-            desktop/dist/*.zip
-            desktop/dist/*.exe
+            desktop/dist/*Setup*.exe
             desktop/dist/*.AppImage
-            desktop/dist/*.deb
             desktop/dist/SHA256SUMS.txt
           if-no-files-found: ignore
 
@@ -118,8 +116,13 @@ jobs:
       - name: Consolidate Artifacts & Compute Master SHA256SUMS.txt
         run: |
           mkdir -p release-files
-          find release-artifacts -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" \) -exec cp {} release-files/ \;
+          # Copy only the three official application files
+          find release-artifacts -type f -name "*.dmg" -exec cp {} release-files/ \;
+          find release-artifacts -type f -name "*Setup*.exe" -exec cp {} release-files/ \;
+          find release-artifacts -type f -name "*.AppImage" -exec cp {} release-files/ \;
           cd release-files
+          echo "=== Official Application Files ==="
+          ls -la
           sha256sum * > SHA256SUMS.txt
           echo "=== MASTER SHA256SUMS ==="
           cat SHA256SUMS.txt
@@ -138,19 +141,19 @@ jobs:
 
             ---
 
-            ## 📦 Download Official Installers
+            ## 📦 Download Pramaan AI
 
-            | Operating System | Installer Format | Recommended Download |
-            | :--- | :--- | :--- |
-            | 🍎 **macOS** | Disk Image (`.dmg`) / Archive (`.zip`) | **`Pramaan AI-1.0.0.dmg`** |
-            | 🪟 **Windows** | NSIS Installer (`.exe`) | **`Pramaan AI Setup 1.0.0.exe`** |
-            | 🐧 **Linux** | Standalone AppImage / Debian (`.deb`) | **`Pramaan AI-1.0.0.AppImage`** or `pramaan-ai-desktop_1.0.0_amd64.deb` |
+            | Operating System | Download |
+            | :--- | :--- |
+            | 🍎 **macOS** (Intel & Apple Silicon) | **`Pramaan AI-1.0.0.dmg`** |
+            | 🪟 **Windows** (10 / 11) | **`Pramaan AI Setup 1.0.0.exe`** |
+            | 🐧 **Linux** (Ubuntu / Fedora / Debian) | **`Pramaan AI-1.0.0.AppImage`** |
 
             ---
 
             ## 🚀 First-Time Installation Guide
 
-            1. Download the correct installer for your Operating System above.
+            1. Download the installer for your Operating System above.
             2. Run the installer to add Pramaan AI to your Applications / Start Menu.
             3. Launch **Pramaan AI**. The First-Run Setup Wizard will check system hardware requirements (RAM, CPU, disk space) and complete initial AI model configuration.
             4. Once setup completes, turn **Wi-Fi OFF** — Pramaan AI runs 100% offline with no internet dependency!

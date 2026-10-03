@@ -47,13 +47,13 @@ To package standalone installers:
 ```bash
 cd desktop
 
-# macOS DMG & ZIP
+# macOS Universal DMG (Intel + Apple Silicon)
 npm run dist:mac
 
 # Windows NSIS Setup.exe
 npm run dist:win
 
-# Linux AppImage & .deb
+# Linux AppImage
 npm run dist:linux
 ```
 

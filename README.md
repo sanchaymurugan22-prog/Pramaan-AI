@@ -27,7 +27,7 @@ Download official cross-platform installers from the [**GitHub Releases**](https
 
 - 🍎 **macOS (Intel & Apple Silicon)**: [`Pramaan AI-1.0.0.dmg`](https://github.com/sanchaymurugan22-prog/Pramaan-AI/releases/latest)
 - 🪟 **Windows (10 / 11)**: [`Pramaan AI Setup 1.0.0.exe`](https://github.com/sanchaymurugan22-prog/Pramaan-AI/releases/latest)
-- 🐧 **Linux (Ubuntu / Fedora / Debian)**: [`Pramaan AI-1.0.0.AppImage`](https://github.com/sanchaymurugan22-prog/Pramaan-AI/releases/latest) or `pramaan-ai-desktop_1.0.0_amd64.deb`
+- 🐧 **Linux (Ubuntu / Fedora / Debian)**: [`Pramaan AI-1.0.0.AppImage`](https://github.com/sanchaymurugan22-prog/Pramaan-AI/releases/latest)
 
 > **Note for Users**: Pramaan AI is a self-contained desktop application. You do **NOT** need Python, Node.js, npm, Git, or Terminal commands to install or use Pramaan AI. Simply download the installer for your OS, run it, and complete the First-Run Setup Wizard!
 

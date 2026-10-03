@@ -4,28 +4,25 @@ Choose your Operating System below to download the latest official installer.
 
 ---
 
-## 🪟 Windows (Windows 10 / 11)
+## 🍎 macOS (Intel & Apple Silicon)
 
-- **NSIS Installer**: [`Pramaan AI Setup 1.0.0.exe`](https://github.com/sanchaymurugan22-prog/Pramaan-AI/releases/latest)
-- **Instructions**: Double-click `Pramaan AI Setup 1.0.0.exe` and follow the on-screen setup prompts. Pramaan AI will be added to your Start Menu and Desktop.
+- **Download**: [`Pramaan AI-1.0.0.dmg`](https://github.com/sanchaymurugan22-prog/Pramaan-AI/releases/latest)
+- **Supports**: Both Apple Silicon (M1/M2/M3/M4) and Intel Macs in a single Universal installer.
+- **Instructions**: Open `Pramaan AI-1.0.0.dmg` and drag **Pramaan AI** into your Applications folder. Launch it from Applications or Spotlight.
 
 ---
 
-## 🍎 macOS (Intel x64 & Apple Silicon arm64)
+## 🪟 Windows (Windows 10 / 11)
 
-- **DMG Installer**: [`Pramaan AI-1.0.0.dmg`](https://github.com/sanchaymurugan22-prog/Pramaan-AI/releases/latest)
-- **ZIP Archive**: [`Pramaan AI-1.0.0-mac.zip`](https://github.com/sanchaymurugan22-prog/Pramaan-AI/releases/latest)
-- **Instructions**: Open `Pramaan AI-1.0.0.dmg` and drag **Pramaan AI** into your Applications folder. Launch it from Applications or Spotlight.
+- **Download**: [`Pramaan AI Setup 1.0.0.exe`](https://github.com/sanchaymurugan22-prog/Pramaan-AI/releases/latest)
+- **Instructions**: Double-click `Pramaan AI Setup 1.0.0.exe` and follow the on-screen setup prompts. Pramaan AI will be added to your Start Menu and Desktop.
 
 ---
 
 ## 🐧 Linux (Ubuntu, Debian, Fedora, Arch)
 
-- **AppImage**: [`Pramaan AI-1.0.0.AppImage`](https://github.com/sanchaymurugan22-prog/Pramaan-AI/releases/latest)
-- **Debian Package**: [`pramaan-ai-desktop_1.0.0_amd64.deb`](https://github.com/sanchaymurugan22-prog/Pramaan-AI/releases/latest)
-- **Instructions**:
-  - **AppImage**: Right-click -> Properties -> Allow executing file as program (or `chmod +x Pramaan AI-1.0.0.AppImage`), then double-click to run.
-  - **Debian/Ubuntu**: Install via Software Center or `sudo apt install ./pramaan-ai-desktop_1.0.0_amd64.deb`.
+- **Download**: [`Pramaan AI-1.0.0.AppImage`](https://github.com/sanchaymurugan22-prog/Pramaan-AI/releases/latest)
+- **Instructions**: Right-click → Properties → Allow executing file as program (or `chmod +x Pramaan\ AI-1.0.0.AppImage`), then double-click to run.
 
 ---
 
@@ -34,3 +31,17 @@ Choose your Operating System below to download the latest official installer.
 - **RAM**: 16 GB RAM recommended.
 - **Disk Space**: 25 GB free disk space.
 - **Runtime**: Self-contained. No Python, Node.js, Git, or Terminal commands required!
+
+---
+
+## 🔒 Verify Download Integrity
+
+Each release includes a `SHA256SUMS.txt` file. You can verify your download:
+
+```bash
+# macOS / Linux
+shasum -a 256 -c SHA256SUMS.txt
+
+# Windows (PowerShell)
+Get-FileHash "Pramaan AI Setup 1.0.0.exe" -Algorithm SHA256
+```
