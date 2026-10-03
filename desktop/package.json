@@ -61,6 +61,7 @@
     ],
     "mac": {
       "category": "public.app-category.utilities",
+      "artifactName": "${productName}-${version}.${ext}",
       "target": [
         {
           "target": "dmg",
