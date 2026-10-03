@@ -401,8 +401,11 @@ export class ApiError extends Error {
   }
 }
 
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, { credentials: 'same-origin', ...init })
+  const url = path.startsWith('/') ? `${API_BASE}${path}` : path
+  const response = await fetch(url, { credentials: API_BASE ? 'include' : 'same-origin', ...init })
   if (!response.ok) {
     // FastAPI sends errors as {"detail": "..."}; show that message if there is one.
     let message = `${path} returned ${response.status}`
@@ -491,14 +494,14 @@ export const setNativeCheck = (jobId: number, outputId: number, checked: boolean
 // inline=true asks the browser to show the file instead of saving it (used for the infographic preview)
 // Stage 8: an output's text read aloud (MP3), for "Read results aloud"
 export const listenUrl = (jobId: number, outputId: number, version: number) =>
-  `/api/jobs/${jobId}/outputs/${outputId}/listen?v=${version}`
+  `${API_BASE}/api/jobs/${jobId}/outputs/${outputId}/listen?v=${version}`
 
 export const downloadUrl = (jobId: number, outputId: number, format: string, inline = false) =>
-  `/api/jobs/${jobId}/outputs/${outputId}/download?format=${format}${inline ? '&inline=true' : ''}`
+  `${API_BASE}/api/jobs/${jobId}/outputs/${outputId}/download?format=${format}${inline ? '&inline=true' : ''}`
 
 // outputs: only these output types (Stage 9A "What is inside" ticks); empty = all
 export const kitUrl = (jobId: number, outputs: string[] = []) =>
-  `/api/jobs/${jobId}/kit.zip${outputs.length ? `?outputs=${outputs.join(',')}` : ''}`
+  `${API_BASE}/api/jobs/${jobId}/kit.zip${outputs.length ? `?outputs=${outputs.join(',')}` : ''}`
 
 export type KitInfo = {
   job_id: number
@@ -676,7 +679,7 @@ export type SignInfo = {
 }
 export const getSignInfo = (jobId: number) => request<SignInfo>(`/api/jobs/${jobId}/sign-info`)
 export const newVersion = (jobId: number) => request<JobDetail>(`/api/jobs/${jobId}/new-version`, { method: 'POST' })
-export const recordQrUrl = (recordNo: string) => `/api/records/${recordNo}/qr.png`
+export const recordQrUrl = (recordNo: string) => `${API_BASE}/api/records/${recordNo}/qr.png`
 
 // ---- admin (Stage 6B, backend/app/routes/admin.py) ---------------------------------------------
 

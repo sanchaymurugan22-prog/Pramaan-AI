@@ -17,3 +17,6 @@ dist/
 .pytest_cache/
 # logs
 *.log
+.netlify/
+.vercel/
+
