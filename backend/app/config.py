@@ -137,20 +137,19 @@ settings = Settings()
 # 1.4 tokens/second, so 350 tokens is about 4 minutes. Override any of these in .env,
 # e.g. MAX_TOKENS_X_THREAD=250
 DEFAULT_MAX_TOKENS = {
-    "factsheet": 8000,  # raised to avoid cutoff when Sarvam cloud model generates factsheet
-    "x_thread": 350,
-    "linkedin_post": 350,
-    "executive_summary": 450,
-    "infographic": 400,
-    "advisory": 800,
-    "presentation": 900,
-    "video_package": 900,
+    "factsheet": 8000,
+    "x_thread": 2000,
+    "linkedin_post": 2000,
+    "executive_summary": 2000,
+    "infographic": 2000,
+    "advisory": 3000,
+    "presentation": 3000,
+    "video_package": 3000,
 }
 
 
 def max_tokens_for(kind: str) -> int:
     """Token limit for one kind of answer: MAX_TOKENS_<KIND> from .env, or the default above."""
-    val = int(_get(f"MAX_TOKENS_{kind.upper()}", str(DEFAULT_MAX_TOKENS.get(kind, 400))))
-    if kind == "factsheet" and val < 8000:
-        return 8000
-    return val
+    val = int(_get(f"MAX_TOKENS_{kind.upper()}", str(DEFAULT_MAX_TOKENS.get(kind, 800))))
+    min_needed = DEFAULT_MAX_TOKENS.get(kind, 2000)
+    return max(val, min_needed)
