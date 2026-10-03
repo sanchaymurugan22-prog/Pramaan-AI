@@ -138,18 +138,18 @@ settings = Settings()
 # e.g. MAX_TOKENS_X_THREAD=250
 DEFAULT_MAX_TOKENS = {
     "factsheet": 8000,
-    "x_thread": 4000,
-    "linkedin_post": 4000,
-    "executive_summary": 4000,
-    "infographic": 4000,
-    "advisory": 5000,
-    "presentation": 5000,
-    "video_package": 5000,
+    "x_thread": 8000,
+    "linkedin_post": 8000,
+    "executive_summary": 8000,
+    "infographic": 8000,
+    "advisory": 8000,
+    "presentation": 8000,
+    "video_package": 8000,
 }
 
 
 def max_tokens_for(kind: str) -> int:
     """Token limit for one kind of answer: MAX_TOKENS_<KIND> from .env, or the default above."""
-    val = int(_get(f"MAX_TOKENS_{kind.upper()}", str(DEFAULT_MAX_TOKENS.get(kind, 800))))
-    min_needed = DEFAULT_MAX_TOKENS.get(kind, 4000)
+    val = int(_get(f"MAX_TOKENS_{kind.upper()}", str(DEFAULT_MAX_TOKENS.get(kind, 8000))))
+    min_needed = DEFAULT_MAX_TOKENS.get(kind, 8000)
     return max(val, min_needed)

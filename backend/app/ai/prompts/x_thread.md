@@ -4,7 +4,7 @@ Write an X (Twitter) thread of 3 to 5 posts for the public.
 - Do not include IP addresses, file fingerprints or other technical indicators.
 - At most 2 hashtags in the whole thread.
 
-CRITICAL: Do NOT write any thinking process, reasoning, analysis, or <think> tags. Output ONLY raw JSON, starting immediately with the '{' character.
+CRITICAL: Do NOT write any thinking process, reasoning, analysis, or <think> tags. Output ONLY raw JSON, starting immediately with the '{' character. The root JSON object MUST have the key "tweets".
 
 {{settings}}
 

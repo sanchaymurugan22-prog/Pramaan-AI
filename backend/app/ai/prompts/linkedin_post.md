@@ -3,7 +3,7 @@ Write a LinkedIn post for professionals.
 - Do not include IP addresses, file fingerprints or other technical indicators.
 - Up to 5 hashtags, without the # sign.
 
-CRITICAL: Do NOT write any thinking process, reasoning, analysis, or <think> tags. Output ONLY raw JSON, starting immediately with the '{' character.
+CRITICAL: Do NOT write any thinking process, reasoning, analysis, or <think> tags. Output ONLY raw JSON, starting immediately with the '{' character. The root JSON object MUST have the key "paragraphs".
 
 {{settings}}
 

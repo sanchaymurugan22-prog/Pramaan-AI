@@ -251,6 +251,24 @@ def chat_json(
     if data is None:
         raise LLMError("The model did not return valid JSON, even after one retry. Try again.")
 
+    if data:
+        missing = [key for key in schema.get("required", []) if key not in data]
+        if missing:
+            if "tweets" in missing:
+                for alias in ("x_thread", "thread", "posts", "items", "data"):
+                    if alias in data and isinstance(data[alias], list):
+                        data["tweets"] = data.pop(alias)
+                        break
+            if "paragraphs" in missing:
+                for alias in ("posts", "post", "content", "body", "items", "sections"):
+                    if alias in data:
+                        val = data.pop(alias)
+                        if isinstance(val, list):
+                            data["paragraphs"] = val
+                        elif isinstance(val, str):
+                            data["paragraphs"] = [{"text": val, "fact_ids": []}]
+                        break
+
     missing = [key for key in schema.get("required", []) if key not in data]
     if missing and not truncated:
         raise LLMError(f"The model's answer is missing: {', '.join(missing)}. Try again.")
