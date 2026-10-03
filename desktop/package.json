@@ -3,6 +3,7 @@
   "productName": "Pramaan AI",
   "version": "1.0.0",
   "description": "Pramaan AI Desktop Application — Automated Offline Content Transformation & Verification Platform",
+  "homepage": "https://github.com/sanchaymurugan22-prog/Pramaan-AI",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -18,7 +19,10 @@
     "offline-ai",
     "electron"
   ],
-  "author": "Pramaan AI Team",
+  "author": {
+    "name": "Pramaan AI Team",
+    "email": "support@pramaan.ai"
+  },
   "license": "MIT",
   "devDependencies": {
     "electron": "^32.2.0",
