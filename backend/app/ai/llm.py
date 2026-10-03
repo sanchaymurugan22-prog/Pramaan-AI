@@ -177,7 +177,7 @@ def chat(messages: list[dict], max_tokens: int = 256, temperature: float = 0.2, 
         _mock_wait()
         return "Namaste (mock AI)"
 
-    if settings.ai_mode == "local" and not think:
+    if settings.ai_mode in ("local", "cloud") and not think:
         messages = messages + [{"role": "assistant", "content": NO_THINK_PREFILL}]
 
     content, finish_reason, _ = _post({"messages": messages, "max_tokens": max_tokens, "temperature": temperature})
@@ -288,7 +288,7 @@ def _ask_json(messages, schema, max_tokens, temperature, on_progress=None) -> tu
             _schema_supported = False
             return _ask_json(messages, schema, max_tokens, temperature, on_progress)
     else:
-        if settings.ai_mode == "local":
+        if settings.ai_mode in ("local", "cloud"):
             messages = messages + [{"role": "assistant", "content": NO_THINK_PREFILL}]
         body["messages"] = messages
         content, finish_reason, usage = _post(body, stream, on_progress)
