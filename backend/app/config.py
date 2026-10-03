@@ -137,7 +137,7 @@ settings = Settings()
 # 1.4 tokens/second, so 350 tokens is about 4 minutes. Override any of these in .env,
 # e.g. MAX_TOKENS_X_THREAD=250
 DEFAULT_MAX_TOKENS = {
-    "factsheet": 1400,  # was 1100: the local fact sheet was cut off at the limit
+    "factsheet": 3500,  # was 1400: raised to avoid cutoff when generating fact sheet
     "x_thread": 350,
     "linkedin_post": 350,
     "executive_summary": 450,
