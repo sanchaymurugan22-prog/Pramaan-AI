@@ -7,6 +7,8 @@ services:
     buildCommand: "pip install -r backend/requirements.txt && cd frontend && npm install && npm run build && cd .."
     startCommand: "cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.9
       - key: AI_MODE
         value: cloud
       - key: SARVAM_BASE_URL
