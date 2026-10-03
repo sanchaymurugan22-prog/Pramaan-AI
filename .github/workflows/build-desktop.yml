@@ -1,0 +1,167 @@
+name: Build Desktop Application & Official Release
+
+on:
+  push:
+    branches: [ main, desktop-app ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, desktop-app ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Installer on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: mac
+          - os: windows-latest
+            platform: win
+          - os: ubuntu-latest
+            platform: linux
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Frontend Dependencies & Build Frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Install Desktop Dependencies
+        run: |
+          cd desktop
+          npm ci
+
+      - name: Build macOS Artifacts
+        if: matrix.platform == 'mac'
+        run: |
+          cd desktop
+          npm run dist:mac
+
+      - name: Build Windows Artifacts
+        if: matrix.platform == 'win'
+        run: |
+          cd desktop
+          npm run dist:win
+
+      - name: Build Linux Artifacts
+        if: matrix.platform == 'linux'
+        run: |
+          cd desktop
+          npm run dist:linux
+
+      - name: Generate SHA-256 Checksums (macOS / Linux)
+        if: matrix.platform != 'win'
+        run: |
+          cd desktop/dist
+          shasum -a 256 *.dmg *.zip *.AppImage *.deb 2>/dev/null > SHA256SUMS.txt || true
+          cat SHA256SUMS.txt
+
+      - name: Generate SHA-256 Checksums (Windows)
+        if: matrix.platform == 'win'
+        shell: pwsh
+        run: |
+          cd desktop/dist
+          Get-FileHash -Algorithm SHA256 *.exe | ForEach-Object { "$($_.Hash.ToLower())  $($_.Path | Split-Path -Leaf)" } | Out-File -FilePath SHA256SUMS.txt -Encoding utf8
+          Get-Content SHA256SUMS.txt
+
+      - name: Upload Build Artifacts to Workflow Run
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pramaan-AI-${{ matrix.platform }}-artifacts
+          path: |
+            desktop/dist/*.dmg
+            desktop/dist/*.zip
+            desktop/dist/*.exe
+            desktop/dist/*.AppImage
+            desktop/dist/*.deb
+            desktop/dist/SHA256SUMS.txt
+          if-no-files-found: ignore
+
+  release:
+    name: Publish Official GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download All Platform Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Consolidate Artifacts & Compute Master SHA256SUMS.txt
+        run: |
+          mkdir -p release-files
+          find release-artifacts -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" \) -exec cp {} release-files/ \;
+          cd release-files
+          sha256sum * > SHA256SUMS.txt
+          echo "=== MASTER SHA256SUMS ==="
+          cat SHA256SUMS.txt
+
+      - name: Create Official GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-files/*
+          name: Pramaan AI ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          body: |
+            # Pramaan AI ${{ github.ref_name }} — Official Release
+
+            **Pramaan AI (प्रमाण)** is a cross-platform, offline-first desktop platform for automated content transformation and cryptographic verification.
+
+            ---
+
+            ## 📦 Download Official Installers
+
+            | Operating System | Installer Format | Recommended Download |
+            | :--- | :--- | :--- |
+            | 🍎 **macOS** | Disk Image (`.dmg`) / Archive (`.zip`) | **`Pramaan AI-1.0.0.dmg`** |
+            | 🪟 **Windows** | NSIS Installer (`.exe`) | **`Pramaan AI Setup 1.0.0.exe`** |
+            | 🐧 **Linux** | Standalone AppImage / Debian (`.deb`) | **`Pramaan AI-1.0.0.AppImage`** or `pramaan-ai-desktop_1.0.0_amd64.deb` |
+
+            ---
+
+            ## 🚀 First-Time Installation Guide
+
+            1. Download the correct installer for your Operating System above.
+            2. Run the installer to add Pramaan AI to your Applications / Start Menu.
+            3. Launch **Pramaan AI**. The First-Run Setup Wizard will check system hardware requirements (RAM, CPU, disk space) and complete initial AI model configuration.
+            4. Once setup completes, turn **Wi-Fi OFF** — Pramaan AI runs 100% offline with no internet dependency!
+
+            ---
+
+            ## 🔒 Zero Runtime Requirements
+            - **No Python** required by end users.
+            - **No Node.js / npm** required by end users.
+            - **No Terminal** commands or `localhost` URLs needed.
+
+            *Verify download integrity using `SHA256SUMS.txt`.*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

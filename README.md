@@ -13,10 +13,25 @@ Transformation.
 
 | Read next | |
 |---|---|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How it is built: diagram, data flow, security model, offline design, scaling |
-| [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) | The 2-minute demo, step by step |
-| [docs/TEST_REPORT.md](docs/TEST_REPORT.md) | Every feature, how it was tested, and real Sarvam 30B speed |
-| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | The detailed guide to every screen, check and API call |
+| [DOWNLOAD.md](DOWNLOAD.md) | **Download Installers**: Official downloads for macOS, Windows, & Linux |
+| [USER_GUIDE.md](USER_GUIDE.md) | **User Guide**: Step-by-step instructions for all features & offline setup |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | **Deployment Guide**: Architecture, packaging, security & release procedure |
+| [DEVELOPER_BUILD.md](DEVELOPER_BUILD.md) | **Developer Build Guide**: Building installers from source code |
+| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | **Troubleshooting Guide**: Solutions for common runtime errors |
+
+---
+
+# 📥 Download Pramaan AI
+
+Download official cross-platform installers from the [**GitHub Releases**](https://github.com/sanchaymurugan22-prog/Pramaan-AI/releases/latest) page:
+
+- 🍎 **macOS (Intel & Apple Silicon)**: [`Pramaan AI-1.0.0.dmg`](https://github.com/sanchaymurugan22-prog/Pramaan-AI/releases/latest)
+- 🪟 **Windows (10 / 11)**: [`Pramaan AI Setup 1.0.0.exe`](https://github.com/sanchaymurugan22-prog/Pramaan-AI/releases/latest)
+- 🐧 **Linux (Ubuntu / Fedora / Debian)**: [`Pramaan AI-1.0.0.AppImage`](https://github.com/sanchaymurugan22-prog/Pramaan-AI/releases/latest) or `pramaan-ai-desktop_1.0.0_amd64.deb`
+
+> **Note for Users**: Pramaan AI is a self-contained desktop application. You do **NOT** need Python, Node.js, npm, Git, or Terminal commands to install or use Pramaan AI. Simply download the installer for your OS, run it, and complete the First-Run Setup Wizard!
+
+---
 
 ## Features
 
