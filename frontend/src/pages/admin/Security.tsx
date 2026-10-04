@@ -2,7 +2,7 @@
 // (backend/app/app_settings.py): which private data the scanner looks for, extra classification words,
 // sign-out after inactivity, and lockout after wrong passwords. Every change goes into the audit trail.
 import { useEffect, useState } from 'react'
-import { getSecurity, saveSecurity, type SecurityChange, type SecurityState } from '../../api'
+import { getSecurity, saveSecurity, isWebMode, type SecurityChange, type SecurityState } from '../../api'
 import { Icon, type IconName } from '../../components/Icon'
 import { TlpLabel } from '../../components/TlpLabel'
 import { Toggle } from '../../components/Toggle'
@@ -254,8 +254,10 @@ export function Security() {
               </label>
             </div>
             <p className="row gap-8 small count-ok">
-              <Icon name="wifiOff" size={16} />
-              {t("Every session also ends after")} {state.max_session_hours} {t("hours. Internet access: offline only.")}
+              <Icon name={isWebMode ? "wifi" : "wifiOff"} size={16} />
+              {isWebMode
+                ? t("Every session also ends after {hours} hours. Secured via Sarvam Cloud backend.", { hours: state.max_session_hours })
+                : t("Every session also ends after {hours} hours. Internet access: offline only.", { hours: state.max_session_hours })}
             </p>
           </section>
         </div>

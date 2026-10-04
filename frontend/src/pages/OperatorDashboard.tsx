@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { getDashboard, listJobs, pingAi, type AiPing, type AttentionItem, type Dashboard, type Health, type JobSummary } from '../api'
+import { getDashboard, listJobs, pingAi, type AiPing, type AttentionItem, type Dashboard, type Health, type JobSummary, isWebMode } from '../api'
 import { firstName, useAuth } from '../auth'
 import { Icon, type IconName } from '../components/Icon'
 import { JobsTable } from '../components/JobsTable'
@@ -202,12 +202,12 @@ function ThisComputer({ health, data }: { health: Health | null | undefined; dat
 
   return (
     <section className="card card-pad stack gap-14" aria-labelledby="computer-title">
-      <h2 id="computer-title">{t("This computer")}</h2>
+      <h2 id="computer-title">{isWebMode ? t("System status") : t("This computer")}</h2>
       <div className="stack gap-12">
         <CheckRow
           state={backendState}
-          title={health ? t("Fully offline") : health === null ? t("Backend not running") : t("Checking backend…")}
-          detail={health ? t("No internet connection needed") : t("Start it with scripts/start.sh")}
+          title={health ? (isWebMode ? t("Cloud backend active") : t("Fully offline")) : health === null ? t("Backend not running") : t("Checking backend…")}
+          detail={health ? (isWebMode ? t("Connected to Sarvam Cloud API") : t("No internet connection needed")) : t("Start it with scripts/start.sh")}
         />
         <CheckRow
           state={aiState}

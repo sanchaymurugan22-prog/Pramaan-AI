@@ -14,6 +14,7 @@ Rules:
   manage users).
 """
 
+import os
 import re
 import secrets
 import sys
@@ -168,54 +169,64 @@ def needs_setup(db: Session) -> bool:
 
 
 def seed_demo_accounts(db: Session) -> None:
-    """Ensure SIH Judge demo accounts exist for easy evaluation."""
-    judge = find_user(db, "sih.judge")
-    if not judge:
-        judge = User(
-            username="sih.judge",
-            full_name="SIH Evaluation Judge",
-            role="operator",
-            password_hash=hash_password("JudgePassword123!"),
-            employee_id="SIH-2026-JUDGE",
-            email="judge@sih.gov.in",
-            division="Cyber operations",
-            created_at=utc_now(),
-        )
-        db.add(judge)
-    else:
-        judge.role = "operator"
+    """Ensure SIH Judge & standard demo accounts exist for easy evaluation and administration."""
+    admin_pw = os.getenv("ADMIN_PASSWORD", "AdminPassword123!")
+    operator_pw = os.getenv("OPERATOR_PASSWORD", "OperatorPassword123!")
+    reviewer_pw = os.getenv("REVIEWER_PASSWORD", "ReviewerPassword123!")
 
-    reviewer = find_user(db, "reviewer.demo")
-    if not reviewer:
-        reviewer = User(
-            username="reviewer.demo",
-            full_name="Demo Reviewer",
-            role="reviewer",
-            password_hash=hash_password("ReviewerPassword123!"),
-            employee_id="REV-2026-DEMO",
-            email="reviewer@sih.gov.in",
-            division="Cyber operations",
-            created_at=utc_now(),
-        )
-        db.add(reviewer)
-    else:
-        reviewer.role = "reviewer"
+    # 1. Admin accounts ("admin" & "admin.demo")
+    for un in ("admin", "admin.demo"):
+        usr = find_user(db, un)
+        if not usr:
+            usr = User(
+                username=un,
+                full_name="Demo Administrator",
+                role="admin",
+                password_hash=hash_password(admin_pw),
+                employee_id="ADM-2026-DEMO",
+                email="admin@sih.gov.in",
+                division="Administration",
+                created_at=utc_now(),
+            )
+            db.add(usr)
+        else:
+            usr.role = "admin"
 
-    admin_user = find_user(db, "admin.demo")
-    if not admin_user:
-        admin_user = User(
-            username="admin.demo",
-            full_name="Demo Administrator",
-            role="admin",
-            password_hash=hash_password("AdminPassword123!"),
-            employee_id="ADM-2026-DEMO",
-            email="admin@sih.gov.in",
-            division="Administration",
-            created_at=utc_now(),
-        )
-        db.add(admin_user)
-    else:
-        admin_user.role = "admin"
+    # 2. Operator accounts ("operator" & "sih.judge")
+    for un in ("operator", "sih.judge"):
+        usr = find_user(db, un)
+        if not usr:
+            usr = User(
+                username=un,
+                full_name="Demo Operator" if un == "operator" else "SIH Evaluation Judge",
+                role="operator",
+                password_hash=hash_password(operator_pw if un == "operator" else "JudgePassword123!"),
+                employee_id="OP-2026-DEMO",
+                email="operator@sih.gov.in",
+                division="Cyber operations",
+                created_at=utc_now(),
+            )
+            db.add(usr)
+        else:
+            usr.role = "operator"
+
+    # 3. Reviewer accounts ("reviewer.demo" & "reviewer")
+    for un in ("reviewer.demo", "reviewer"):
+        usr = find_user(db, un)
+        if not usr:
+            usr = User(
+                username=un,
+                full_name="Demo Reviewer",
+                role="reviewer",
+                password_hash=hash_password(reviewer_pw),
+                employee_id="REV-2026-DEMO",
+                email="reviewer@sih.gov.in",
+                division="Cyber operations",
+                created_at=utc_now(),
+            )
+            db.add(usr)
+        else:
+            usr.role = "reviewer"
 
     db.commit()
 

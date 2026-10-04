@@ -2,7 +2,7 @@
 // The splash shows once per browser, while the app checks that the backend is running; the language
 // screen keeps the choice in this browser before sign-in, and in the profile after it.
 import { useEffect, useState } from 'react'
-import { getFormOptions, type Health, type Language } from '../../api'
+import { getFormOptions, isWebMode, type Health, type Language } from '../../api'
 import { Icon, type IconName } from '../../components/Icon'
 import { LogoSeal } from '../../components/Logo'
 import { Mandala } from '../../components/Mandala'
@@ -136,7 +136,9 @@ export function LanguagePicker() {
           <p className="notice notice-green language-note">
             <Icon name="globe" size={20} />
             <span>
-              {t("Your choice is saved now. The app's own words are in English or हिन्दी; outputs in all 23 languages are translated offline by Indian AI.")}
+              {isWebMode
+                ? t("Your choice is saved now. The app's own words are in English or हिन्दी; outputs in all 23 languages are translated by Sarvam AI.")
+                : t("Your choice is saved now. The app's own words are in English or हिन्दी; outputs in all 23 languages are translated offline by Indian AI.")}
             </span>
           </p>
         </div>

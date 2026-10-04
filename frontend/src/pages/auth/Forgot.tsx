@@ -2,7 +2,7 @@
 // who checks who you are in person and gives you a one-time password (changed at the next sign-in).
 // (Recovery codes come later.)
 import { useState, type FormEvent } from 'react'
-import { forgotPassword } from '../../api'
+import { forgotPassword, isWebMode } from '../../api'
 import { Icon, type IconName } from '../../components/Icon'
 import { links } from '../../router'
 import { CentredLayout, FormError } from './AuthLayout'
@@ -42,7 +42,7 @@ export function Forgot() {
         </span>
         <div className="stack gap-6">
           <h1 className="auth-title">{t("Reset your password")}</h1>
-          <p className="muted">{t("Pramaan AI works offline, so passwords are reset by your Admin.")}</p>
+          <p className="muted">{isWebMode ? t("Passwords are reset by your Admin or System Administrator.") : t("Pramaan AI works offline, so passwords are reset by your Admin.")}</p>
         </div>
         {sent ? (
           <div className="alert alert-green" role="status">

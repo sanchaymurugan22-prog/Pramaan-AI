@@ -403,6 +403,9 @@ export class ApiError extends Error {
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
 
+/** True when the frontend is deployed as a web application (cloud backend). */
+export const isWebMode = !!API_BASE
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const url = path.startsWith('/') ? `${API_BASE}${path}` : path
   const response = await fetch(url, { credentials: API_BASE ? 'include' : 'same-origin', ...init })

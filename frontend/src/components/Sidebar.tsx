@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import type { Role } from '../api'
+import { isWebMode, type Role } from '../api'
 import { initials, useAuth } from '../auth'
 import { useCounts } from '../counts'
 import type { Route } from '../router'
@@ -143,10 +143,10 @@ export function Sidebar({ route, open, onClose }: Props) {
           <div className="grow" />
 
           <div className="offline-box">
-            <Icon name="wifiOff" size={18} color="var(--green-dark)" strokeWidth={2} />
+            <Icon name={isWebMode ? 'globe' : 'wifiOff'} size={18} color="var(--green-dark)" strokeWidth={2} />
             <span className="stack">
-              <span className="offline-title">{t("Fully offline")}</span>
-              <span className="offline-sub">{t("Nothing leaves this computer")}</span>
+              <span className="offline-title">{isWebMode ? t("Secure cloud AI") : t("Fully offline")}</span>
+              <span className="offline-sub">{isWebMode ? t("Online · Sarvam Cloud") : t("Nothing leaves this computer")}</span>
             </span>
           </div>
 

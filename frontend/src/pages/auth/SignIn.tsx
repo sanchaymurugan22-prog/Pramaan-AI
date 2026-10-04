@@ -47,24 +47,32 @@ export function SignIn({ notice, onSignedIn }: { notice: string; onSignedIn: (us
             🏛️ SIH Judge Evaluation Demo Access
           </div>
           <p style={{ fontSize: '0.83rem', color: 'var(--ink, #1B1D26)', marginBottom: '10px', lineHeight: 1.4 }}>
-            Centralized web prototype access. Click below to auto-fill credentials:
+            Select a role to auto-fill credentials:
           </p>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '8px' }}>
             <button
               type="button"
               className="btn btn-sm btn-navy"
-              style={{ padding: '6px 12px', fontSize: '0.8rem', height: 'auto', minHeight: '34px' }}
-              onClick={() => { setUsername('sih.judge'); setPassword('JudgePassword123!'); }}
+              style={{ padding: '6px 10px', fontSize: '0.8rem', height: 'auto', minHeight: '34px', justifyContent: 'center' }}
+              onClick={() => { setUsername('admin'); setPassword('AdminPassword123!'); }}
             >
-              Fill Judge Admin (sih.judge)
+              Fill Admin
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-saffron"
+              style={{ padding: '6px 10px', fontSize: '0.8rem', height: 'auto', minHeight: '34px', justifyContent: 'center' }}
+              onClick={() => { setUsername('operator'); setPassword('OperatorPassword123!'); }}
+            >
+              Fill Operator
             </button>
             <button
               type="button"
               className="btn btn-sm btn-green"
-              style={{ padding: '6px 12px', fontSize: '0.8rem', height: 'auto', minHeight: '34px' }}
+              style={{ padding: '6px 10px', fontSize: '0.8rem', height: 'auto', minHeight: '34px', justifyContent: 'center' }}
               onClick={() => { setUsername('reviewer.demo'); setPassword('ReviewerPassword123!'); }}
             >
-              Fill Reviewer (reviewer.demo)
+              Fill Reviewer
             </button>
           </div>
         </div>

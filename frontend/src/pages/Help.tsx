@@ -1,7 +1,7 @@
 // Help (Stage 9B): a short guide that works offline, written for the role that is signed in, and the
 // friendly page for addresses a role may not open ("You don't have access") or that do not exist.
 import type { ReactNode } from 'react'
-import type { Role } from '../api'
+import { isWebMode, type Role } from '../api'
 import { useAuth } from '../auth'
 import { Icon } from '../components/Icon'
 import { links } from '../router'
@@ -30,7 +30,7 @@ export function Help() {
         <div className="stack gap-2">
           <div className="eyebrow">{t("Help")}</div>
           <h1>{t("How Pramaan AI works")}</h1>
-          <p className="muted page-lead">{t("Everything here works offline. Nothing you do leaves this computer.")}</p>
+          <p className="muted page-lead">{isWebMode ? t("Secure cloud AI · Access from anywhere.") : t("Everything here works offline. Nothing you do leaves this computer.")}</p>
         </div>
       </div>
 
