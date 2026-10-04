@@ -9,9 +9,9 @@ import { TricolourStrip } from '../../components/TricolourStrip'
 import { t } from '../../i18n'
 
 const FEATURES: { icon: IconName; title: string; note: string }[] = [
-  { icon: 'wifiOff', title: 'Works fully offline', note: 'Your data never leaves this computer' },
-  { icon: 'globe', title: 'Writes in 22 Indian languages', note: 'Plus English, with Indian voices' },
-  { icon: 'shieldCheck', title: 'Signed and verifiable', note: 'A QR code proves every document is genuine' },
+  { icon: 'shieldCheck', title: 'Secure cloud-powered AI', note: 'Runs online with Sarvam AI' },
+  { icon: 'globe', title: 'Access from anywhere', note: 'Use Pramaan AI securely through your browser' },
+  { icon: 'award', title: 'Signed and verifiable', note: 'A QR code proves every document is genuine' },
 ]
 
 export function BrandMark({ big = false }: { big?: boolean }) {

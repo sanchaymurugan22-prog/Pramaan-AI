@@ -37,7 +37,7 @@ export function duration(seconds: number): string {
 // Which AI is in use, for chips and status rows
 export function aiLabel(mode: string | undefined): string {
   if (mode === 'local') return t('Sarvam 30B · local')
-  if (mode === 'cloud') return t('Sarvam · cloud')
+  if (mode === 'cloud') return t('Web · Sarvam Cloud')
   if (mode === 'mock') return t('Mock AI · test answers')
   return t('AI')
 }

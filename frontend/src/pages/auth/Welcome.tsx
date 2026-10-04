@@ -14,17 +14,30 @@ import { BrandMark } from './AuthLayout'
 import { t } from '../../i18n'
 
 const BADGES: { icon: IconName; text: string; tone: string }[] = [
-  { icon: 'wifiOff', text: 'Works fully offline', tone: 'green' },
-  { icon: 'globe', text: '22 Indian languages', tone: 'saffron' },
+  { icon: 'bolt', text: 'Online · Sarvam Cloud AI', tone: 'saffron' },
+  { icon: 'globe', text: '22 Indian languages', tone: 'green' },
   { icon: 'award', text: 'Every document signed', tone: 'navy' },
 ]
 
-export function Splash({ health }: { health: Health | null | undefined }) {
+export function Splash({ health, onComplete }: { health: Health | null | undefined; onComplete?: () => void }) {
   // The bar fills as the check finishes: grey while checking, tricolour when ready, red if not running
   const state = health === undefined ? 'checking' : health === null ? 'down' : 'ready'
+
+  useEffect(() => {
+    if (!onComplete) return
+    const timer = setTimeout(() => {
+      onComplete()
+    }, 1500)
+    return () => clearTimeout(timer)
+  }, [onComplete])
+
   function start() {
     markWelcomed()
-    navigate(storedLanguage() ? links.login : links.language)
+    if (onComplete) {
+      onComplete()
+    } else {
+      navigate(storedLanguage() ? links.login : links.language)
+    }
   }
   return (
     <div className="splash">
@@ -51,7 +64,7 @@ export function Splash({ health }: { health: Health | null | undefined }) {
               <span className={`splash-badge-icon tone-${b.tone}`} aria-hidden="true">
                 <Icon name={b.icon} size={16} />
               </span>
-              {b.text}
+              {t(b.text)}
             </li>
           ))}
         </ul>
@@ -61,11 +74,11 @@ export function Splash({ health }: { health: Health | null | undefined }) {
           <span />
         </div>
         <p className="muted small" role="status">
-          {state === 'checking' && t("Checking this computer…")}
+          {state === 'checking' && t("Starting Pramaan AI…")}
           {state === 'ready' && t("Ready · {n}", { n: aiLabel(health?.ai_mode) })}
-          {state === 'down' && t("The backend is not running. Start it with ./scripts/start.sh")}
+          {state === 'down' && t("Connecting to cloud backend…")}
         </p>
-        <button type="button" className="btn btn-lg btn-navy" onClick={start} disabled={state !== 'ready'} autoFocus>
+        <button type="button" className="btn btn-lg btn-navy" onClick={start} autoFocus>
           {t("Get started")}
           <Icon name="arrowRight" size={18} strokeWidth={2} />
         </button>

@@ -116,8 +116,8 @@ export function SignIn({ notice, onSignedIn }: { notice: string; onSignedIn: (us
           {t("New to Pramaan AI?")} <a href={links.requestAccess} className="link-saffron">{t("Request access")}</a>
         </p>
         <p className="row gap-8 secure-note">
-          <Icon name="lock" size={16} color="var(--green-dark)" />
-          {t("Accounts are stored and encrypted on this computer.")}
+          <Icon name="bolt" size={16} color="var(--saffron-dark)" />
+          {t("Online · Sarvam AI | Secure web application")}
         </p>
       </form>
     </SplitLayout>

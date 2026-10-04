@@ -18,7 +18,7 @@ import { Pending, RequestAccess } from './pages/auth/RequestAccess'
 import { Setup } from './pages/auth/Setup'
 import { SignIn } from './pages/auth/SignIn'
 import { LanguagePicker, Splash } from './pages/auth/Welcome'
-import { storedLanguage, welcomed } from './localPrefs'
+import { storedLanguage } from './localPrefs'
 import { ForcedPasswordChange } from './pages/ChangePassword'
 import { Profile } from './pages/Profile'
 import { Help, NoAccess } from './pages/Help'
@@ -60,6 +60,8 @@ export default function App() {
   const content = useRef<HTMLDivElement>(null)
   const route = useRoute()
   const routeKey = 'id' in route ? `${route.page}/${route.id}` : route.page
+
+  const [showSplash, setShowSplash] = useState(true)
 
   // A new page: close the drawer and move keyboard focus to the page, so screen readers start there
   const firstRoute = useRef(true)
@@ -124,14 +126,16 @@ export default function App() {
   // chosen on the welcome screens. Set before anything is drawn; the pages are keyed by it, so a change redraws all.
   const uiLang = setLanguage(user ? user.language : storedLanguage())
 
+  if (showSplash) {
+    return <Splash health={health} onComplete={() => setShowSplash(false)} />
+  }
+
   if (needsSetup === undefined) {
-    return <p className="muted boot-note">{health === null ? t("The backend is not running. Start it with ./scripts/start.sh") : t("Loading…")}</p>
+    return <p className="muted boot-note">{health === null ? t("Connecting to cloud backend…") : t("Loading…")}</p>
   }
   if (needsSetup) return <Setup onDone={signedIn} />
 
   if (!user || !auth) {
-    // Design 01: the splash, once per browser (or at #/welcome); design 02: the language screen
-    if (route.page === 'welcome' || (!welcomed() && !notice && route.page !== 'language')) return <Splash health={health} />
     if (route.page === 'language') return <LanguagePicker />
     if (route.page === 'request-access') return <RequestAccess />
     if (route.page === 'forgot') return <Forgot />
