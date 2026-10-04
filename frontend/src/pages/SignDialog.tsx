@@ -66,7 +66,7 @@ export function SignDialog({ job, notes, onClose, onSigned }: Props) {
                 <span className="small">
                   {info.signer.error ??
                     (isTest
-                      ? t("For development and the demo: made on this computer, stored encrypted. Not a legal DSC.")
+                      ? t("Web Mode: Secure Server-Side Web Digital Certificate. Seals every file with a verifiable cryptographic key.")
                       : t("Certificate read from the token."))}
                 </span>
               </span>

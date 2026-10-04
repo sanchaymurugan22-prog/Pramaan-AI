@@ -144,6 +144,11 @@ export function WatchFolder() {
         </span>
       </div>
 
+      <div className="alert alert-saffron row gap-10" style={{ marginBottom: '16px', alignItems: 'center' }}>
+        <Icon name="shieldCheck" size={18} />
+        <span><strong>Web Mode: Cloud Watch Dropzone</strong> — Monitors cloud storage dropzones &amp; file uploads. (Desktop mode monitors local PC folders).</span>
+      </div>
+
       {error && <div className="alert alert-red" role="alert">{error}</div>}
       <p className="sr-only" role="status">{notice}</p>
 
