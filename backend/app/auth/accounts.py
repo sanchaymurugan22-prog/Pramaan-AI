@@ -191,16 +191,18 @@ def seed_demo_accounts(db: Session) -> None:
             db.add(usr)
         else:
             usr.role = "admin"
+            usr.password_hash = hash_password(admin_pw)
 
     # 2. Operator accounts ("operator" & "sih.judge")
     for un in ("operator", "sih.judge"):
         usr = find_user(db, un)
+        pw = operator_pw if un == "operator" else "JudgePassword123!"
         if not usr:
             usr = User(
                 username=un,
                 full_name="Demo Operator" if un == "operator" else "SIH Evaluation Judge",
                 role="operator",
-                password_hash=hash_password(operator_pw if un == "operator" else "JudgePassword123!"),
+                password_hash=hash_password(pw),
                 employee_id="OP-2026-DEMO",
                 email="operator@sih.gov.in",
                 division="Cyber operations",
@@ -209,6 +211,7 @@ def seed_demo_accounts(db: Session) -> None:
             db.add(usr)
         else:
             usr.role = "operator"
+            usr.password_hash = hash_password(pw)
 
     # 3. Reviewer accounts ("reviewer.demo" & "reviewer")
     for un in ("reviewer.demo", "reviewer"):
@@ -227,6 +230,7 @@ def seed_demo_accounts(db: Session) -> None:
             db.add(usr)
         else:
             usr.role = "reviewer"
+            usr.password_hash = hash_password(reviewer_pw)
 
     db.commit()
 
